@@ -45,10 +45,12 @@ as `cities.json`; `dataset = SHA-256(canonical json)` folded into 4 felts.
 Map: equirectangular SVG rendered from Natural Earth 110m country outlines
 (public domain). Click to lat/lon is a linear mapping. No map library.
 
-Stake: fixed at **1 GQ** in the GeoQuiz UI (0.001 GQ while testing). GQ is a
-fungible token from a faucet we deploy on testnet (`gq_faucet` binary; Gaylord
-mints). The contracts only know a generic `min_stake` and "same asset as the
-prize", so another game can use another token.
+Stake: one amount, **1 GQ**, for everyone. The champion puts it in the prize
+note (that is the prize); each challenger puts the same amount in their
+challenge note to play. GQ is a fungible token from a faucet we deploy on
+testnet (`gq_faucet` binary; Gaylord mints). The contracts only know a generic
+`min_stake` and "same asset as the prize", so another game can use another
+token or amount.
 
 ## 2. The challenge mechanic (generic)
 
@@ -118,8 +120,8 @@ prize is created); the client refuses a challenge with fewer than
 
 ### Flow
 
-- Champion plays, posts a prize note with the prize amount, `target`,
-  `min_stake`, expiry and the quiz.
+- Champion plays, posts a prize note holding the stake, with `target`,
+  `min_stake` (= the stake), expiry and the quiz.
 - Challenger posts a challenge note (1 GQ) copying the prize storage, then
   plays the same quiz.
 - Winner who is first: one transaction consumes the prize (claim) and their

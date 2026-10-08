@@ -34,7 +34,7 @@ use miden_client::{
 type C = Client<FilesystemKeyStore>;
 
 const STAKE: u64 = 1_000_000; // 1 GQ
-const PRIZE: u64 = 3_000_000; // 3 GQ
+const PRIZE: u64 = STAKE; // the champion stakes the same amount as the challengers
 const LIFETIME_BLOCKS: u32 = 2_000;
 const CITIES: [City; ROUNDS] = [
     City { idx: 0, lat: 13885, lon: 18235, cos: 66 },
