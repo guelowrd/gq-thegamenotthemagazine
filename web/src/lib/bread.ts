@@ -151,7 +151,7 @@ export const setSubmitAttemptListener = (fn: typeof onSubmitAttempt) => (onSubmi
 async function submit(
   client: Client,
   wallet: Wallet,
-  build: (builder: TransactionRequestBuilder) => TransactionRequest,
+  build: (builder: TransactionRequestBuilder) => TransactionRequest | Promise<TransactionRequest>,
   inputNoteIds?: string[],
   importNotes?: Uint8Array[],
 ): Promise<string> {
@@ -164,7 +164,7 @@ async function submit(
       onSubmitAttempt(attempt, ANCHOR_RETRIES);
       const { builder, boundBlock } = await breadBuilder(client, offset);
       lastBound = boundBlock;
-      return requestTransaction(Transaction.createCustomTransaction(address, address, build(builder), inputNoteIds, importNotes));
+      return requestTransaction(Transaction.createCustomTransaction(address, address, await build(builder), inputNoteIds, importNotes));
     },
     importNotes?.length ? 1 : 0,
     ANCHOR_RETRIES,
@@ -182,11 +182,17 @@ export async function postPrize(client: Client, wallet: Wallet, storage: Challen
   await requireGq(wallet, amount);
   const { prize, challenge } = await loadScripts();
   const root = challenge.root().toFelts().map((f) => f.asInt()) as Word4;
-  const note = buildGqNote(parseAccountId(wallet.address!), prize, encodeStorage({ ...storage, challengeRoot: root }), amount);
-  const notes = new NoteArray();
-  notes.push(note);
-  const noteId = note.id().toString();
-  const txId = await submit(client, wallet, (b) => b.withOwnOutputNotes(notes).build());
+  const felts = encodeStorage({ ...storage, challengeRoot: root });
+  const serial = randomSeed();
+  // WASM objects are consumed by the builder, so every attempt builds its own note (same serial,
+  // hence the same note id)
+  const make = () => buildGqNote(parseAccountId(wallet.address!), prize, felts, amount, serial);
+  const noteId = make().id().toString();
+  const txId = await submit(client, wallet, (b) => {
+    const notes = new NoteArray();
+    notes.push(make());
+    return b.withOwnOutputNotes(notes).build();
+  });
   return { txId, noteIds: [noteId] };
 }
 
@@ -196,11 +202,15 @@ export async function postChallenge(client: Client, wallet: Wallet, prize: GqNot
   const { challenge } = await loadScripts();
   const deadline = (await client.getSyncHeight()) + CHALLENGE_WINDOW_BLOCKS;
   const storage = challengeStorage(prize.storage, me, prize.idWord, deadline);
-  const note = buildGqNote(parseAccountId(wallet.address!), challenge, encodeStorage(storage), prize.storage.minStake);
-  const notes = new NoteArray();
-  notes.push(note);
-  const noteId = note.id().toString();
-  const txId = await submit(client, wallet, (b) => b.withOwnOutputNotes(notes).build());
+  const felts = encodeStorage(storage);
+  const serial = randomSeed();
+  const make = () => buildGqNote(parseAccountId(wallet.address!), challenge, felts, prize.storage.minStake, serial);
+  const noteId = make().id().toString();
+  const txId = await submit(client, wallet, (b) => {
+    const notes = new NoteArray();
+    notes.push(make());
+    return b.withOwnOutputNotes(notes).build();
+  });
   return { txId, noteIds: [noteId], deadline };
 }
 
@@ -212,18 +222,20 @@ export async function postChallenge(client: Client, wallet: Wallet, prize: GqNot
 export async function settle(client: Client, wallet: Wallet, challenges: GqNote[], prize: GqNote | undefined, answer: Word4): Promise<Submitted> {
   if (challenges.length === 0) throw new Error("no challenge note to settle");
   const ids = [...(prize ? [prize.id] : []), ...challenges.map((c) => c.id)];
-  const { inputs, files } = await fetchNotesWithProof(ids);
-  const arg = Word.newFromFelts(feltsOf(answer));
-  // the prize script learns the challenge's deadline from the advice map and proves it by commitment
-  const advice = new AdviceMap();
-  for (const input of inputs) {
-    const items = input.note().recipient().storage().items();
-    if (input.note().recipient().script().root().toHex() === (await loadScripts()).challengeRoot) {
-      advice.insert(Word.fromHex(input.id().toString()), feltArray([items[CHALLENGE_DEADLINE_INDEX].asInt()]));
+  const { files } = await fetchNotesWithProof(ids);
+  const { challengeRoot } = await loadScripts();
+  // every WASM object below is consumed by the builder: build them inside each attempt
+  const build = async (b: TransactionRequestBuilder) => {
+    const { inputs } = await fetchNotesWithProof(ids);
+    const advice = new AdviceMap();
+    for (const input of inputs) {
+      // the prize script learns each challenge's deadline from the advice map and proves it by commitment
+      if (input.note().recipient().script().root().toHex() === challengeRoot) {
+        const items = input.note().recipient().storage().items();
+        advice.insert(Word.fromHex(input.id().toString()), feltArray([items[CHALLENGE_DEADLINE_INDEX].asInt()]));
+      }
+      b = b.withExplicitInputNote(input, Word.newFromFelts(feltsOf(answer)));
     }
-  }
-  const build = (b: TransactionRequestBuilder) => {
-    for (const input of inputs) b = b.withExplicitInputNote(input, arg);
     return b.extendAdviceMap(advice).build();
   };
   return { txId: await submit(client, wallet, build, ids, files), noteIds: ids };
@@ -231,9 +243,12 @@ export async function settle(client: Client, wallet: Wallet, challenges: GqNote[
 
 /** Champion after expiry: reclaim a prize note or collect a forfeited challenge stake. */
 export async function collect(client: Client, wallet: Wallet, note: GqNote): Promise<Submitted> {
-  const { inputs, files } = await fetchNotesWithProof([note.id]);
-  const zero = Word.newFromFelts(feltsOf([0n, 0n, 0n, 0n]));
-  return { txId: await submit(client, wallet, (b) => b.withExplicitInputNote(inputs[0], zero).build(), [note.id], files), noteIds: [note.id] };
+  const { files } = await fetchNotesWithProof([note.id]);
+  const build = async (b: TransactionRequestBuilder) => {
+    const { inputs } = await fetchNotesWithProof([note.id]);
+    return b.withExplicitInputNote(inputs[0], Word.newFromFelts(feltsOf([0n, 0n, 0n, 0n]))).build();
+  };
+  return { txId: await submit(client, wallet, build, [note.id], files), noteIds: [note.id] };
 }
 
 function feltsOf(w: Word4): Felt[] {

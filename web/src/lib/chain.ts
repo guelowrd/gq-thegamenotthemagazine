@@ -117,9 +117,9 @@ export async function listGqNotes(client: Client): Promise<GqNote[]> {
   return out.reverse();
 }
 
-/** Builds a prize or challenge note exactly as the contracts expect it. */
-export function buildGqNote(sender: AccountId, script: NoteScript, storageFelts: bigint[], amount: bigint): Note {
-  const recipient = NoteRecipient.fromScript(script, new NoteStorage(feltArray(storageFelts)));
+/** Builds a prize or challenge note exactly as the contracts expect it; `serial` fixes its id. */
+export function buildGqNote(sender: AccountId, script: NoteScript, storageFelts: bigint[], amount: bigint, serial: Word4): Note {
+  const recipient = new NoteRecipient(wordFromFelts(serial), script, new NoteStorage(feltArray(storageFelts)));
   const metadata = new NoteMetadata(sender, NoteType.Public, new NoteTag(GQ_TAG));
   const assets = new NoteAssets([new FungibleAsset(AccountId.fromHex(GQ_FAUCET), amount)]);
   return new Note(assets, metadata, recipient);

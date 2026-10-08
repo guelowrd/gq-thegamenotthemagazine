@@ -45,6 +45,14 @@ export function Play({
     setAnswers((a) => [...a, { lat: latToCd(p.lat), lon: lonToCd(p.lon), t }]);
   }
 
+  // show where the city was for a moment, then move on by itself: no extra click
+  useEffect(() => {
+    if (!lastPick) return;
+    const t = setTimeout(next, 1500);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lastPick]);
+
   function next() {
     const nextRound = round + 1;
     setLastPick(null);
@@ -82,7 +90,6 @@ export function Play({
       {answered && (
         <footer className="play-footer">
           <strong>+{roundScore(current, answered)}</strong>
-          <button onClick={next}>{round + 1 < cities.length ? "Next" : "Done"}</button>
         </footer>
       )}
     </section>

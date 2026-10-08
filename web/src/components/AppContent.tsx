@@ -255,9 +255,10 @@ function GqApp() {
             me={me}
             notes={notes}
             height={height}
-            onSettle={(challenge, prize) =>
-              setMode({ kind: "play-challenger", challenges: prize ? myOpenChallengesOn(prize) : [challenge], prize })
-            }
+            onSettle={(challenge, prize) => {
+              const open = prize ? myOpenChallengesOn(prize) : [];
+              setMode({ kind: "play-challenger", challenges: open.length > 0 ? open : [challenge], prize });
+            }}
             onCollect={(note) => run("Taking it", false, () => collect(client, wallet, note))}
           />
           {!sharedPrize && codeBox}

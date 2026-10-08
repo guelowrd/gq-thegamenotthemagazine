@@ -26,6 +26,7 @@ html, body { margin: 0; background: #f7f9fb; }
 .gq li { padding: 8px 0; border-bottom: 1px solid #e5e9ef; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 .gq .cta { margin: 10px 0 4px; }
 .gq .result { padding: 16px; background: #f4f6f9; border-radius: 8px; }
+.play { width: min(100vw - 32px, 1600px); margin-left: calc(50% - min(100vw - 32px, 1600px) / 2); }
 .world-map { width: 100%; height: auto; display: block; border-radius: 8px; }
 .world-map .sea { fill: #cfe3f5; }
 .world-map .land { fill: #e8efd9; stroke: #8fa36b; stroke-width: 0.6; }
