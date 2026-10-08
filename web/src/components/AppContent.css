@@ -33,3 +33,6 @@ html, body { margin: 0; background: #f7f9fb; }
 .play-header strong { font-size: 1.3rem; }
 .timer { font-variant-numeric: tabular-nums; min-width: 4ch; text-align: right; }
 .gq footer { margin-top: 24px; font-size: 0.8rem; }
+.gq details.code { margin-top: 48px; }
+.gq details.code summary { cursor: pointer; font-size: 0.85rem; }
+.gq details.code input { width: min(100%, 520px); padding: 8px; margin: 8px 8px 0 0; font-family: ui-monospace, Menlo, monospace; font-size: 0.85rem; }

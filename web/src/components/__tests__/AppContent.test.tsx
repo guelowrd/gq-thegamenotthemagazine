@@ -124,7 +124,7 @@ describe("shared prize link, connected as a stranger", () => {
   });
 });
 
-describe("lobby, connected", () => {
+describe("home, connected", () => {
   it("settles all my open challenges on the prize with one play", async () => {
     window.history.replaceState({}, "", "/");
     const second = { ...myChallenge, id: "0xc2", idWord: [2n, 2n, 2n, 2n] as [bigint, bigint, bigint, bigint] };
@@ -136,5 +136,18 @@ describe("lobby, connected", () => {
     expect(buttons).toHaveLength(3);
     fireEvent.click(buttons[1]);
     await screen.findByText(/where is c0\?/i);
+  });
+
+  it("does not list other people's prizes, but opens one from a pasted code", async () => {
+    window.history.replaceState({}, "", "/");
+    chain.notes = [prize];
+    render(<AppContent />);
+    await screen.findByText(/have a code\?/i);
+    expect(screen.queryByText(/2000/)).toBeNull();
+    fireEvent.change(screen.getByPlaceholderText(/paste the link or code/i), {
+      target: { value: "http://x/?prize=0x62ea91634f23d65b4bcae5eb027ea1cad37be056412618cad17de9c3171e1ee8" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /^go$/i }));
+    await screen.findByText(/beat 2000\?/i);
   });
 });

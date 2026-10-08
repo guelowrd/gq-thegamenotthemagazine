@@ -1,6 +1,6 @@
 // The lobby: open prizes to challenge, my challenges to settle, my prizes to collect.
 
-import { GQ_DECIMALS, STAKE } from "@/config";
+import { GQ_DECIMALS } from "@/config";
 import type { GqNote } from "@/lib/chain";
 import { challengeDeadline, type AccountFelts } from "@/lib/notes";
 
@@ -11,12 +11,11 @@ export type LobbyProps = {
   me: AccountFelts | null;
   notes: GqNote[];
   height: number;
-  onChallenge: (prize: GqNote) => void;
   onSettle: (challenge: GqNote, prize: GqNote | undefined) => void;
   onCollect: (note: GqNote) => void;
 };
 
-export function Lobby({ me, notes, height, onChallenge, onSettle, onCollect }: LobbyProps) {
+export function Lobby({ me, notes, height, onSettle, onCollect }: LobbyProps) {
   const prizes = notes.filter((n) => n.kind === "prize" && !n.consumed);
   const challenges = notes.filter((n) => n.kind === "challenge" && !n.consumed);
   const prizeById = (idWord: bigint[]) => notes.find((n) => n.kind === "prize" && n.idWord.every((f, i) => f === idWord[i]));
@@ -24,23 +23,20 @@ export function Lobby({ me, notes, height, onChallenge, onSettle, onCollect }: L
   const expired = (n: GqNote) => height >= deadline(n);
 
   const mine = (n: GqNote) => sameAccount(me, n.storage.champion);
+  // prizes are shared by link only; the app never lists other people's
+  const myPrizes = prizes.filter(mine);
   const myChallenges = challenges.filter((n) => sameAccount(me, n.storage.player));
   const challengesOnMyPrizes = challenges.filter((n) => mine(n) && !sameAccount(me, n.storage.player));
 
   return (
     <div className="lobby">
       <section>
-        <h2>Beat someone</h2>
-        {prizes.length === 0 && <p className="muted">Nobody to beat yet.</p>}
+        {myPrizes.length > 0 && <h2>Yours</h2>}
         <ul>
-          {prizes.map((p) => (
+          {myPrizes.map((p) => (
             <li key={p.id}>
               <strong>{p.storage.target}</strong> · {fmtGq(p.amount)}
-              {mine(p) ? (
-                expired(p) ? <button onClick={() => onCollect(p)}>Take it back</button> : <span className="muted"> yours</span>
-              ) : (
-                !expired(p) && <button onClick={() => onChallenge(p)}>Play ({fmtGq(STAKE)})</button>
-              )}
+              {expired(p) ? <button onClick={() => onCollect(p)}>Take it back</button> : <span className="muted"> waiting for a challenger</span>}
             </li>
           ))}
         </ul>

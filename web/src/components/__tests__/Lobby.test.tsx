@@ -31,21 +31,20 @@ const myChallenge: GqNote = {
   consumed: false,
 };
 
-const handlers = () => ({ onChallenge: vi.fn(), onSettle: vi.fn(), onCollect: vi.fn() });
+const handlers = () => ({ onSettle: vi.fn(), onCollect: vi.fn() });
 
 describe("Lobby", () => {
-  it("lets a stranger challenge an open prize and passes the prize to the handler", () => {
-    const h = handlers();
-    render(<Lobby me={me} notes={[prize]} height={100} {...h} />);
-    fireEvent.click(screen.getByRole("button", { name: /play \(1 GQ\)/i }));
-    expect(h.onChallenge).toHaveBeenCalledWith(prize);
+  it("never lists other people's prizes: they travel by link only", () => {
+    render(<Lobby me={me} notes={[prize]} height={100} {...handlers()} />);
+    expect(screen.queryByText(/3750|2000/)).toBeNull();
+    expect(screen.queryByRole("button")).toBeNull();
   });
 
-  it("shows the champion their own prize without a challenge button, and reclaim only once expired", () => {
+  it("shows the champion their own prize, and take-it-back only once expired", () => {
     const h = handlers();
     const { rerender } = render(<Lobby me={champion} notes={[prize]} height={100} {...h} />);
-    expect(screen.queryByRole("button", { name: /play/i })).toBeNull();
-    expect(screen.getByText(/yours/)).toBeInTheDocument();
+    expect(screen.queryByRole("button")).toBeNull();
+    expect(screen.getByText(/waiting for a challenger/)).toBeInTheDocument();
     rerender(<Lobby me={champion} notes={[prize]} height={1000} {...h} />);
     fireEvent.click(screen.getByRole("button", { name: /take it back/i }));
     expect(h.onCollect).toHaveBeenCalledWith(prize);

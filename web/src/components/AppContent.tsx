@@ -50,7 +50,26 @@ function GqApp() {
   const [error, setError] = useState<string | null>(null);
   const [authCheck, setAuthCheck] = useState<boolean | null>(null);
   const [sharedPrize, setSharedPrize] = useState<GqNote | null>(null);
+  const [code, setCode] = useState("");
   const sharedPrizeId = new URLSearchParams(location.search).get("prize");
+
+  /** A pasted link or id opens the prize exactly like the link would. */
+  const openCode = () => {
+    const id = /0x[0-9a-f]{64}/i.exec(code)?.[0];
+    if (!id) return setError("That is not a game code.");
+    setError(null);
+    fetchGqNote(id).then(setSharedPrize).catch((e) => setError(`Not found: ${e instanceof Error ? e.message : e}`));
+  };
+
+  const codeBox = (
+    <details className="code">
+      <summary className="muted">Have a code?</summary>
+      <input value={code} onChange={(e) => setCode(e.target.value)} placeholder="paste the link or code" />
+      <button className="secondary" onClick={openCode}>
+        Go
+      </button>
+    </details>
+  );
 
   const me = wallet.connected && wallet.address ? accountFelts(parseAccountId(wallet.address)) : null;
 
@@ -210,6 +229,7 @@ function GqApp() {
         {wallet.wallet?.readyState !== "Installed" && <p className="muted">You need the Bread wallet first.</p>}
         {error && <p className="error">{error}</p>}
         {import.meta.env.DEV && authCheck === false && <p className="error">dev: auth-args self-check MISMATCH</p>}
+        {!sharedPrize && codeBox}
       </main>
     );
   }
@@ -235,12 +255,12 @@ function GqApp() {
             me={me}
             notes={notes}
             height={height}
-            onChallenge={challengePrize}
             onSettle={(challenge, prize) =>
               setMode({ kind: "play-challenger", challenges: prize ? myOpenChallengesOn(prize) : [challenge], prize })
             }
             onCollect={(note) => run("Taking it", false, () => collect(client, wallet, note))}
           />
+          {!sharedPrize && codeBox}
         </>
       )}
 
