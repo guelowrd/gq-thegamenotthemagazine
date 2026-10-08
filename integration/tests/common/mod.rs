@@ -6,6 +6,7 @@ use std::collections::BTreeMap;
 
 use anyhow::Result;
 use integration::{
+    deadline_advice,
     felt,
     rules::{pack_answers, Answer, City, ROUNDS},
     scripts::{challenge_script, prize_script},
@@ -28,6 +29,8 @@ pub const STAKE: u64 = 1_000_000; // 1 GQ at 6 decimals
 pub const PRIZE: u64 = 5_000_000;
 pub const FUNDS: u64 = 100_000_000; // every wallet starts with 100 GQ
 pub const EXPIRY: u32 = 100;
+/// A challenge must be settled before this block (well before the prize expires).
+pub const CHALLENGE_DEADLINE: u32 = 40;
 
 pub const CITIES: [City; ROUNDS] = [
     City { idx: 0, lat: 13885, lon: 18235, cos: 66 }, // Paris 48.85N 2.35E
@@ -163,7 +166,7 @@ impl Setup {
 
     /// The challenger's correct challenge note for the prize, already on chain.
     pub fn standard_challenge(&mut self) -> Result<Note> {
-        let storage = self.prize_storage.challenge_for(self.challenger.id(), self.prize.id());
+        let storage = self.prize_storage.challenge_for(self.challenger.id(), self.prize.id(), CHALLENGE_DEADLINE);
         let note = self.challenge_note(self.challenger.id(), self.faucet.id(), STAKE, &storage)?;
         let challenger = self.challenger.clone();
         self.publish(&challenger, &note)?;
@@ -187,18 +190,33 @@ impl Setup {
         self.commit(&executed)
     }
 
-    /// `account` consumes `notes`, each with `arg`.
+    /// `account` consumes `notes`, each with `arg`; the challenge deadlines go in the advice map.
     pub async fn consume(
         &mut self,
         account: AccountId,
         notes: &[&Note],
         arg: Word,
     ) -> Result<ExecutedTransaction, TransactionExecutorError> {
+        let owned: Vec<Note> = notes.iter().map(|n| (*n).clone()).collect();
+        let advice = deadline_advice(&owned).expect("advice");
+        self.consume_with_advice(account, notes, arg, advice).await
+    }
+
+    pub async fn consume_with_advice(
+        &mut self,
+        account: AccountId,
+        notes: &[&Note],
+        arg: Word,
+        advice: Vec<(Word, Vec<miden_client::Felt>)>,
+    ) -> Result<ExecutedTransaction, TransactionExecutorError> {
         let mut tx = self.chain.build_transaction(account);
         let mut args = BTreeMap::new();
         for n in notes {
             tx = tx.authenticated_input_note(n.id());
             args.insert(n.id(), arg);
+        }
+        for (k, v) in advice {
+            tx = tx.add_advice_map_entry(k, v);
         }
         tx.extend_note_args(args).build().expect("tx builds").execute().await
     }

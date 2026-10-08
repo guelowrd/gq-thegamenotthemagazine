@@ -19,8 +19,9 @@ import {
 import { Transaction } from "@miden-sdk/miden-wallet-adapter-base";
 import type { useMidenFiWallet } from "@miden-sdk/miden-wallet-adapter-react";
 import { buildGqNote, fetchNotesWithProof, feltArray, loadScripts, parseAccountId, syncGq, type Client, type GqNote } from "./chain";
-import { GQ_FAUCET, NETWORK_POLL_INTERVAL_MS, NETWORK_POLL_TIMEOUT_MS } from "@/config";
+import { CHALLENGE_WINDOW_BLOCKS, GQ_FAUCET, NETWORK_POLL_INTERVAL_MS, NETWORK_POLL_TIMEOUT_MS } from "@/config";
 import { challengeStorage, encodeStorage, type AccountFelts, type ChallengeStorage } from "./notes";
+import { CHALLENGE_DEADLINE_INDEX } from "./notes";
 import { randomSeed, type Word4 } from "./quiz";
 import authVectors from "../../../rules/auth_vectors.json";
 
@@ -157,19 +158,22 @@ export async function postPrize(client: Client, wallet: Wallet, storage: Challen
   const notes = new NoteArray();
   notes.push(note);
   const noteId = note.id().toString();
-  return { txId: await submit(client, wallet, (b) => b.withOwnOutputNotes(notes).build()), noteIds: [noteId] };
+  const txId = await submit(client, wallet, (b) => b.withOwnOutputNotes(notes).build());
+  return { txId, noteIds: [noteId] };
 }
 
 /** Challenger: post a challenge note bound to `prize`, staking `prize.storage.minStake`. */
-export async function postChallenge(client: Client, wallet: Wallet, prize: GqNote, me: AccountFelts): Promise<Submitted> {
+export async function postChallenge(client: Client, wallet: Wallet, prize: GqNote, me: AccountFelts): Promise<Submitted & { deadline: number }> {
   await requireGq(wallet, prize.storage.minStake);
   const { challenge } = await loadScripts();
-  const storage = challengeStorage(prize.storage, me, prize.idWord);
+  const deadline = (await client.getSyncHeight()) + CHALLENGE_WINDOW_BLOCKS;
+  const storage = challengeStorage(prize.storage, me, prize.idWord, deadline);
   const note = buildGqNote(parseAccountId(wallet.address!), challenge, encodeStorage(storage), prize.storage.minStake);
   const notes = new NoteArray();
   notes.push(note);
   const noteId = note.id().toString();
-  return { txId: await submit(client, wallet, (b) => b.withOwnOutputNotes(notes).build()), noteIds: [noteId] };
+  const txId = await submit(client, wallet, (b) => b.withOwnOutputNotes(notes).build());
+  return { txId, noteIds: [noteId], deadline };
 }
 
 /**
@@ -180,9 +184,17 @@ export async function settle(client: Client, wallet: Wallet, challenge: GqNote, 
   const ids = prize ? [prize.id, challenge.id] : [challenge.id];
   const { inputs, files } = await fetchNotesWithProof(ids);
   const arg = Word.newFromFelts(feltsOf(answer));
+  // the prize script learns the challenge's deadline from the advice map and proves it by commitment
+  const advice = new AdviceMap();
+  for (const input of inputs) {
+    const items = input.note().recipient().storage().items();
+    if (input.note().recipient().script().root().toHex() === (await loadScripts()).challengeRoot) {
+      advice.insert(Word.fromHex(input.id().toString()), feltArray([items[CHALLENGE_DEADLINE_INDEX].asInt()]));
+    }
+  }
   const build = (b: TransactionRequestBuilder) => {
     for (const input of inputs) b = b.withExplicitInputNote(input, arg);
-    return b.build();
+    return b.extendAdviceMap(advice).build();
   };
   return { txId: await submit(client, wallet, build, ids, files), noteIds: ids };
 }

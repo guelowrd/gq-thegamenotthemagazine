@@ -70,7 +70,7 @@ async fn claim_without_challenge_note_fails() -> Result<()> {
 async fn claim_with_tampered_challenge_fails() -> Result<()> {
     let mut s = setup(1000)?;
     // same player, same prize id, but the challenge copies different game data
-    let mut storage = s.prize_storage.challenge_for(s.challenger.id(), s.prize.id());
+    let mut storage = s.prize_storage.challenge_for(s.challenger.id(), s.prize.id(), CHALLENGE_DEADLINE);
     storage.game[8 + 1] = felt(0); // move the first city
     let challenge = s.challenge_note(s.challenger.id(), s.faucet.id(), STAKE, &storage)?;
     let creator = s.challenger.clone();
@@ -86,7 +86,7 @@ async fn claim_with_tampered_challenge_fails() -> Result<()> {
 async fn claim_with_someone_elses_challenge_fails() -> Result<()> {
     let mut s = setup(1000)?;
     // the stranger posted a challenge; the challenger tries to use it
-    let storage = s.prize_storage.challenge_for(s.stranger.id(), s.prize.id());
+    let storage = s.prize_storage.challenge_for(s.stranger.id(), s.prize.id(), CHALLENGE_DEADLINE);
     let challenge = s.challenge_note(s.stranger.id(), s.faucet.id(), STAKE, &storage)?;
     let creator = s.stranger.clone();
     s.publish(&creator, &challenge)?;
@@ -100,7 +100,7 @@ async fn claim_with_someone_elses_challenge_fails() -> Result<()> {
 #[tokio::test(flavor = "multi_thread")]
 async fn claim_with_small_stake_fails() -> Result<()> {
     let mut s = setup(1000)?;
-    let storage = s.prize_storage.challenge_for(s.challenger.id(), s.prize.id());
+    let storage = s.prize_storage.challenge_for(s.challenger.id(), s.prize.id(), CHALLENGE_DEADLINE);
     let challenge = s.challenge_note(s.challenger.id(), s.faucet.id(), STAKE - 1, &storage)?;
     let creator = s.challenger.clone();
     s.publish(&creator, &challenge)?;
@@ -200,6 +200,57 @@ async fn settle_after_expiry_fails() -> Result<()> {
     s.jump_to(EXPIRY)?;
     let r = s.consume(s.challenger.id(), &[&challenge], answer_word(&perfect_answers())).await;
     assert!(r.is_err());
+    Ok(())
+}
+
+// --- challenge deadline (shorter than the prize expiry) -----------------------------------
+
+#[tokio::test(flavor = "multi_thread")]
+async fn challenge_deadline_cuts_settle_short_and_opens_collect() -> Result<()> {
+    let mut s = setup(1000)?;
+    let challenge = s.standard_challenge()?;
+    s.jump_to(CHALLENGE_DEADLINE)?;
+    assert!(CHALLENGE_DEADLINE < EXPIRY);
+    let r = s.consume(s.challenger.id(), &[&challenge], answer_word(&perfect_answers())).await;
+    assert!(r.is_err(), "settle at the challenge deadline must fail even though the prize is open");
+    let r = s
+        .consume(s.challenger.id(), &[&s.prize.clone(), &challenge], answer_word(&perfect_answers()))
+        .await;
+    assert!(r.is_err(), "claiming with an expired challenge must fail");
+    let before = s.balance(s.champion.id());
+    let tx = s
+        .consume(s.champion.id(), &[&challenge], Word::default())
+        .await
+        .expect("champion collects from the challenge deadline on");
+    s.commit(&tx)?;
+    assert_eq!(s.balance(s.champion.id()), before + STAKE);
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn challenge_deadline_cannot_outlive_the_prize() -> Result<()> {
+    let mut s = setup(1000)?;
+    let storage = s.prize_storage.challenge_for(s.challenger.id(), s.prize.id(), EXPIRY + 1_000);
+    let challenge = s.challenge_note(s.challenger.id(), s.faucet.id(), STAKE, &storage)?;
+    let creator = s.challenger.clone();
+    s.publish(&creator, &challenge)?;
+    s.jump_to(EXPIRY)?;
+    let r = s.consume(s.challenger.id(), &[&challenge], answer_word(&perfect_answers())).await;
+    assert!(r.is_err(), "the prize expiry bounds the challenge deadline");
+    let tx = s.consume(s.champion.id(), &[&challenge], Word::default()).await.expect("collect at prize expiry");
+    s.commit(&tx)?;
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn claim_with_a_lied_about_deadline_fails() -> Result<()> {
+    let mut s = setup(1000)?;
+    let challenge = s.standard_challenge()?;
+    let advice = vec![(challenge.id().as_word(), vec![felt(CHALLENGE_DEADLINE as u64 + 1)])];
+    let r = s
+        .consume_with_advice(s.challenger.id(), &[&s.prize.clone(), &challenge], answer_word(&perfect_answers()), advice)
+        .await;
+    assert!(r.is_err(), "the advised deadline must match the note's storage");
     Ok(())
 }
 

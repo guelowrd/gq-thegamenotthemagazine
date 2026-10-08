@@ -14,3 +14,15 @@ pub const GQ_TAG: u32 = 0x4751_0001;
 pub fn felt(v: u64) -> miden_client::Felt {
     miden_client::Felt::new(v).expect("value below the field modulus")
 }
+
+/// The advice-map entries a transaction consuming `notes` needs: under each challenge note's id,
+/// that note's `challenge_deadline` (storage item 40), which the prize script verifies by
+/// commitment.
+pub fn deadline_advice(notes: &[miden_client::note::Note]) -> anyhow::Result<Vec<(miden_client::Word, Vec<miden_client::Felt>)>> {
+    let root = scripts::challenge_script()?.root();
+    Ok(notes
+        .iter()
+        .filter(|n| n.script().root() == root)
+        .map(|n| (n.id().as_word(), vec![n.recipient().storage().items()[storage::CHALLENGE_DEADLINE_INDEX]]))
+        .collect())
+}

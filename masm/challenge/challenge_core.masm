@@ -4,19 +4,26 @@
 #! CHALLENGE note holding their stake, bound to one prize. Whoever beats the target with a verified
 #! answer takes the prize; a challenger who does not loses the stake to the champion.
 #!
-#! Both notes share one storage layout (40 felts). A challenge note is its prize note's storage
-#! with `player` and `PRIZE_ID` filled in, which is what lets the prize recognise it by storage
-#! commitment at claim time.
+#! Both notes share one storage layout (44 felts). A challenge note is its prize note's storage
+#! with `player`, `PRIZE_ID` and `challenge_deadline` filled in, which is what lets the prize
+#! recognise it by storage commitment at claim time: the claimant supplies the challenge's deadline
+#! through the advice map (key = the challenge note id), and the recomputed commitment only
+#! matches if that is the deadline the note really carries.
 #!
-#!   0      version        = 1
-#!   1      expiry_block   prize lifetime; also the challenge deadline
-#!   2      target         score to beat (strictly greater wins)
-#!   3      min_stake      minimum challenge amount, in the prize's asset
-#!   4..5   champion       [suffix, prefix]
-#!   6..7   player         [suffix, prefix]   zero in a prize note
-#!   8..11  PRIZE_ID       zero in a prize note
-#!  12..15  CHALLENGE_ROOT script root of challenge.masm
-#!  16..39  GAME DATA      opaque here; the game's `score` procedure reads it
+#!   0      version            = 1
+#!   1      expiry_block       prize lifetime (claim window)
+#!   2      target             score to beat (strictly greater wins)
+#!   3      min_stake          minimum challenge amount, in the prize's asset
+#!   4..5   champion           [suffix, prefix]
+#!   6..7   player             [suffix, prefix]   zero in a prize note
+#!   8..11  PRIZE_ID           zero in a prize note
+#!  12..15  CHALLENGE_ROOT     script root of challenge.masm
+#!  16..39  GAME DATA          opaque here; the game's `score` procedure reads it
+#!  40      challenge_deadline block by which the player must settle; zero in a prize note
+#!  41..43  reserved (zero)
+#!
+#! A challenge settles before `min(challenge_deadline, expiry_block)` and the champion collects
+#! from that block on, so a challenger cannot pick a deadline past the prize's own life.
 #!
 #! The game plugs in one procedure, `gq::score::score`: [a0, a1, a2, a3, data_ptr] -> [score].
 #!
@@ -40,7 +47,7 @@ use gq::score
 # CONSTANTS
 # =================================================================================================
 
-pub const NUM_STORAGE_ITEMS = 40
+pub const NUM_STORAGE_ITEMS = 44
 pub const STORAGE_PTR = 0
 pub const VERSION_PTR = 0
 pub const EXPIRY_PTR = 1
@@ -53,14 +60,16 @@ pub const PLAYER_PREFIX_PTR = 7
 pub const PRIZE_ID_PTR = 8
 pub const CHALLENGE_ROOT_PTR = 12
 pub const GAME_DATA_PTR = 16
+pub const CHALLENGE_DEADLINE_PTR = 40
 
 # scratch memory
-const EXPECTED_PTR = 64              # expected challenge storage (40 felts)
+const EXPECTED_PTR = 64              # expected challenge storage (44 felts)
 const EXPECTED_PLAYER_SUFFIX_PTR = 70
 const EXPECTED_PLAYER_PREFIX_PTR = 71
 const EXPECTED_PRIZE_ID_PTR = 72
-const EXPECTED_COMMITMENT_PTR = 104
-const FOUND_PTR = 108
+const EXPECTED_DEADLINE_PTR = 104
+const EXPECTED_COMMITMENT_PTR = 108
+const FOUND_PTR = 112
 const ASSET_PTR = 128                # this note's assets (up to 16 x 8 felts)
 
 pub const VERSION = 1
@@ -70,7 +79,7 @@ pub const CLAIM_FUZZ = 64
 # ERRORS
 # =================================================================================================
 
-const ERR_STORAGE_ITEMS = "challenge: note storage must hold exactly 40 items"
+const ERR_STORAGE_ITEMS = "challenge: note storage must hold exactly 44 items"
 const ERR_VERSION = "challenge: unsupported storage version"
 const ERR_EXPIRED = "challenge: the deadline has passed"
 const ERR_NOT_EXPIRED = "challenge: the deadline has not passed yet"
@@ -139,6 +148,36 @@ pub proc assert_after_expiry
     exec.before_expiry assertz.err=ERR_NOT_EXPIRED
 end
 
+#! The block a challenge note stops being settleable: the earlier of its own deadline and the
+#! prize expiry.
+#!
+#! Inputs:  []
+#! Outputs: [deadline]
+proc challenge_deadline
+    mem_load.CHALLENGE_DEADLINE_PTR mem_load.EXPIRY_PTR u32min
+end
+
+#! Inputs:  []
+#! Outputs: [before_deadline]
+proc before_challenge_deadline
+    exec.tx::get_reference_block_number exec.challenge_deadline
+    # => [deadline, ref_block]
+    lt
+end
+
+#! Inputs:  []
+#! Outputs: []
+pub proc assert_before_challenge_deadline
+    exec.before_challenge_deadline assert.err=ERR_EXPIRED
+    push.CLAIM_FUZZ exec.tx::update_expiration_block_delta
+end
+
+#! Inputs:  []
+#! Outputs: []
+pub proc assert_after_challenge_deadline
+    exec.before_challenge_deadline assertz.err=ERR_NOT_EXPIRED
+end
+
 # SCORE
 # =================================================================================================
 
@@ -203,13 +242,13 @@ end
 # CLAIM CHECK
 # =================================================================================================
 
-#! Computes the storage commitment the consumer's challenge note for this prize must have, and
-#! stores it at EXPECTED_COMMITMENT_PTR.
+#! Computes the storage commitment the consumer's challenge note for this prize must have, given
+#! the deadline that note claims, and stores it at EXPECTED_COMMITMENT_PTR.
 #!
-#! Inputs:  []
+#! Inputs:  [challenge_deadline]
 #! Outputs: []
 proc compute_expected_challenge_commitment
-    # copy the 10 storage words
+    # copy the 11 storage words
     padw mem_loadw_le.0  mem_storew_le.64 dropw
     padw mem_loadw_le.4  mem_storew_le.68 dropw
     padw mem_loadw_le.8  mem_storew_le.72 dropw
@@ -220,6 +259,10 @@ proc compute_expected_challenge_commitment
     padw mem_loadw_le.28 mem_storew_le.92 dropw
     padw mem_loadw_le.32 mem_storew_le.96 dropw
     padw mem_loadw_le.36 mem_storew_le.100 dropw
+    padw mem_loadw_le.40 mem_storew_le.104 dropw
+
+    # challenge_deadline as claimed by the consumer (the commitment check proves it)
+    mem_store.EXPECTED_DEADLINE_PTR
 
     # player = consumer
     exec.active_account::get_id
@@ -239,6 +282,9 @@ end
 #! is acceptable; sets FOUND_PTR when it is. Aborts if a matching note carries the wrong asset or
 #! too small a stake.
 #!
+#! The advice map must hold, under the id of every challenge-script input note, that note's
+#! `challenge_deadline` (one felt); the recomputed commitment proves the value.
+#!
 #! Inputs:  [i]
 #! Outputs: [i]
 proc check_input_note
@@ -248,6 +294,14 @@ proc check_input_note
     eqw movdn.8 dropw dropw
     # => [root_matches, i]
     if.true
+        dup exec.input_note::get_note_id
+        # => [NOTE_ID, i]
+        adv.push_mapval adv_push
+        # => [challenge_deadline, NOTE_ID, i]
+        movdn.4 dropw
+        # => [challenge_deadline, i]
+        exec.compute_expected_challenge_commitment
+        # => [i]
         dup exec.input_note::get_storage_info
         # => [COMMITMENT, num_items, i]
         movup.4 drop
@@ -281,7 +335,6 @@ end
 #! Outputs: []
 pub proc assert_challenge_present
     exec.load_own_asset
-    exec.compute_expected_challenge_commitment
     push.0 mem_store.FOUND_PTR
 
     exec.tx::get_num_input_notes push.0

@@ -73,37 +73,47 @@ prize must know the challenge script's root; it is written into the prize
 storage by the champion's client and cross-checked by every client, never
 hardcoded.
 
-### Storage (40 felts, identical layout for both notes)
+### Storage (44 felts, identical layout for both notes)
 
 ```
- 0      version          = 1
- 1      expiry_block     prize lifetime; also the challenge deadline
- 2      target           champion's score to beat (strictly greater wins)
- 3      min_stake        minimum challenge amount, in the prize's asset
- 4..5   champion         [suffix, prefix]  (P2ID convention)
- 6..7   player           [suffix, prefix]  zero in a prize note
- 8..11  PRIZE_ID         zero in a prize note
-12..15  CHALLENGE_ROOT   challenge.masm script root
-16..39  GAME DATA        opaque to the core; GeoQuiz: SEED(4) DATASET(4) 4×{city,lat,lon,cos}
+ 0      version            = 1
+ 1      expiry_block       prize lifetime (~24 h = 28 800 blocks at 3 s)
+ 2      target             champion's score to beat (strictly greater wins)
+ 3      min_stake          minimum challenge amount, in the prize's asset
+ 4..5   champion           [suffix, prefix]  (P2ID convention)
+ 6..7   player             [suffix, prefix]  zero in a prize note
+ 8..11  PRIZE_ID           zero in a prize note
+12..15  CHALLENGE_ROOT     challenge.masm script root
+16..39  GAME DATA          opaque to the core; GeoQuiz: SEED(4) DATASET(4) 4×{city,lat,lon,cos}
+40      challenge_deadline block by which the player must settle; zero in a prize note
+41..43  reserved (zero)
 ```
 
-A challenge note is a copy of its prize note's storage with `player` and
-`PRIZE_ID` filled in. Both notes are **public**, tagged `GQ_TAG` (one u32 for
-the app), and carry GQ.
+A challenge note is a copy of its prize note's storage with `player`,
+`PRIZE_ID` and `challenge_deadline` filled in. The deadline is short on purpose
+(~6 min = 120 blocks, two or three plays of the game): once the stake is down,
+the challenger gets one sitting, not hours to rehearse the same four cities.
+A challenge settles before `min(challenge_deadline, expiry_block)` and the
+champion collects from that block on, so a challenger cannot pick a deadline
+past the prize's own life. Both notes are **public**, tagged `GQ_TAG` (one u32
+for the app), and carry GQ.
 
 ### Binding a challenge to its prize (the claim check)
 
 The kernel exposes other input notes' script root, storage commitment and
 initial assets, not their storage contents. So the prize script:
 
-1. copies its own storage to memory, sets `player = active_account::get_id()`
-   and `PRIZE_ID = active_note::get_note_id()`;
-2. hashes the 40 felts with `note::compute_storage_commitment`;
-3. loops `0..tx::get_num_input_notes()` for an input note whose
-   `input_note::get_script_root(i) == CHALLENGE_ROOT`, whose
-   `input_note::get_storage_info(i).commitment` equals the hash, and whose
-   initial assets hold ≥ `min_stake` of the prize's asset;
-4. aborts if none.
+1. loops `0..tx::get_num_input_notes()` for input notes whose
+   `input_note::get_script_root(i) == CHALLENGE_ROOT`;
+2. for each, reads that note's `challenge_deadline` from the advice map (key =
+   the note id; the claimant supplies it) and builds the storage the note must
+   have: its own storage with `player = active_account::get_id()`,
+   `PRIZE_ID = active_note::get_note_id()` and that deadline;
+3. hashes the 44 felts with `note::compute_storage_commitment` and compares
+   with `input_note::get_storage_info(i).commitment`; a lie about the deadline,
+   the player, the prize or the quiz hashes differently;
+4. checks the note's initial assets hold ≥ `min_stake` of the prize's asset;
+5. aborts if no note passes.
 
 A challenge note with altered quiz data, another player or another prize id
 hashes differently and cannot claim.
@@ -114,9 +124,9 @@ hashes differently and cannot claim.
 back-dated, so every before-expiry path calls
 `tx::update_expiration_block_delta(CLAIM_FUZZ)`; a back-dated block then buys
 at most `CLAIM_FUZZ` blocks. After-expiry paths cannot be forged forward.
-The claim window is the prize lifetime (`PRIZE_LIFETIME_BLOCKS`, set when the
-prize is created); the client refuses a challenge with fewer than
-`MIN_CHALLENGE_WINDOW_BLOCKS` left.
+The prize lives `PRIZE_LIFETIME_BLOCKS` (~24 h); a challenge must be settled
+within `CHALLENGE_WINDOW_BLOCKS` (~6 min) of its creation; the client refuses
+a challenge on a prize with fewer than `MIN_CHALLENGE_WINDOW_BLOCKS` left.
 
 ### Flow
 
@@ -126,10 +136,10 @@ prize is created); the client refuses a challenge with fewer than
   plays the same quiz.
 - Winner who is first: one transaction consumes the prize (claim) and their
   challenge note (settle, win): prize plus stake back.
-- Later winners: settle their challenge note alone (refund) before expiry.
+- Later winners: settle their challenge note alone (refund) before its deadline.
 - Loser: the UI submits the real answers; the script forfeits the stake to the
-  champion as a public P2ID. If they never submit, the champion collects after
-  expiry. Prize closure never refunds challenges.
+  champion as a public P2ID. If they never submit, the champion collects from
+  the challenge deadline on. Prize closure never refunds challenges.
 - Champion reclaims an unclaimed prize after expiry.
 
 ### Accounts and signer

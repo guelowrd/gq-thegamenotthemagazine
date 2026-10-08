@@ -12,6 +12,7 @@ use std::{sync::Arc, time::Duration};
 
 use anyhow::{Context, Result};
 use integration::{
+    deadline_advice,
     faucet_api::{request_fee_tokens, TESTNET_FAUCET_API},
     felt,
     funding::ensure_accounts_funded,
@@ -36,6 +37,7 @@ type C = Client<FilesystemKeyStore>;
 const STAKE: u64 = 1_000_000; // 1 GQ
 const PRIZE: u64 = STAKE; // the champion stakes the same amount as the challengers
 const LIFETIME_BLOCKS: u32 = 2_000;
+const CHALLENGE_WINDOW_BLOCKS: u32 = 200;
 const CITIES: [City; ROUNDS] = [
     City { idx: 0, lat: 13885, lon: 18235, cos: 66 },
     City { idx: 1, lat: 6709, lon: 13683, cos: 92 },
@@ -89,7 +91,7 @@ async fn main() -> Result<()> {
     println!("prize note {}", prize.id().to_hex());
 
     // --- loser challenges and settles with a losing answer: stake forfeited to the champion
-    let storage = prize_storage.challenge_for(loser.id(), prize.id());
+    let storage = prize_storage.challenge_for(loser.id(), prize.id(), client.get_sync_height().await?.as_u32() + CHALLENGE_WINDOW_BLOCKS);
     let ch = make_note(&mut client, loser.id(), challenge.clone(), &storage, FungibleAsset::new(gq, STAKE)?)?;
     post(&mut client, loser.id(), &ch).await?;
     let bad = CITIES.map(|c| Answer { lat: (c.lat + 9000) % 18000, lon: c.lon, t: 100 });
@@ -97,7 +99,7 @@ async fn main() -> Result<()> {
     println!("loser settled: stake forfeited (public P2ID to the champion)");
 
     // --- winner challenges and claims prize + stake
-    let storage = prize_storage.challenge_for(winner.id(), prize.id());
+    let storage = prize_storage.challenge_for(winner.id(), prize.id(), client.get_sync_height().await?.as_u32() + CHALLENGE_WINDOW_BLOCKS);
     let ch = make_note(&mut client, winner.id(), challenge, &storage, FungibleAsset::new(gq, STAKE)?)?;
     post(&mut client, winner.id(), &ch).await?;
     let good = CITIES.map(|c| Answer { lat: c.lat, lon: c.lon, t: 200 });
@@ -133,8 +135,10 @@ async fn post(client: &mut C, account: AccountId, note: &Note) -> Result<()> {
 async fn consume(client: &mut C, account: AccountId, notes: &[(&Note, Word)]) -> Result<()> {
     // the notes are public and tagged GQ_TAG, so a sync brings them into the store
     client.sync_state().await?;
+    let owned: Vec<Note> = notes.iter().map(|(n, _)| (*n).clone()).collect();
     let request = TransactionRequestBuilder::new()
         .input_notes(notes.iter().map(|(n, w)| ((*n).clone(), Some(*w))))
+        .extend_advice_map(deadline_advice(&owned)?)
         .build()?;
     let tx = client.submit_new_transaction(account, request).await?;
     println!("  consume tx {}", tx.to_hex());

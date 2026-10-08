@@ -9,8 +9,15 @@ export const GQ_DECIMALS = 6;
 // The stake of the GeoQuiz UI: the champion puts it in the prize note, each challenger puts the
 // same amount in their challenge note. The contracts only know `min_stake`.
 export const STAKE: bigint = BigInt(import.meta.env.VITE_GQ_STAKE ?? "1000000"); // 1 GQ
-export const PRIZE_LIFETIME_BLOCKS = 2_000; // claim window, in blocks
-export const MIN_CHALLENGE_WINDOW_BLOCKS = 100; // refuse to challenge a prize about to expire
+// Testnet makes a block about every 3 s.
+export const BLOCK_SECONDS = 3;
+// A prize stays open about a day: time for people to see the post and come play.
+export const PRIZE_LIFETIME_BLOCKS = Math.round((24 * 3600) / BLOCK_SECONDS); // 28 800
+// A challenge must be settled within ~2-3 plays of the game (4 rounds x 15 s, plus proving),
+// so a challenger cannot sit on a stake and rehearse the same four cities.
+export const CHALLENGE_WINDOW_BLOCKS = Math.round((6 * 60) / BLOCK_SECONDS); // 120
+// Refuse to challenge a prize that will expire before the challenge window ends.
+export const MIN_CHALLENGE_WINDOW_BLOCKS = CHALLENGE_WINDOW_BLOCKS + 20;
 
 // Where the assembled note scripts live (written by `cargo run --bin build_scripts`).
 export const PRIZE_SCRIPT_URL = "/scripts/prize.bin";

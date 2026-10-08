@@ -7,7 +7,8 @@ import type { Word4 } from "./quiz";
 /** One tag for every GQ note on chain; clients sync it and filter by script root. */
 export const GQ_TAG = 0x47510001;
 export const STORAGE_VERSION = 1n;
-export const NUM_STORAGE_ITEMS = 40;
+export const NUM_STORAGE_ITEMS = 44;
+export const CHALLENGE_DEADLINE_INDEX = 40;
 
 /** An account id as the two felts the scripts compare: [suffix, prefix]. */
 export type AccountFelts = { suffix: bigint; prefix: bigint };
@@ -25,6 +26,8 @@ export type ChallengeStorage = {
   seed: Word4;
   dataset: Word4;
   cities: City[];
+  /** block by which the player must settle; 0 in a prize note. Settleable before min(this, expiryBlock). */
+  challengeDeadline: number;
 };
 
 export const ZERO_WORD: Word4 = [0n, 0n, 0n, 0n];
@@ -46,6 +49,10 @@ export function encodeStorage(s: ChallengeStorage): bigint[] {
     ...s.seed,
     ...s.dataset,
     ...s.cities.flatMap((c) => [c.idx, c.lat, c.lon, c.cos].map(BigInt)),
+    BigInt(s.challengeDeadline),
+    0n,
+    0n,
+    0n,
   ];
   if (felts.length !== NUM_STORAGE_ITEMS) throw new Error("bad storage length");
   return felts;
@@ -72,18 +79,22 @@ export function decodeStorage(felts: bigint[]): ChallengeStorage {
     seed: word(16),
     dataset: word(20),
     cities,
+    challengeDeadline: Number(felts[CHALLENGE_DEADLINE_INDEX]),
   };
 }
 
-/** The challenge note's storage for `player` against the prize note `prizeId`. */
-export function challengeStorage(prize: ChallengeStorage, player: AccountFelts, prizeId: Word4): ChallengeStorage {
-  return { ...prize, player, prizeId };
+/** The block a challenge stops being settleable (and the champion may collect). */
+export const challengeDeadline = (s: ChallengeStorage) => Math.min(s.challengeDeadline, s.expiryBlock);
+
+/** The challenge note's storage for `player` against the prize note `prizeId`, settleable until `deadline`. */
+export function challengeStorage(prize: ChallengeStorage, player: AccountFelts, prizeId: Word4, deadline: number): ChallengeStorage {
+  return { ...prize, player, prizeId, challengeDeadline: deadline };
 }
 
 /** True when `challenge` is a well-formed challenge of `prize` (same quiz, same terms). */
 export function isChallengeOf(challenge: ChallengeStorage, prize: ChallengeStorage, prizeId: Word4): boolean {
   if (!challenge.player) return false;
-  const expected = encodeStorage(challengeStorage(prize, challenge.player, prizeId));
+  const expected = encodeStorage(challengeStorage(prize, challenge.player, prizeId, challenge.challengeDeadline));
   const actual = encodeStorage(challenge);
   return expected.every((f, i) => f === actual[i]);
 }

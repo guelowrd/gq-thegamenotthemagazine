@@ -2,7 +2,7 @@
 
 import { GQ_DECIMALS, STAKE } from "@/config";
 import type { GqNote } from "@/lib/chain";
-import type { AccountFelts } from "@/lib/notes";
+import { challengeDeadline, type AccountFelts } from "@/lib/notes";
 
 export const fmtGq = (v: bigint) => `${(Number(v) / 10 ** GQ_DECIMALS).toLocaleString(undefined, { maximumFractionDigits: GQ_DECIMALS })} GQ`;
 const sameAccount = (a: AccountFelts | null, b: AccountFelts | null) => !!a && !!b && a.suffix === b.suffix && a.prefix === b.prefix;
@@ -21,7 +21,8 @@ export function Lobby({ me, notes, height, onChallenge, onSettle, onCollect }: L
   const prizes = notes.filter((n) => n.kind === "prize" && !n.consumed);
   const challenges = notes.filter((n) => n.kind === "challenge" && !n.consumed);
   const prizeById = (idWord: bigint[]) => notes.find((n) => n.kind === "prize" && n.idWord.every((f, i) => f === idWord[i]));
-  const expired = (n: GqNote) => height >= n.storage.expiryBlock;
+  const deadline = (n: GqNote) => (n.kind === "challenge" ? challengeDeadline(n.storage) : n.storage.expiryBlock);
+  const expired = (n: GqNote) => height >= deadline(n);
 
   const mine = (n: GqNote) => sameAccount(me, n.storage.champion);
   const myChallenges = challenges.filter((n) => sameAccount(me, n.storage.player));
@@ -58,7 +59,7 @@ export function Lobby({ me, notes, height, onChallenge, onSettle, onCollect }: L
               return (
                 <li key={c.id}>
                   <span className="mono">{short(c.id)}</span> · stake {fmtGq(c.amount)} · beat <strong>{c.storage.target}</strong> ·{" "}
-                  {expired(c) ? <em>expired</em> : <em>{c.storage.expiryBlock - height} blocks left</em>}
+                  {expired(c) ? <em>expired</em> : <em>{deadline(c) - height} blocks left to settle</em>}
                   {!expired(c) && <button onClick={() => onSettle(c, prize && !prize.consumed ? prize : undefined)}>Play &amp; settle</button>}
                 </li>
               );
@@ -74,7 +75,7 @@ export function Lobby({ me, notes, height, onChallenge, onSettle, onCollect }: L
             {challengesOnMyPrizes.map((c) => (
               <li key={c.id}>
                 <span className="mono">{short(c.id)}</span> · stake {fmtGq(c.amount)} ·{" "}
-                {expired(c) ? <button onClick={() => onCollect(c)}>Collect stake</button> : <em>{c.storage.expiryBlock - height} blocks left</em>}
+                {expired(c) ? <button onClick={() => onCollect(c)}>Collect stake</button> : <em>{deadline(c) - height} blocks left</em>}
               </li>
             ))}
           </ul>

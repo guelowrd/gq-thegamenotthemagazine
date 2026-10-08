@@ -142,14 +142,14 @@ function GqApp() {
         if (!same || prize.storage.dataset.some((f, i) => f !== dataset[i])) throw new Error("This prize's quiz does not match the dataset.");
         return postChallenge(client, wallet, prize, player);
       },
-      ({ noteIds }) => ({
+      (submitted) => ({
         kind: "play-challenger",
         prize,
         challenge: {
-          id: noteIds[0],
-          idWord: wordFromHex(noteIds[0]),
+          id: submitted.noteIds[0],
+          idWord: wordFromHex(submitted.noteIds[0]),
           kind: "challenge",
-          storage: { ...prize.storage, player, prizeId: prize.idWord },
+          storage: { ...prize.storage, player, prizeId: prize.idWord, challengeDeadline: (submitted as Submitted & { deadline: number }).deadline },
           amount: prize.storage.minStake,
           consumed: false,
         },
@@ -261,6 +261,7 @@ function GqApp() {
                   seed: mode.seed,
                   dataset: dataset!,
                   cities: mode.cities,
+                  challengeDeadline: 0,
                 };
                 return postPrize(client, wallet, storage, STAKE);
               }, ({ txId, noteIds }) => ({
