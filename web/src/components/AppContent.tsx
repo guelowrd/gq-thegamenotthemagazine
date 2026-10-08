@@ -132,7 +132,7 @@ function GqApp() {
           {wallet.connecting ? "Connecting…" : "Connect Bread wallet"}
         </button>
         <p className="muted">
-          Bread extension: {wallet.wallet?.readyState ?? "not detected"}. Get the latest release from github.com/0xMiden/wallet/releases, create or restore a testnet wallet, then connect.
+          Bread extension: {wallet.wallet?.readyState ?? "not detected"}. Get it at miden.xyz/bread, create or restore a testnet wallet, then connect.
         </p>
         {error && <p className="error">{error}</p>}
         {authCheck !== null && <p className="muted">auth-args self-check: {authCheck ? "ok" : "MISMATCH"}</p>}

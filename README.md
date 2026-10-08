@@ -6,7 +6,7 @@ quiz, and the chain recomputes the score from their answers. Beat the target and
 (first come, first served) and your stake back; fall short and your stake goes to the champion.
 
 GeoQuiz is the game plugged into it: a city name appears, you click the map, points for distance
-and speed. Players use the [Bread](https://github.com/0xMiden/wallet/releases) wallet.
+and speed. Players use the [Bread](https://www.miden.xyz/bread) wallet.
 
 - Design, verified capabilities, blockers and trust assumptions: [`docs/design.md`](docs/design.md)
 - How to run it end to end: [`docs/walkthrough.md`](docs/walkthrough.md)
