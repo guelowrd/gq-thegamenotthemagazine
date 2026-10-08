@@ -23,6 +23,7 @@ import { CHALLENGE_WINDOW_BLOCKS, GQ_FAUCET, NETWORK_POLL_INTERVAL_MS, NETWORK_P
 import { challengeStorage, encodeStorage, type AccountFelts, type ChallengeStorage } from "./notes";
 import { CHALLENGE_DEADLINE_INDEX } from "./notes";
 import { randomSeed, type Word4 } from "./quiz";
+import { submitWithRetry } from "./flow";
 import authVectors from "../../../rules/auth_vectors.json";
 
 type Wallet = ReturnType<typeof useMidenFiWallet>;
@@ -121,8 +122,6 @@ async function waitForFreshBlock(client: Client): Promise<number> {
 }
 
 const ANCHOR_RETRIES = 10;
-const isAnchorMismatch = (e: unknown) =>
-  /SummaryAnchorMismatch|captured chain anchor|ChainBehindBoundBlock|has not reached that block/i.test(e instanceof Error ? e.message : String(e));
 /** Progress callback for the UI: which attempt is running. */
 export let onSubmitAttempt: (attempt: number, total: number) => void = () => {};
 export const setSubmitAttemptListener = (fn: typeof onSubmitAttempt) => (onSubmitAttempt = fn);
@@ -143,19 +142,17 @@ async function submit(
   importNotes?: Uint8Array[],
 ): Promise<string> {
   if (!wallet.address || !wallet.requestTransaction) throw new Error("Bread is not connected");
-  const expectedLag = importNotes?.length ? 1 : 0;
-  for (let attempt = 1; ; attempt++) {
-    onSubmitAttempt(attempt, ANCHOR_RETRIES);
-    const offset = expectedLag + ((attempt - 1) % 2);
-    const request = build(await breadBuilder(client, offset));
-    const tx = Transaction.createCustomTransaction(wallet.address, wallet.address, request, inputNoteIds, importNotes);
-    try {
-      return await wallet.requestTransaction(tx);
-    } catch (e) {
-      if (!isAnchorMismatch(e) || attempt >= ANCHOR_RETRIES) throw e;
-      console.warn(`[gq] Bread anchored at another block than the request bound; rebuilding (attempt ${attempt + 1})`);
-    }
-  }
+  const address = wallet.address;
+  const requestTransaction = wallet.requestTransaction;
+  return submitWithRetry(
+    async (offset, attempt) => {
+      onSubmitAttempt(attempt, ANCHOR_RETRIES);
+      const request = build(await breadBuilder(client, offset));
+      return requestTransaction(Transaction.createCustomTransaction(address, address, request, inputNoteIds, importNotes));
+    },
+    importNotes?.length ? 1 : 0,
+    ANCHOR_RETRIES,
+  );
 }
 
 /** Champion: post a prize note. `storage.challengeRoot` is filled from the loaded script. */
