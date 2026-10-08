@@ -22,6 +22,31 @@ rules/            vectors shared by MASM, Rust and TypeScript (scoring, quiz sel
 web/              React app (frontend-template v0.17 lineage) + Bread wallet adapter
 ```
 
+## Note storage layout
+
+Both notes carry the same 44 felts. A challenge note is its prize note's storage with three
+fields filled in, which is how the prize script recognises a legitimate challenge: it rebuilds
+the 44 felts a challenge of it must have and compares the storage hash.
+
+| felt  | field              | prize note                | challenge note          |
+|-------|--------------------|---------------------------|-------------------------|
+| 0     | version            | 1                         | 1                       |
+| 1     | expiry_block       | prize's end (~24 h)       | copied from the prize   |
+| 2     | target             | champion's score to beat  | copied                  |
+| 3     | min_stake          | the stake                 | copied                  |
+| 4-5   | champion           | [suffix, prefix]          | copied                  |
+| 6-7   | player             | 0, 0                      | challenger [suffix, prefix] |
+| 8-11  | PRIZE_ID           | 0                         | the prize note's id     |
+| 12-15 | CHALLENGE_ROOT     | challenge.masm script root| copied                  |
+| 16-39 | game data          | seed(4), dataset(4), 4 × [city, lat, lon, cos] | copied |
+| 40    | challenge_deadline | 0                         | challenge's end (~6 min)|
+| 41-43 | padding            | 0                         | 0                       |
+
+A challenge settles before `min(challenge_deadline, expiry_block)`; the champion collects from
+that block on. The note argument on settle or claim is one Word: four packed answers,
+`lat_cd << 32 | (lon_cd * 2048 + t_10ms)` per round. On a claim, the claimant also puts the
+challenge's deadline in the advice map under the challenge note id, and the hash check proves it.
+
 ## Build and test
 
 Toolchain (once): `cargo install --locked midenup && midenup install 0.17.0`.
