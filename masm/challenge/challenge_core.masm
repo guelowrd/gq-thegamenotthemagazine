@@ -1,0 +1,298 @@
+#! Challenge mechanic, shared by `prize.masm` and `challenge.masm`.
+#!
+#! A champion posts a PRIZE note holding the prize and a target score. A challenger posts a
+#! CHALLENGE note holding their stake, bound to one prize. Whoever beats the target with a verified
+#! answer takes the prize; a challenger who does not loses the stake to the champion.
+#!
+#! Both notes share one storage layout (40 felts). A challenge note is its prize note's storage
+#! with `player` and `PRIZE_ID` filled in, which is what lets the prize recognise it by storage
+#! commitment at claim time.
+#!
+#!   0      version        = 1
+#!   1      expiry_block   prize lifetime; also the challenge deadline
+#!   2      target         score to beat (strictly greater wins)
+#!   3      min_stake      minimum challenge amount, in the prize's asset
+#!   4..5   champion       [suffix, prefix]
+#!   6..7   player         [suffix, prefix]   zero in a prize note
+#!   8..11  PRIZE_ID       zero in a prize note
+#!  12..15  CHALLENGE_ROOT script root of challenge.masm
+#!  16..39  GAME DATA      opaque here; the game's `score` procedure reads it
+#!
+#! The game plugs in one procedure, `gq::score::score`: [a0, a1, a2, a3, data_ptr] -> [score].
+#!
+#! Both notes must hold exactly one asset. Consuming accounts must expose the standard
+#! `basic::receive_asset`, `basic::move_asset_to_note` and `note_creator::create_note` procedures
+#! (every standard wallet does).
+
+use {NOTE_TYPE_PUBLIC} from miden::protocol::note
+use miden::protocol::account_id
+use miden::protocol::active_account
+use miden::protocol::active_note
+use miden::protocol::asset
+use miden::protocol::input_note
+use miden::protocol::note
+use miden::protocol::tx
+use miden::standards::note::note_tag
+use miden::standards::notes::p2id
+use miden::standards::wallets::basic
+use gq::score
+
+# CONSTANTS
+# =================================================================================================
+
+pub const NUM_STORAGE_ITEMS = 40
+pub const STORAGE_PTR = 0
+pub const VERSION_PTR = 0
+pub const EXPIRY_PTR = 1
+pub const TARGET_PTR = 2
+pub const MIN_STAKE_PTR = 3
+pub const CHAMPION_SUFFIX_PTR = 4
+pub const CHAMPION_PREFIX_PTR = 5
+pub const PLAYER_SUFFIX_PTR = 6
+pub const PLAYER_PREFIX_PTR = 7
+pub const PRIZE_ID_PTR = 8
+pub const CHALLENGE_ROOT_PTR = 12
+pub const GAME_DATA_PTR = 16
+
+# scratch memory
+const EXPECTED_PTR = 64              # expected challenge storage (40 felts)
+const EXPECTED_PLAYER_SUFFIX_PTR = 70
+const EXPECTED_PLAYER_PREFIX_PTR = 71
+const EXPECTED_PRIZE_ID_PTR = 72
+const EXPECTED_COMMITMENT_PTR = 104
+const FOUND_PTR = 108
+const ASSET_PTR = 128                # this note's assets (up to 16 x 8 felts)
+
+pub const VERSION = 1
+#! A back-dated reference block buys at most this many blocks on the before-expiry paths.
+pub const CLAIM_FUZZ = 64
+
+# ERRORS
+# =================================================================================================
+
+const ERR_STORAGE_ITEMS = "challenge: note storage must hold exactly 40 items"
+const ERR_VERSION = "challenge: unsupported storage version"
+const ERR_EXPIRED = "challenge: the deadline has passed"
+const ERR_NOT_EXPIRED = "challenge: the deadline has not passed yet"
+const ERR_ONE_ASSET = "challenge: the note must hold exactly one asset"
+const ERR_WRONG_ASSET = "challenge: the challenge stake is not in the prize's asset"
+const ERR_STAKE_TOO_SMALL = "challenge: the challenge stake is below min_stake"
+const ERR_NO_CHALLENGE = "challenge: no challenge note bound to this prize and consumer in the transaction"
+
+# STORAGE
+# =================================================================================================
+
+#! Loads the note storage to STORAGE_PTR and checks the layout version.
+#!
+#! Inputs:  []
+#! Outputs: []
+pub proc load_storage
+    push.NUM_STORAGE_ITEMS push.STORAGE_PTR exec.active_note::get_bounded_storage
+    # => [num_storage_items]
+    eq.NUM_STORAGE_ITEMS assert.err=ERR_STORAGE_ITEMS
+    mem_load.VERSION_PTR eq.VERSION assert.err=ERR_VERSION
+end
+
+# PARTIES
+# =================================================================================================
+
+#! Inputs:  []
+#! Outputs: [is_champion]
+pub proc is_consumer_champion
+    mem_load.CHAMPION_PREFIX_PTR mem_load.CHAMPION_SUFFIX_PTR
+    exec.active_account::get_id
+    # => [acct_suffix, acct_prefix, champion_suffix, champion_prefix]
+    exec.account_id::eq
+end
+
+#! Inputs:  []
+#! Outputs: [is_player]
+pub proc is_consumer_player
+    mem_load.PLAYER_PREFIX_PTR mem_load.PLAYER_SUFFIX_PTR
+    exec.active_account::get_id
+    exec.account_id::eq
+end
+
+# DEADLINES
+# =================================================================================================
+
+#! Inputs:  []
+#! Outputs: [before_expiry]
+proc before_expiry
+    exec.tx::get_reference_block_number mem_load.EXPIRY_PTR
+    # => [expiry, ref_block]
+    lt
+end
+
+#! Aborts after the deadline and bounds how far the reference block may be back-dated.
+#!
+#! Inputs:  []
+#! Outputs: []
+pub proc assert_before_expiry
+    exec.before_expiry assert.err=ERR_EXPIRED
+    push.CLAIM_FUZZ exec.tx::update_expiration_block_delta
+end
+
+#! Inputs:  []
+#! Outputs: []
+pub proc assert_after_expiry
+    exec.before_expiry assertz.err=ERR_NOT_EXPIRED
+end
+
+# SCORE
+# =================================================================================================
+
+#! Inputs:  [ANSWER]
+#! Outputs: [beats_target]
+pub proc score_beats_target
+    push.GAME_DATA_PTR movdn.4 exec.score::score
+    # => [score]
+    mem_load.TARGET_PTR gt
+end
+
+# ASSETS
+# =================================================================================================
+
+#! Moves all of this note's assets into the consumer's vault.
+#!
+#! Inputs:  []
+#! Outputs: []
+pub proc receive_all
+    exec.basic::move_note_assets_to_account
+end
+
+#! Writes this note's single asset to ASSET_PTR.
+#!
+#! Inputs:  []
+#! Outputs: []
+proc load_own_asset
+    push.ASSET_PTR exec.active_note::get_initial_assets
+    # => [num_assets]
+    eq.1 assert.err=ERR_ONE_ASSET
+end
+
+#! Sends this note's asset to the champion as a public P2ID note.
+#!
+#! Inputs:  []
+#! Outputs: []
+pub proc forfeit_to_champion
+    exec.load_own_asset
+
+    # P2ID serial = this note's serial with its first element + 1
+    exec.active_note::get_serial_number add.1
+    # => [SERIAL]
+    push.NOTE_TYPE_PUBLIC
+    mem_load.CHAMPION_PREFIX_PTR exec.note_tag::create_account_target
+    # => [tag, note_type, SERIAL]
+    mem_load.CHAMPION_PREFIX_PTR mem_load.CHAMPION_SUFFIX_PTR
+    # => [champion_suffix, champion_prefix, tag, note_type, SERIAL]
+    exec.p2id::create_output_note
+    # => [note_idx]
+
+    # the asset goes through the consumer's vault: receive it, then move it into the P2ID
+    exec.basic::move_note_assets_to_account
+    padw push.0.0.0 movup.7
+    # => [note_idx, pad(7)]
+    push.ASSET_PTR exec.asset::load
+    # => [ASSET_ID, ASSET_VALUE, note_idx, pad(7)]
+    call.basic::move_asset_to_note
+    # => [pad(16)]
+    dropw dropw dropw dropw
+end
+
+# CLAIM CHECK
+# =================================================================================================
+
+#! Computes the storage commitment the consumer's challenge note for this prize must have, and
+#! stores it at EXPECTED_COMMITMENT_PTR.
+#!
+#! Inputs:  []
+#! Outputs: []
+proc compute_expected_challenge_commitment
+    # copy the 10 storage words
+    padw mem_loadw_le.0  mem_storew_le.64 dropw
+    padw mem_loadw_le.4  mem_storew_le.68 dropw
+    padw mem_loadw_le.8  mem_storew_le.72 dropw
+    padw mem_loadw_le.12 mem_storew_le.76 dropw
+    padw mem_loadw_le.16 mem_storew_le.80 dropw
+    padw mem_loadw_le.20 mem_storew_le.84 dropw
+    padw mem_loadw_le.24 mem_storew_le.88 dropw
+    padw mem_loadw_le.28 mem_storew_le.92 dropw
+    padw mem_loadw_le.32 mem_storew_le.96 dropw
+    padw mem_loadw_le.36 mem_storew_le.100 dropw
+
+    # player = consumer
+    exec.active_account::get_id
+    # => [acct_suffix, acct_prefix]
+    mem_store.EXPECTED_PLAYER_SUFFIX_PTR mem_store.EXPECTED_PLAYER_PREFIX_PTR
+
+    # PRIZE_ID = this note
+    exec.active_note::get_note_id
+    mem_storew_le.EXPECTED_PRIZE_ID_PTR dropw
+
+    push.NUM_STORAGE_ITEMS push.EXPECTED_PTR exec.note::compute_storage_commitment
+    # => [COMMITMENT]
+    mem_storew_le.EXPECTED_COMMITMENT_PTR dropw
+end
+
+#! Checks that input note `i` is the consumer's challenge note for this prize and that its stake
+#! is acceptable; sets FOUND_PTR when it is. Aborts if a matching note carries the wrong asset or
+#! too small a stake.
+#!
+#! Inputs:  [i]
+#! Outputs: [i]
+proc check_input_note
+    dup exec.input_note::get_script_root
+    # => [ROOT, i]
+    padw mem_loadw_le.CHALLENGE_ROOT_PTR
+    eqw movdn.8 dropw dropw
+    # => [root_matches, i]
+    if.true
+        dup exec.input_note::get_storage_info
+        # => [COMMITMENT, num_items, i]
+        movup.4 drop
+        padw mem_loadw_le.EXPECTED_COMMITMENT_PTR
+        eqw movdn.8 dropw dropw
+        # => [storage_matches, i]
+        if.true
+            dup push.0
+            # => [asset_index = 0, i, i]
+            exec.input_note::get_asset
+            # => [ASSET_ID, ASSET_VALUE, i]
+            padw mem_loadw_le.ASSET_PTR
+            # => [OWN_ASSET_ID, ASSET_ID, ASSET_VALUE, i]
+            eqw assert.err=ERR_WRONG_ASSET
+            dropw dropw
+            # => [ASSET_VALUE, i]
+            exec.asset::fungible_value_into_amount_unchecked
+            # => [amount, i]
+            mem_load.MIN_STAKE_PTR lt
+            # => [amount < min_stake, i]
+            assertz.err=ERR_STAKE_TOO_SMALL
+            push.1 mem_store.FOUND_PTR
+        end
+    end
+end
+
+#! Aborts unless the transaction also consumes the consumer's challenge note for this prize, in the
+#! prize's asset, with at least `min_stake`.
+#!
+#! Inputs:  []
+#! Outputs: []
+pub proc assert_challenge_present
+    exec.load_own_asset
+    exec.compute_expected_challenge_commitment
+    push.0 mem_store.FOUND_PTR
+
+    exec.tx::get_num_input_notes push.0
+    # => [i, n]
+    dup dup.2 lt
+    # => [i < n, i, n]
+    while.true
+        exec.check_input_note
+        add.1
+        dup dup.2 lt
+    end
+    drop drop
+    mem_load.FOUND_PTR assert.err=ERR_NO_CHALLENGE
+end

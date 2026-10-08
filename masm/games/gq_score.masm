@@ -1,0 +1,144 @@
+#! GeoQuiz scoring, rules version 1. The host reference is `integration/src/rules.rs`; the two are
+#! kept in agreement by the MockChain tests over `rules/vectors.json`.
+#!
+#! Game data layout (24 felts at `data_ptr`, written by the prize/challenge note storage):
+#!   data_ptr + 0..3    SEED       (opaque to scoring)
+#!   data_ptr + 4..7    DATASET    (opaque to scoring)
+#!   data_ptr + 8 + 4i  round i    [city_idx, lat_cd, lon_cd, cos_x100]
+#!
+#! One answered round is one felt: `lat_cd * 2^32 + (lon_cd * 2048 + t_10ms)`.
+
+const LON_WRAP = 36000
+const D2_BAND_1 = 10000     # (1 degree)^2  in centi-degrees^2
+const D2_BAND_2 = 90000     # (3 degrees)^2
+const D2_BAND_3 = 640000    # (8 degrees)^2
+const D2_BAND_4 = 4000000   # (20 degrees)^2
+const ROUND_DATA_OFFSET = 8
+const ROUND_SIZE = 4
+
+#! Inputs:  [x, y]
+#! Outputs: [|x - y|]
+proc u32_abs_diff
+    dup.1 dup.1 u32gt
+    # => [y > x, x, y]
+    if.true
+        u32wrapping_sub
+    else
+        swap u32wrapping_sub
+    end
+end
+
+#! Inputs:  [d2]
+#! Outputs: [distance_points]
+proc distance_points
+    dup u32lte.D2_BAND_1
+    if.true
+        drop push.1000
+    else
+        dup u32lte.D2_BAND_2
+        if.true
+            drop push.700
+        else
+            dup u32lte.D2_BAND_3
+            if.true
+                drop push.400
+            else
+                u32lte.D2_BAND_4
+                if.true
+                    push.150
+                else
+                    push.0
+                end
+            end
+        end
+    end
+end
+
+#! Inputs:  [t_10ms]
+#! Outputs: [speed_bonus]
+proc speed_points
+    dup u32lte.300
+    if.true
+        drop push.300
+    else
+        dup u32lte.600
+        if.true
+            drop push.200
+        else
+            u32lte.1000
+            if.true
+                push.100
+            else
+                push.0
+            end
+        end
+    end
+end
+
+#! Scores one round.
+#!
+#! Inputs:  [packed_answer, round_ptr]
+#! Outputs: [round_score]
+proc round_score
+    u32split
+    # => [lo, lat_a, ptr]
+    u32divmod.2048
+    # => [t, lon_a, lat_a, ptr]
+    movup.3
+    # => [ptr, t, lon_a, lat_a]
+    dup add.1 mem_load
+    # => [lat_c, ptr, t, lon_a, lat_a]
+    movup.4 exec.u32_abs_diff
+    # => [dlat, ptr, t, lon_a]
+    movdn.3
+    # => [ptr, t, lon_a, dlat]
+    dup add.2 mem_load
+    # => [lon_c, ptr, t, lon_a, dlat]
+    movup.3 exec.u32_abs_diff
+    # => [raw, ptr, t, dlat]
+    dup push.LON_WRAP swap u32wrapping_sub u32min
+    # => [dlon_raw, ptr, t, dlat]
+    swap dup add.3 mem_load
+    # => [cos, ptr, dlon_raw, t, dlat]
+    movup.2 u32wrapping_mul u32div.100
+    # => [dlon, ptr, t, dlat]
+    dup u32wrapping_mul
+    # => [dlon2, ptr, t, dlat]
+    movup.3 dup u32wrapping_mul u32wrapping_add
+    # => [d2, ptr, t]
+    swap drop
+    # => [d2, t]
+    exec.distance_points
+    # => [dist, t]
+    dup eq.0
+    if.true
+        # a miss earns no speed bonus
+        swap drop
+    else
+        swap exec.speed_points add
+    end
+    # => [round_score]
+end
+
+#! Scores a whole quiz: the four packed answers against the four rounds in the game data.
+#!
+#! Inputs:  [a0, a1, a2, a3, data_ptr]
+#! Outputs: [score]
+pub proc score
+    movup.4 add.ROUND_DATA_OFFSET
+    # => [p, a0, a1, a2, a3]
+    dup movup.2 exec.round_score
+    # => [s0, p, a1, a2, a3]
+    swap add.ROUND_SIZE
+    # => [p, acc, a1, a2, a3]
+    dup movup.3 exec.round_score movup.2 add
+    # => [acc, p, a2, a3]
+    swap add.ROUND_SIZE
+    # => [p, acc, a2, a3]
+    dup movup.3 exec.round_score movup.2 add
+    # => [acc, p, a3]
+    swap add.ROUND_SIZE
+    # => [p, acc, a3]
+    movup.2 exec.round_score add
+    # => [score]
+end

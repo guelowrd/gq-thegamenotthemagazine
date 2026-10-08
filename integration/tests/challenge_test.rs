@@ -1,0 +1,282 @@
+//! The challenge mechanic on MockChain: prize note + challenge note, all four paths and the
+//! ways they must fail. Accounts are standard wallets, the shape Bread creates.
+
+mod common;
+
+use anyhow::Result;
+use common::*;
+use integration::{felt, rules::vectors};
+use miden_client::{asset::FungibleAsset, note::P2idNote, Felt, Word};
+
+// --- claim ---------------------------------------------------------------------------------
+
+#[tokio::test(flavor = "multi_thread")]
+async fn claim_wins_prize_and_returns_stake() -> Result<()> {
+    let mut s = setup(1000)?;
+    let challenge = s.standard_challenge()?;
+    let before = s.balance(s.challenger.id());
+
+    let tx = s
+        .consume(s.challenger.id(), &[&s.prize.clone(), &challenge], answer_word(&perfect_answers()))
+        .await
+        .expect("claim with a winning answer succeeds");
+    s.commit(&tx)?;
+
+    assert_eq!(s.balance(s.challenger.id()), before + PRIZE + STAKE);
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn claim_with_losing_answer_fails() -> Result<()> {
+    let mut s = setup(1000)?;
+    let challenge = s.standard_challenge()?;
+    let r = s
+        .consume(s.challenger.id(), &[&s.prize.clone(), &challenge], answer_word(&losing_answers()))
+        .await;
+    assert!(r.is_err());
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn claim_must_exactly_beat_target() -> Result<()> {
+    // target == score is not enough; target == score - 1 is
+    let score = integration::rules::quiz_score(&CITIES, &perfect_answers());
+    let mut s = setup(score)?;
+    let challenge = s.standard_challenge()?;
+    let r = s
+        .consume(s.challenger.id(), &[&s.prize.clone(), &challenge], answer_word(&perfect_answers()))
+        .await;
+    assert!(r.is_err(), "equal score must not claim");
+
+    let mut s = setup(score - 1)?;
+    let challenge = s.standard_challenge()?;
+    s.consume(s.challenger.id(), &[&s.prize.clone(), &challenge], answer_word(&perfect_answers()))
+        .await
+        .expect("score above target claims");
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn claim_without_challenge_note_fails() -> Result<()> {
+    let mut s = setup(1000)?;
+    let r = s
+        .consume(s.challenger.id(), &[&s.prize.clone()], answer_word(&perfect_answers()))
+        .await;
+    assert!(r.is_err());
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn claim_with_tampered_challenge_fails() -> Result<()> {
+    let mut s = setup(1000)?;
+    // same player, same prize id, but the challenge copies different game data
+    let mut storage = s.prize_storage.challenge_for(s.challenger.id(), s.prize.id());
+    storage.game[8 + 1] = felt(0); // move the first city
+    let challenge = s.challenge_note(s.challenger.id(), s.faucet.id(), STAKE, &storage)?;
+    let creator = s.challenger.clone();
+    s.publish(&creator, &challenge)?;
+    let r = s
+        .consume(s.challenger.id(), &[&s.prize.clone(), &challenge], answer_word(&perfect_answers()))
+        .await;
+    assert!(r.is_err());
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn claim_with_someone_elses_challenge_fails() -> Result<()> {
+    let mut s = setup(1000)?;
+    // the stranger posted a challenge; the challenger tries to use it
+    let storage = s.prize_storage.challenge_for(s.stranger.id(), s.prize.id());
+    let challenge = s.challenge_note(s.stranger.id(), s.faucet.id(), STAKE, &storage)?;
+    let creator = s.stranger.clone();
+    s.publish(&creator, &challenge)?;
+    let r = s
+        .consume(s.challenger.id(), &[&s.prize.clone(), &challenge], answer_word(&perfect_answers()))
+        .await;
+    assert!(r.is_err());
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn claim_with_small_stake_fails() -> Result<()> {
+    let mut s = setup(1000)?;
+    let storage = s.prize_storage.challenge_for(s.challenger.id(), s.prize.id());
+    let challenge = s.challenge_note(s.challenger.id(), s.faucet.id(), STAKE - 1, &storage)?;
+    let creator = s.challenger.clone();
+    s.publish(&creator, &challenge)?;
+    let r = s
+        .consume(s.challenger.id(), &[&s.prize.clone(), &challenge], answer_word(&perfect_answers()))
+        .await;
+    assert!(r.is_err());
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn claim_after_expiry_fails() -> Result<()> {
+    let mut s = setup(1000)?;
+    let challenge = s.standard_challenge()?;
+    s.jump_to(EXPIRY)?;
+    let r = s
+        .consume(s.challenger.id(), &[&s.prize.clone(), &challenge], answer_word(&perfect_answers()))
+        .await;
+    assert!(r.is_err());
+    Ok(())
+}
+
+// --- reclaim -------------------------------------------------------------------------------
+
+#[tokio::test(flavor = "multi_thread")]
+async fn champion_reclaims_after_expiry_only() -> Result<()> {
+    let mut s = setup(1000)?;
+    let r = s.consume(s.champion.id(), &[&s.prize.clone()], Word::default()).await;
+    assert!(r.is_err(), "reclaim before expiry must fail");
+
+    s.jump_to(EXPIRY)?;
+    let before = s.balance(s.champion.id());
+    let tx = s
+        .consume(s.champion.id(), &[&s.prize.clone()], Word::default())
+        .await
+        .expect("reclaim after expiry");
+    s.commit(&tx)?;
+    assert_eq!(s.balance(s.champion.id()), before + PRIZE);
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn stranger_cannot_take_expired_prize() -> Result<()> {
+    let mut s = setup(1000)?;
+    s.jump_to(EXPIRY)?;
+    let r = s.consume(s.stranger.id(), &[&s.prize.clone()], answer_word(&perfect_answers())).await;
+    assert!(r.is_err());
+    Ok(())
+}
+
+// --- settle --------------------------------------------------------------------------------
+
+#[tokio::test(flavor = "multi_thread")]
+async fn settle_win_refunds_stake() -> Result<()> {
+    let mut s = setup(1000)?;
+    let challenge = s.standard_challenge()?;
+    let before = s.balance(s.challenger.id());
+    let tx = s
+        .consume(s.challenger.id(), &[&challenge], answer_word(&perfect_answers()))
+        .await
+        .expect("settle with a win");
+    assert_eq!(tx.output_notes().num_notes(), 0, "a win creates no note");
+    s.commit(&tx)?;
+    assert_eq!(s.balance(s.challenger.id()), before + STAKE);
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn settle_loss_forfeits_stake_to_champion() -> Result<()> {
+    let mut s = setup(1000)?;
+    let challenge = s.standard_challenge()?;
+    let before = s.balance(s.challenger.id());
+    let tx = s
+        .consume(s.challenger.id(), &[&challenge], answer_word(&losing_answers()))
+        .await
+        .expect("settle with a loss");
+    assert_eq!(tx.output_notes().num_notes(), 1);
+    let p2id = tx.output_notes().get_note(0);
+    assert_eq!(
+        p2id.recipient().expect("public note").script().root(),
+        P2idNote::script_root()
+    );
+    let stake = FungibleAsset::new(s.faucet.id(), STAKE)?;
+    assert!(p2id.assets().iter().any(|a| a.unwrap_fungible() == stake));
+    let items = p2id.recipient().expect("public note").storage().items();
+    assert_eq!(items[0], s.champion.id().suffix());
+    assert_eq!(items[1], Felt::from(s.champion.id().prefix()));
+    s.commit(&tx)?;
+    assert_eq!(s.balance(s.challenger.id()), before, "the loser keeps nothing");
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn settle_after_expiry_fails() -> Result<()> {
+    let mut s = setup(1000)?;
+    let challenge = s.standard_challenge()?;
+    s.jump_to(EXPIRY)?;
+    let r = s.consume(s.challenger.id(), &[&challenge], answer_word(&perfect_answers())).await;
+    assert!(r.is_err());
+    Ok(())
+}
+
+// --- collect -------------------------------------------------------------------------------
+
+#[tokio::test(flavor = "multi_thread")]
+async fn champion_collects_after_expiry_only() -> Result<()> {
+    let mut s = setup(1000)?;
+    let challenge = s.standard_challenge()?;
+    let r = s.consume(s.champion.id(), &[&challenge], Word::default()).await;
+    assert!(r.is_err(), "collect before expiry must fail");
+
+    s.jump_to(EXPIRY)?;
+    let before = s.balance(s.champion.id());
+    let tx = s
+        .consume(s.champion.id(), &[&challenge], Word::default())
+        .await
+        .expect("collect after expiry");
+    s.commit(&tx)?;
+    assert_eq!(s.balance(s.champion.id()), before + STAKE);
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn stranger_cannot_touch_challenge() -> Result<()> {
+    let mut s = setup(1000)?;
+    let challenge = s.standard_challenge()?;
+    let r = s.consume(s.stranger.id(), &[&challenge], answer_word(&perfect_answers())).await;
+    assert!(r.is_err());
+    s.jump_to(EXPIRY)?;
+    let r = s.consume(s.stranger.id(), &[&challenge], Word::default()).await;
+    assert!(r.is_err());
+    Ok(())
+}
+
+// --- scoring vectors: MASM agrees with the Rust reference -----------------------------------
+
+/// For every vector, a target of `score - 1` wins and a target of `score` loses. Together these
+/// pin the on-chain score to the exact value the reference computes.
+#[tokio::test(flavor = "multi_thread")]
+async fn masm_score_matches_reference_on_vectors() -> Result<()> {
+    for v in vectors() {
+        let word = Word::new(v.packed.map(felt));
+        for (target, wins) in [(v.score.saturating_sub(1), v.score > 0), (v.score, false)] {
+            let mut s = setup_with_cities(target, v.cities)?;
+            let challenge = s.standard_challenge()?;
+            let tx = s
+                .consume(s.challenger.id(), &[&challenge], word)
+                .await
+                .unwrap_or_else(|e| panic!("vector {}: settle failed: {e}", v.name));
+            let forfeited = tx.output_notes().num_notes() == 1;
+            assert_eq!(!forfeited, wins, "vector {} target {target}", v.name);
+        }
+    }
+    Ok(())
+}
+
+
+// --- failures are the intended ones --------------------------------------------------------
+
+#[tokio::test(flavor = "multi_thread")]
+async fn failures_carry_their_messages() -> Result<()> {
+    let mut s = setup(1000)?;
+    let e = s
+        .consume(s.challenger.id(), &[&s.prize.clone()], answer_word(&perfect_answers()))
+        .await
+        .unwrap_err();
+    assert_masm_error(&e, "challenge: no challenge note bound to this prize and consumer in the transaction");
+
+    let e = s.consume(s.champion.id(), &[&s.prize.clone()], Word::default()).await.unwrap_err();
+    assert_masm_error(&e, "challenge: the deadline has not passed yet");
+    Ok(())
+}
+
+/// The executor reports `assert.err=MSG` failures by code; check the code is the one of `msg`.
+fn assert_masm_error(e: &miden_client::transaction::TransactionExecutorError, msg: &'static str) {
+    let code = miden_protocol::errors::MasmError::from_static_str(msg).code();
+    let text = format!("{e:#}");
+    assert!(text.contains(&code.as_canonical_u64().to_string()), "expected {msg:?}, got: {text}");
+}

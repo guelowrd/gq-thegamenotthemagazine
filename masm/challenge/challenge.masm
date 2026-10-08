@@ -1,0 +1,36 @@
+#! CHALLENGE note: a challenger's stake, bound to one prize note.
+#!
+#! Paths:
+#! - settle:  the player, before expiry, with their ANSWER as the note argument. A winning answer
+#!            returns the stake; a losing one forfeits it to the champion as a public P2ID note.
+#! - collect: the champion, after expiry.
+#!
+#! Inputs:  [ANSWER]
+#! Outputs: []
+
+use {NoteArgs} from miden::protocol::types
+use challenge::core
+
+const ERR_CHALLENGE_NOT_A_PARTY = "challenge: only the player or the champion may consume this note"
+
+@note_script
+pub proc main(args: NoteArgs)
+    exec.core::load_storage
+    exec.core::is_consumer_player
+    # => [is_player, ANSWER]
+    if.true
+        exec.core::assert_before_expiry
+        exec.core::score_beats_target
+        # => [beats_target]
+        if.true
+            exec.core::receive_all
+        else
+            exec.core::forfeit_to_champion
+        end
+    else
+        dropw
+        exec.core::is_consumer_champion assert.err=ERR_CHALLENGE_NOT_A_PARTY
+        exec.core::assert_after_expiry
+        exec.core::receive_all
+    end
+end
