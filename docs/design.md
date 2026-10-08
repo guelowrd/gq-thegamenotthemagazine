@@ -73,24 +73,22 @@ prize must know the challenge script's root; it is written into the prize
 storage by the champion's client and cross-checked by every client, never
 hardcoded.
 
-### Storage (44 felts, identical layout for both notes)
+### Storage (40 felts, identical layout for both notes)
 
 ```
- 0      version            = 1
- 1      expiry_block       prize lifetime (~24 h = 28 800 blocks at 3 s)
+ 0..1   champion           [suffix, prefix]  (P2ID convention)
  2      target             champion's score to beat (strictly greater wins)
  3      min_stake          minimum challenge amount, in the prize's asset
- 4..5   champion           [suffix, prefix]  (P2ID convention)
- 6..7   player             [suffix, prefix]  zero in a prize note
+ 4      expiry_block       prize lifetime (~24 h = 28 800 blocks at 3 s)
+ 5..6   player             [suffix, prefix]  zero in a prize note
+ 7      challenge_deadline block by which the player must settle; zero in a prize note
  8..11  PRIZE_ID           zero in a prize note
 12..15  CHALLENGE_ROOT     challenge.masm script root
 16..39  GAME DATA          opaque to the core; GeoQuiz: SEED(4) DATASET(4) 4×{city,lat,lon,cos}
-40      challenge_deadline block by which the player must settle; zero in a prize note
-41..43  reserved (zero)
 ```
 
 A challenge note is a copy of its prize note's storage with `player`,
-`PRIZE_ID` and `challenge_deadline` filled in. The deadline is short on purpose
+`challenge_deadline` and `PRIZE_ID` filled in. The deadline is short on purpose
 (~6 min = 120 blocks, two or three plays of the game): once the stake is down,
 the challenger gets one sitting, not hours to rehearse the same four cities.
 A challenge settles before `min(challenge_deadline, expiry_block)` and the
@@ -109,7 +107,7 @@ initial assets, not their storage contents. So the prize script:
    the note id; the claimant supplies it) and builds the storage the note must
    have: its own storage with `player = active_account::get_id()`,
    `PRIZE_ID = active_note::get_note_id()` and that deadline;
-3. hashes the 44 felts with `note::compute_storage_commitment` and compares
+3. hashes the 40 felts with `note::compute_storage_commitment` and compares
    with `input_note::get_storage_info(i).commitment`; a lie about the deadline,
    the player, the prize or the quiz hashes differently;
 4. checks the note's initial assets hold ≥ `min_stake` of the prize's asset;

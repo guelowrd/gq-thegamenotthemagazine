@@ -24,16 +24,15 @@ describe("challenge storage", () => {
   it("encodes 40 felts in the documented layout and round-trips", () => {
     const felts = encodeStorage(prize);
     expect(felts).toHaveLength(NUM_STORAGE_ITEMS);
-    expect(felts.slice(0, 8)).toEqual([1n, 1234n, 2000n, 1_000_000n, 11n, 22n, 0n, 0n]);
+    expect(felts.slice(0, 8)).toEqual([11n, 22n, 2000n, 1_000_000n, 1234n, 0n, 0n, 0n]);
     expect(felts.slice(24, 28)).toEqual([0n, 13885n, 18235n, 66n]);
-    expect(felts.slice(40)).toEqual([0n, 0n, 0n, 0n]);
     expect(decodeStorage(felts)).toEqual(prize);
   });
 
   it("derives a challenge from a prize and recognises it", () => {
     const prizeId = [100n, 200n, 300n, 400n] as const;
     const challenge = challengeStorage(prize, { suffix: 33n, prefix: 44n }, [...prizeId], 1300);
-    expect(encodeStorage(challenge)[40]).toBe(1300n);
+    expect(encodeStorage(challenge).slice(5, 8)).toEqual([33n, 44n, 1300n]);
     expect(decodeStorage(encodeStorage(challenge))).toEqual(challenge);
     expect(isChallengeOf(challenge, prize, [...prizeId])).toBe(true);
     expect(isChallengeOf({ ...challenge, target: 1999 }, prize, [...prizeId])).toBe(false);

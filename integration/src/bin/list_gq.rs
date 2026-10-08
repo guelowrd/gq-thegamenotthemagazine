@@ -29,7 +29,7 @@ async fn main() -> Result<()> {
             r.id().map(|i| i.to_hex()).unwrap_or_default(),
             amount as f64 / 1e6,
             items.get(2).map(|f| f.as_canonical_u64()).unwrap_or(0),
-            items.get(1).map(|f| f.as_canonical_u64()).unwrap_or(0),
+            items.get(4).map(|f| f.as_canonical_u64()).unwrap_or(0),
             r.is_consumed()
         );
         n += 1;

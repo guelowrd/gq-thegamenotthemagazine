@@ -6,9 +6,8 @@ import type { Word4 } from "./quiz";
 
 /** One tag for every GQ note on chain; clients sync it and filter by script root. */
 export const GQ_TAG = 0x47510001;
-export const STORAGE_VERSION = 1n;
-export const NUM_STORAGE_ITEMS = 44;
-export const CHALLENGE_DEADLINE_INDEX = 40;
+export const NUM_STORAGE_ITEMS = 40;
+export const CHALLENGE_DEADLINE_INDEX = 7;
 
 /** An account id as the two felts the scripts compare: [suffix, prefix]. */
 export type AccountFelts = { suffix: bigint; prefix: bigint };
@@ -36,23 +35,19 @@ export function encodeStorage(s: ChallengeStorage): bigint[] {
   if (s.cities.length !== ROUNDS) throw new Error(`expected ${ROUNDS} cities`);
   const player = s.player ?? { suffix: 0n, prefix: 0n };
   const felts = [
-    STORAGE_VERSION,
-    BigInt(s.expiryBlock),
-    BigInt(s.target),
-    s.minStake,
     s.champion.suffix,
     s.champion.prefix,
+    BigInt(s.target),
+    s.minStake,
+    BigInt(s.expiryBlock),
     player.suffix,
     player.prefix,
+    BigInt(s.challengeDeadline),
     ...s.prizeId,
     ...s.challengeRoot,
     ...s.seed,
     ...s.dataset,
     ...s.cities.flatMap((c) => [c.idx, c.lat, c.lon, c.cos].map(BigInt)),
-    BigInt(s.challengeDeadline),
-    0n,
-    0n,
-    0n,
   ];
   if (felts.length !== NUM_STORAGE_ITEMS) throw new Error("bad storage length");
   return felts;
@@ -60,19 +55,18 @@ export function encodeStorage(s: ChallengeStorage): bigint[] {
 
 export function decodeStorage(felts: bigint[]): ChallengeStorage {
   if (felts.length !== NUM_STORAGE_ITEMS) throw new Error(`expected ${NUM_STORAGE_ITEMS} felts, got ${felts.length}`);
-  if (felts[0] !== STORAGE_VERSION) throw new Error(`unsupported storage version ${felts[0]}`);
   const word = (at: number): Word4 => [felts[at], felts[at + 1], felts[at + 2], felts[at + 3]];
-  const player = { suffix: felts[6], prefix: felts[7] };
+  const player = { suffix: felts[5], prefix: felts[6] };
   const cities: City[] = [];
   for (let i = 0; i < ROUNDS; i++) {
     const b = 24 + 4 * i;
     cities.push({ idx: Number(felts[b]), lat: Number(felts[b + 1]), lon: Number(felts[b + 2]), cos: Number(felts[b + 3]) });
   }
   return {
-    expiryBlock: Number(felts[1]),
+    champion: { suffix: felts[0], prefix: felts[1] },
     target: Number(felts[2]),
     minStake: felts[3],
-    champion: { suffix: felts[4], prefix: felts[5] },
+    expiryBlock: Number(felts[4]),
     player: player.suffix === 0n && player.prefix === 0n ? null : player,
     prizeId: word(8),
     challengeRoot: word(12),

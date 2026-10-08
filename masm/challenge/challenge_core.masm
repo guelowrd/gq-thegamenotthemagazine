@@ -4,23 +4,21 @@
 #! CHALLENGE note holding their stake, bound to one prize. Whoever beats the target with a verified
 #! answer takes the prize; a challenger who does not loses the stake to the champion.
 #!
-#! Both notes share one storage layout (44 felts). A challenge note is its prize note's storage
-#! with `player`, `PRIZE_ID` and `challenge_deadline` filled in, which is what lets the prize
+#! Both notes share one storage layout (40 felts). A challenge note is its prize note's storage
+#! with `player`, `challenge_deadline` and `PRIZE_ID` filled in, which is what lets the prize
 #! recognise it by storage commitment at claim time: the claimant supplies the challenge's deadline
 #! through the advice map (key = the challenge note id), and the recomputed commitment only
 #! matches if that is the deadline the note really carries.
 #!
-#!   0      version            = 1
-#!   1      expiry_block       prize lifetime (claim window)
+#!   0..1   champion           [suffix, prefix]
 #!   2      target             score to beat (strictly greater wins)
 #!   3      min_stake          minimum challenge amount, in the prize's asset
-#!   4..5   champion           [suffix, prefix]
-#!   6..7   player             [suffix, prefix]   zero in a prize note
+#!   4      expiry_block       prize lifetime (claim window)
+#!   5..6   player             [suffix, prefix]   zero in a prize note
+#!   7      challenge_deadline block by which the player must settle; zero in a prize note
 #!   8..11  PRIZE_ID           zero in a prize note
 #!  12..15  CHALLENGE_ROOT     script root of challenge.masm
 #!  16..39  GAME DATA          opaque here; the game's `score` procedure reads it
-#!  40      challenge_deadline block by which the player must settle; zero in a prize note
-#!  41..43  reserved (zero)
 #!
 #! A challenge settles before `min(challenge_deadline, expiry_block)` and the champion collects
 #! from that block on, so a challenger cannot pick a deadline past the prize's own life.
@@ -47,40 +45,37 @@ use gq::score
 # CONSTANTS
 # =================================================================================================
 
-pub const NUM_STORAGE_ITEMS = 44
+pub const NUM_STORAGE_ITEMS = 40
 pub const STORAGE_PTR = 0
-pub const VERSION_PTR = 0
-pub const EXPIRY_PTR = 1
+pub const CHAMPION_SUFFIX_PTR = 0
+pub const CHAMPION_PREFIX_PTR = 1
 pub const TARGET_PTR = 2
 pub const MIN_STAKE_PTR = 3
-pub const CHAMPION_SUFFIX_PTR = 4
-pub const CHAMPION_PREFIX_PTR = 5
-pub const PLAYER_SUFFIX_PTR = 6
-pub const PLAYER_PREFIX_PTR = 7
+pub const EXPIRY_PTR = 4
+pub const PLAYER_SUFFIX_PTR = 5
+pub const PLAYER_PREFIX_PTR = 6
+pub const CHALLENGE_DEADLINE_PTR = 7
 pub const PRIZE_ID_PTR = 8
 pub const CHALLENGE_ROOT_PTR = 12
 pub const GAME_DATA_PTR = 16
-pub const CHALLENGE_DEADLINE_PTR = 40
 
 # scratch memory
-const EXPECTED_PTR = 64              # expected challenge storage (44 felts)
-const EXPECTED_PLAYER_SUFFIX_PTR = 70
-const EXPECTED_PLAYER_PREFIX_PTR = 71
+const EXPECTED_PTR = 64              # expected challenge storage (40 felts)
+const EXPECTED_PLAYER_SUFFIX_PTR = 69
+const EXPECTED_PLAYER_PREFIX_PTR = 70
+const EXPECTED_DEADLINE_PTR = 71
 const EXPECTED_PRIZE_ID_PTR = 72
-const EXPECTED_DEADLINE_PTR = 104
-const EXPECTED_COMMITMENT_PTR = 108
-const FOUND_PTR = 112
+const EXPECTED_COMMITMENT_PTR = 104
+const FOUND_PTR = 108
 const ASSET_PTR = 128                # this note's assets (up to 16 x 8 felts)
 
-pub const VERSION = 1
 #! A back-dated reference block buys at most this many blocks on the before-expiry paths.
 pub const CLAIM_FUZZ = 64
 
 # ERRORS
 # =================================================================================================
 
-const ERR_STORAGE_ITEMS = "challenge: note storage must hold exactly 44 items"
-const ERR_VERSION = "challenge: unsupported storage version"
+const ERR_STORAGE_ITEMS = "challenge: note storage must hold exactly 40 items"
 const ERR_EXPIRED = "challenge: the deadline has passed"
 const ERR_NOT_EXPIRED = "challenge: the deadline has not passed yet"
 const ERR_ONE_ASSET = "challenge: the note must hold exactly one asset"
@@ -91,7 +86,7 @@ const ERR_NO_CHALLENGE = "challenge: no challenge note bound to this prize and c
 # STORAGE
 # =================================================================================================
 
-#! Loads the note storage to STORAGE_PTR and checks the layout version.
+#! Loads the note storage to STORAGE_PTR.
 #!
 #! Inputs:  []
 #! Outputs: []
@@ -99,7 +94,6 @@ pub proc load_storage
     push.NUM_STORAGE_ITEMS push.STORAGE_PTR exec.active_note::get_bounded_storage
     # => [num_storage_items]
     eq.NUM_STORAGE_ITEMS assert.err=ERR_STORAGE_ITEMS
-    mem_load.VERSION_PTR eq.VERSION assert.err=ERR_VERSION
 end
 
 # PARTIES
@@ -248,7 +242,7 @@ end
 #! Inputs:  [challenge_deadline]
 #! Outputs: []
 proc compute_expected_challenge_commitment
-    # copy the 11 storage words
+    # copy the 10 storage words
     padw mem_loadw_le.0  mem_storew_le.64 dropw
     padw mem_loadw_le.4  mem_storew_le.68 dropw
     padw mem_loadw_le.8  mem_storew_le.72 dropw
@@ -259,7 +253,6 @@ proc compute_expected_challenge_commitment
     padw mem_loadw_le.28 mem_storew_le.92 dropw
     padw mem_loadw_le.32 mem_storew_le.96 dropw
     padw mem_loadw_le.36 mem_storew_le.100 dropw
-    padw mem_loadw_le.40 mem_storew_le.104 dropw
 
     # challenge_deadline as claimed by the consumer (the commitment check proves it)
     mem_store.EXPECTED_DEADLINE_PTR

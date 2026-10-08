@@ -24,23 +24,22 @@ web/              React app (frontend-template v0.17 lineage) + Bread wallet ada
 
 ## Note storage layout
 
-Both notes carry the same 44 felts. A challenge note is its prize note's storage with three
-fields filled in, which is how the prize script recognises a legitimate challenge: it rebuilds
-the 44 felts a challenge of it must have and compares the storage hash.
+Both notes carry the same 40 felts: the prize's facts first, then the challenge's own, then the
+script root and the game data. A challenge note is its prize note's storage with three fields
+filled in, which is how the prize script recognises a legitimate challenge: it rebuilds the 40
+felts a challenge of it must have and compares the storage hash.
 
 | felt  | field              | prize note                | challenge note          |
 |-------|--------------------|---------------------------|-------------------------|
-| 0     | version            | 1                         | 1                       |
-| 1     | expiry_block       | prize's end (~24 h)       | copied from the prize   |
+| 0-1   | champion           | [suffix, prefix]          | copied from the prize   |
 | 2     | target             | champion's score to beat  | copied                  |
 | 3     | min_stake          | the stake                 | copied                  |
-| 4-5   | champion           | [suffix, prefix]          | copied                  |
-| 6-7   | player             | 0, 0                      | challenger [suffix, prefix] |
+| 4     | expiry_block       | prize's end (~24 h)       | copied                  |
+| 5-6   | player             | 0, 0                      | challenger [suffix, prefix] |
+| 7     | challenge_deadline | 0                         | challenge's end (~6 min)|
 | 8-11  | PRIZE_ID           | 0                         | the prize note's id     |
 | 12-15 | CHALLENGE_ROOT     | challenge.masm script root| copied                  |
 | 16-39 | game data          | seed(4), dataset(4), 4 × [city, lat, lon, cos] | copied |
-| 40    | challenge_deadline | 0                         | challenge's end (~6 min)|
-| 41-43 | padding            | 0                         | 0                       |
 
 A challenge settles before `min(challenge_deadline, expiry_block)`; the champion collects from
 that block on. The note argument on settle or claim is one Word: four packed answers,

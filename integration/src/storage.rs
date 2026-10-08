@@ -1,16 +1,17 @@
 //! Host-side view of the challenge note storage (`masm/challenge/challenge_core.masm`).
 //!
-//! Both the prize note and the challenge note use this 44-felt layout; a challenge note is its
-//! prize note's storage with `player`, `prize_id` and `challenge_deadline` filled in.
+//! Both the prize note and the challenge note use this 40-felt layout; a challenge note is its
+//! prize note's storage with `player`, `challenge_deadline` and `prize_id` filled in.
+//! Layout: champion(2) target min_stake expiry | player(2) challenge_deadline | PRIZE_ID(4) |
+//! CHALLENGE_ROOT(4) | game data(24).
 
 use miden_client::{account::AccountId, note::NoteId, Felt, Word};
 
 use crate::{felt, rules::{City, ROUNDS}};
 
-pub const STORAGE_VERSION: u64 = 1;
-pub const NUM_STORAGE_ITEMS: usize = 44;
+pub const NUM_STORAGE_ITEMS: usize = 40;
 pub const GAME_DATA_LEN: usize = 24;
-pub const CHALLENGE_DEADLINE_INDEX: usize = 40;
+pub const CHALLENGE_DEADLINE_INDEX: usize = 7;
 
 /// Game-specific payload (24 felts): seed, dataset hash, four cities.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -93,19 +94,18 @@ impl ChallengeStorage {
             None => (felt(0), felt(0)),
         };
         let mut v = vec![
-            felt(STORAGE_VERSION),
-            felt(self.expiry_block as u64),
-            felt(self.target as u64),
-            felt(self.min_stake),
             self.champion.suffix(),
             Felt::from(self.champion.prefix()),
+            felt(self.target as u64),
+            felt(self.min_stake),
+            felt(self.expiry_block as u64),
             player_suffix,
             player_prefix,
+            felt(self.challenge_deadline as u64),
         ];
         v.extend_from_slice(self.prize_id.as_elements());
         v.extend_from_slice(self.challenge_root.as_elements());
         v.extend_from_slice(&self.game);
-        v.extend_from_slice(&[felt(self.challenge_deadline as u64), felt(0), felt(0), felt(0)]);
         debug_assert_eq!(v.len(), NUM_STORAGE_ITEMS);
         v
     }
