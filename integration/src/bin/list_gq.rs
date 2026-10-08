@@ -25,15 +25,16 @@ async fn main() -> Result<()> {
         let amount: u64 = r.details().assets().iter_fungible().map(|a| a.amount().as_u64()).sum();
         let sender = r.metadata().map(|m| m.sender().to_hex()).unwrap_or_default();
         println!(
-            "{kind:<9} {} sender {sender} amount {} target {} expiry {} consumed {}",
+            "{kind:<9} {} sender {sender} amount {} target {} expiry {} deadline {} consumed {}",
             r.id().map(|i| i.to_hex()).unwrap_or_default(),
             amount as f64 / 1e6,
             items.get(2).map(|f| f.as_canonical_u64()).unwrap_or(0),
             items.get(4).map(|f| f.as_canonical_u64()).unwrap_or(0),
+            items.get(7).map(|f| f.as_canonical_u64()).unwrap_or(0),
             r.is_consumed()
         );
         n += 1;
     }
-    println!("{n} GQ notes");
+    println!("{n} GQ notes, chain height {}", client.get_sync_height().await?.as_u32());
     Ok(())
 }

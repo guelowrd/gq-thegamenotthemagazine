@@ -66,9 +66,9 @@ export function selfCheckAuthArgs(): boolean {
  * every ~3 s, so the bound block has to be as fresh as possible: sync first, bind the result,
  * submit at once. `submit` retries with a fresh block when Bread still reports the mismatch.
  */
-async function breadBuilder(client: Client): Promise<TransactionRequestBuilder> {
+async function breadBuilder(client: Client, blockOffset: number): Promise<TransactionRequestBuilder> {
   const feeFaucet = await client.feeFaucetId();
-  const boundBlock = await waitForFreshBlock(client);
+  const boundBlock = (await waitForFreshBlock(client)) + blockOffset;
   const { elements, commitment } = multisigAuthArgs(boundBlock, randomSeed(), feeFaucet);
   const advice = new AdviceMap();
   advice.insert(commitment, feltArray(elements));
@@ -120,14 +120,21 @@ async function waitForFreshBlock(client: Client): Promise<number> {
   return start;
 }
 
-const ANCHOR_RETRIES = 8;
+const ANCHOR_RETRIES = 10;
 const isAnchorMismatch = (e: unknown) =>
   /SummaryAnchorMismatch|captured chain anchor|ChainBehindBoundBlock|has not reached that block/i.test(e instanceof Error ? e.message : String(e));
 /** Progress callback for the UI: which attempt is running. */
 export let onSubmitAttempt: (attempt: number, total: number) => void = () => {};
 export const setSubmitAttemptListener = (fn: typeof onSubmitAttempt) => (onSubmitAttempt = fn);
 
-/** Builds the request from a fresh builder and submits it to Bread, retrying on an anchor mismatch. */
+/**
+ * Builds the request from a fresh builder and submits it to Bread, retrying on an anchor mismatch.
+ *
+ * Bread syncs and anchors a few seconds after we bind: about one block later when the request
+ * carries no notes, about two when it ships notes with proofs (Bread imports them first). The
+ * first attempt binds that expected block; later attempts alternate between it and its
+ * neighbour.
+ */
 async function submit(
   client: Client,
   wallet: Wallet,
@@ -136,9 +143,11 @@ async function submit(
   importNotes?: Uint8Array[],
 ): Promise<string> {
   if (!wallet.address || !wallet.requestTransaction) throw new Error("Bread is not connected");
+  const expectedLag = importNotes?.length ? 1 : 0;
   for (let attempt = 1; ; attempt++) {
     onSubmitAttempt(attempt, ANCHOR_RETRIES);
-    const request = build(await breadBuilder(client));
+    const offset = expectedLag + ((attempt - 1) % 2);
+    const request = build(await breadBuilder(client, offset));
     const tx = Transaction.createCustomTransaction(wallet.address, wallet.address, request, inputNoteIds, importNotes);
     try {
       return await wallet.requestTransaction(tx);
