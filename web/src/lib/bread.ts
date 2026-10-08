@@ -186,11 +186,13 @@ export async function postChallenge(client: Client, wallet: Wallet, prize: GqNot
 }
 
 /**
- * Settle a challenge with the player's answers; when `prize` is given, claim it in the same
- * transaction. The notes travel with their inclusion proofs so Bread needs no prior sync of them.
+ * Settle the player's open challenges on one prize with their answers (same quiz, same answers for
+ * all of them); when `prize` is given, claim it in the same transaction. The notes travel with
+ * their inclusion proofs so Bread needs no prior sync of them.
  */
-export async function settle(client: Client, wallet: Wallet, challenge: GqNote, prize: GqNote | undefined, answer: Word4): Promise<Submitted> {
-  const ids = prize ? [prize.id, challenge.id] : [challenge.id];
+export async function settle(client: Client, wallet: Wallet, challenges: GqNote[], prize: GqNote | undefined, answer: Word4): Promise<Submitted> {
+  if (challenges.length === 0) throw new Error("no challenge note to settle");
+  const ids = [...(prize ? [prize.id] : []), ...challenges.map((c) => c.id)];
   const { inputs, files } = await fetchNotesWithProof(ids);
   const arg = Word.newFromFelts(feltsOf(answer));
   // the prize script learns the challenge's deadline from the advice map and proves it by commitment

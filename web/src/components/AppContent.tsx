@@ -18,7 +18,7 @@ type Mode =
   | { kind: "lobby" }
   | { kind: "play-champion"; seed: Word4; cities: City[] }
   | { kind: "post-prize"; seed: Word4; cities: City[]; result: PlayResult }
-  | { kind: "play-challenger"; challenge: GqNote; prize?: GqNote }
+  | { kind: "play-challenger"; challenges: GqNote[]; prize?: GqNote }
   | { kind: "busy"; text: string }
   | { kind: "done"; text: string; txId?: string; share?: { url: string; x: string } };
 
@@ -127,10 +127,29 @@ function GqApp() {
     quizCities(seed, places).then((cities) => setMode({ kind: "play-champion", seed, cities }));
   }
 
+  /** My unconsumed, unexpired challenge notes on `prize` (any of them settles with the same answers). */
+  const myOpenChallengesOn = (prize: GqNote) =>
+    notes.filter(
+      (n) =>
+        n.kind === "challenge" &&
+        !n.consumed &&
+        n.storage.player?.suffix === me?.suffix &&
+        n.storage.player?.prefix === me?.prefix &&
+        n.idWord.length === 4 &&
+        n.storage.prizeId.every((f, i) => f === prize.idWord[i]) &&
+        Math.min(n.storage.challengeDeadline, n.storage.expiryBlock) > height,
+    );
+
   /** Posts the challenge note and, once it is on chain, starts the quiz right away. */
   function challengePrize(prize: GqNote) {
     if (!wallet.address || !dataset || !me) return;
     if (prize.storage.expiryBlock - height < MIN_CHALLENGE_WINDOW_BLOCKS) return setError("This prize expires too soon to challenge.");
+    const open = myOpenChallengesOn(prize);
+    if (open.length > 0) {
+      // one stake per sitting: play the challenge already on the table instead of paying again
+      setMode({ kind: "play-challenger", challenges: open, prize });
+      return;
+    }
     const player = me;
     run(
       "Posting your challenge",
@@ -145,14 +164,16 @@ function GqApp() {
       (submitted) => ({
         kind: "play-challenger",
         prize,
-        challenge: {
-          id: submitted.noteIds[0],
-          idWord: wordFromHex(submitted.noteIds[0]),
-          kind: "challenge",
-          storage: { ...prize.storage, player, prizeId: prize.idWord, challengeDeadline: (submitted as Submitted & { deadline: number }).deadline },
-          amount: prize.storage.minStake,
-          consumed: false,
-        },
+        challenges: [
+          {
+            id: submitted.noteIds[0],
+            idWord: wordFromHex(submitted.noteIds[0]),
+            kind: "challenge",
+            storage: { ...prize.storage, player, prizeId: prize.idWord, challengeDeadline: (submitted as Submitted & { deadline: number }).deadline },
+            amount: prize.storage.minStake,
+            consumed: false,
+          },
+        ],
       }),
     );
   }
@@ -167,7 +188,11 @@ function GqApp() {
         </p>
         {connected ? (
           me && !(me.suffix === sharedPrize.storage.champion.suffix && me.prefix === sharedPrize.storage.champion.prefix) ? (
-            <button onClick={() => challengePrize(sharedPrize)}>Challenge &amp; play ({fmtGq(sharedPrize.storage.minStake)})</button>
+            myOpenChallengesOn(sharedPrize).length > 0 ? (
+              <button onClick={() => challengePrize(sharedPrize)}>Play your open challenge</button>
+            ) : (
+              <button onClick={() => challengePrize(sharedPrize)}>Challenge &amp; play ({fmtGq(sharedPrize.storage.minStake)})</button>
+            )
           ) : (
             <p className="muted">This is your own prize.</p>
           )
@@ -177,16 +202,17 @@ function GqApp() {
       </section>
     );
 
-  const settleAfterPlay = (challenge: GqNote, prize: GqNote | undefined) => (r: PlayResult) => {
-    const target = challenge.storage.target;
+  const settleAfterPlay = (challenges: GqNote[], prize: GqNote | undefined) => (r: PlayResult) => {
+    const target = challenges[0].storage.target;
     const won = r.score > target;
     const claimPrize = won && prize && prize.storage.expiryBlock > height;
+    const n = challenges.length > 1 ? ` (${challenges.length} challenge notes)` : "";
     const text = claimPrize
-      ? `You scored ${r.score} > ${target}. Claiming the prize and your stake`
+      ? `You scored ${r.score} > ${target}. Claiming the prize and your stake${n}`
       : won
-        ? `You scored ${r.score} > ${target}. Recovering your stake`
-        : `You scored ${r.score} ≤ ${target}. Forfeiting your stake to the champion`;
-    run(text, false, () => settle(client, wallet, challenge, claimPrize ? prize : undefined, answerWord(r.answers)));
+        ? `You scored ${r.score} > ${target}. Recovering your stake${n}`
+        : `You scored ${r.score} ≤ ${target}. Forfeiting your stake to the champion${n}`;
+    run(text, false, () => settle(client, wallet, challenges, claimPrize ? prize : undefined, answerWord(r.answers)));
   };
 
   if (!wallet.connected) {
@@ -230,7 +256,9 @@ function GqApp() {
             notes={notes}
             height={height}
             onChallenge={challengePrize}
-            onSettle={(challenge, prize) => setMode({ kind: "play-challenger", challenge, prize })}
+            onSettle={(challenge, prize) =>
+              setMode({ kind: "play-challenger", challenges: prize ? myOpenChallengesOn(prize) : [challenge], prize })
+            }
             onCollect={(note) => run(note.kind === "prize" ? "Reclaiming your prize" : "Collecting the stake", false, () => collect(client, wallet, note))}
           />
         </>
@@ -281,7 +309,7 @@ function GqApp() {
       )}
 
       {mode.kind === "play-challenger" && (
-        <Play cities={mode.challenge.storage.cities} places={places} onDone={settleAfterPlay(mode.challenge, mode.prize)} />
+        <Play cities={mode.challenges[0].storage.cities} places={places} onDone={settleAfterPlay(mode.challenges, mode.prize)} />
       )}
 
       {mode.kind === "busy" && (
