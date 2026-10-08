@@ -179,7 +179,12 @@ function GqApp() {
   }
 
   const sharedPrizeCard = (connected: boolean) =>
-    sharedPrize && (
+    sharedPrize && (sharedPrize.consumed || height >= sharedPrize.storage.expiryBlock) ? (
+      <section className="result">
+        <h2>This prize is gone</h2>
+        <p className="muted">{sharedPrize.consumed ? "It has already been claimed or reclaimed." : "It expired before anyone claimed it."} Play and post your own.</p>
+      </section>
+    ) : sharedPrize && (
       <section className="result">
         <h2>You were challenged</h2>
         <p>

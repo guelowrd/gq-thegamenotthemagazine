@@ -159,7 +159,11 @@ export async function fetchNotesWithProof(ids: string[]): Promise<{ inputs: Inpu
   }
 }
 
-/** Loads one GQ note straight from the node by id (no tag sync needed), e.g. from a shared link. */
+/**
+ * Loads one GQ note straight from the node by id (no tag sync needed), e.g. from a shared link,
+ * and asks the node whether its nullifier is already committed (the note fetch alone returns
+ * consumed notes too).
+ */
 export async function fetchGqNote(id: string): Promise<GqNote> {
   const { prizeRoot, challengeRoot } = await loadScripts();
   const { inputs } = await fetchNotesWithProof([id]);
@@ -168,7 +172,15 @@ export async function fetchGqNote(id: string): Promise<GqNote> {
   if (root !== prizeRoot && root !== challengeRoot) throw new Error("This note is not a GQ prize or challenge.");
   const storage = decodeStorage(note.recipient().storage().items().map((f) => f.asInt()));
   const gq = note.assets().fungibleAssets().find((a) => a.faucetId().toString() === GQ_FAUCET);
-  return { id, idWord: wordFromHex(id), kind: root === prizeRoot ? "prize" : "challenge", storage, amount: gq?.amount() ?? 0n, consumed: false };
+  const rpc = new RpcClient(endpoint());
+  let consumed = false;
+  try {
+    const creationBlock = inputs[0].location()?.blockNum() ?? 0;
+    consumed = (await rpc.getNullifierCommitHeight(note.nullifier(), creationBlock)) != null;
+  } finally {
+    rpc.free();
+  }
+  return { id, idWord: wordFromHex(id), kind: root === prizeRoot ? "prize" : "challenge", storage, amount: gq?.amount() ?? 0n, consumed };
 }
 
 /** The shareable link to a prize, and the X post that carries it. */
