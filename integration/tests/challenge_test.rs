@@ -286,6 +286,34 @@ async fn stranger_cannot_touch_challenge() -> Result<()> {
     Ok(())
 }
 
+// --- the core is agnostic to the game data length -------------------------------------------
+
+/// Another game may need more data: the core accepts any whole number of words after the
+/// 16-felt header, as long as prize and challenge carry the same tail.
+#[tokio::test(flavor = "multi_thread")]
+async fn longer_game_tail_is_accepted() -> Result<()> {
+    let mut s = setup(1000)?;
+    let extra = [felt(7), felt(8), felt(9), felt(10)];
+    let mut prize_felts = s.prize_storage.to_felts();
+    prize_felts.extend_from_slice(&extra);
+    let prize = build_note_felts(s.champion.id(), integration::scripts::prize_script()?, prize_felts, FungibleAsset::new(s.faucet.id(), PRIZE)?, 11)?;
+    let champion = s.champion.clone();
+    s.publish(&champion, &prize)?;
+    let mut ch_felts = s.prize_storage.challenge_for(s.challenger.id(), prize.id(), CHALLENGE_DEADLINE).to_felts();
+    ch_felts.extend_from_slice(&extra);
+    let challenge = build_note_felts(s.challenger.id(), s.challenge_script.clone(), ch_felts, FungibleAsset::new(s.faucet.id(), STAKE)?, 12)?;
+    let challenger = s.challenger.clone();
+    s.publish(&challenger, &challenge)?;
+    let before = s.balance(s.challenger.id());
+    let tx = s
+        .consume(s.challenger.id(), &[&prize, &challenge], answer_word(&perfect_answers()))
+        .await
+        .expect("claim with a 44-felt layout");
+    s.commit(&tx)?;
+    assert_eq!(s.balance(s.challenger.id()), before + PRIZE + STAKE);
+    Ok(())
+}
+
 // --- scoring vectors: MASM agrees with the Rust reference -----------------------------------
 
 /// For every vector, a target of `score - 1` wins and a target of `score` loses. Together these

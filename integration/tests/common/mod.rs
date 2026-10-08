@@ -71,10 +71,20 @@ pub fn build_note(
     asset: FungibleAsset,
     seed: u64,
 ) -> Result<Note> {
+    build_note_felts(sender, script, storage.to_felts(), asset, seed)
+}
+
+pub fn build_note_felts(
+    sender: AccountId,
+    script: NoteScript,
+    felts: Vec<miden_client::Felt>,
+    asset: FungibleAsset,
+    seed: u64,
+) -> Result<Note> {
     let mut rng = StdRng::seed_from_u64(seed);
     Ok(NoteBuilder::new(sender, &mut rng)
         .script(script)
-        .note_storage(storage.to_felts())?
+        .note_storage(felts)?
         .add_assets([asset.into()])
         .note_type(NoteType::Public)
         .tag(GQ_TAG)

@@ -21,7 +21,7 @@ pub proc main(args: NoteArgs)
     # => [is_player, ANSWER]
     if.true
         exec.core::assert_before_challenge_deadline
-        exec.core::score_beats_target
+        exec.core::answer_beats_target
         # => [beats_target]
         if.true
             exec.core::receive_all

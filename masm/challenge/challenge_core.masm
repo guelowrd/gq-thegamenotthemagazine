@@ -18,12 +18,14 @@
 #!   7      challenge_deadline block by which the player must settle; zero in a prize note
 #!   8..11  PRIZE_ID           zero in a prize note
 #!  12..15  CHALLENGE_ROOT     script root of challenge.masm
-#!  16..39  GAME DATA          opaque here; the game's `score` procedure reads it
+#!  16..    GAME DATA          opaque here; any length in whole words; the game reads it
 #!
 #! A challenge settles before `min(challenge_deadline, expiry_block)` and the champion collects
 #! from that block on, so a challenger cannot pick a deadline past the prize's own life.
 #!
-#! The game plugs in one procedure, `gq::score::score`: [a0, a1, a2, a3, data_ptr] -> [score].
+#! The game plugs in one procedure, `gq::score::beats_target`:
+#!   [ANSWER, data_ptr, target] -> [beats]
+#! ANSWER is the note argument (one Word), data_ptr points at the game data, target is felt 2.
 #!
 #! Both notes must hold exactly one asset. Consuming accounts must expose the standard
 #! `basic::receive_asset`, `basic::move_asset_to_note` and `note_creator::create_note` procedures
@@ -45,7 +47,8 @@ use gq::score
 # CONSTANTS
 # =================================================================================================
 
-pub const NUM_STORAGE_ITEMS = 40
+pub const HEADER_ITEMS = 16
+pub const MAX_STORAGE_ITEMS = 256
 pub const STORAGE_PTR = 0
 pub const CHAMPION_SUFFIX_PTR = 0
 pub const CHAMPION_PREFIX_PTR = 1
@@ -60,14 +63,15 @@ pub const CHALLENGE_ROOT_PTR = 12
 pub const GAME_DATA_PTR = 16
 
 # scratch memory
-const EXPECTED_PTR = 64              # expected challenge storage (40 felts)
-const EXPECTED_PLAYER_SUFFIX_PTR = 69
-const EXPECTED_PLAYER_PREFIX_PTR = 70
-const EXPECTED_DEADLINE_PTR = 71
-const EXPECTED_PRIZE_ID_PTR = 72
-const EXPECTED_COMMITMENT_PTR = 104
-const FOUND_PTR = 108
-const ASSET_PTR = 128                # this note's assets (up to 16 x 8 felts)
+const NUM_ITEMS_PTR = 260            # this note's storage length
+const EXPECTED_PTR = 512             # expected challenge storage (same length)
+const EXPECTED_PLAYER_SUFFIX_PTR = 517
+const EXPECTED_PLAYER_PREFIX_PTR = 518
+const EXPECTED_DEADLINE_PTR = 519
+const EXPECTED_PRIZE_ID_PTR = 520
+const EXPECTED_COMMITMENT_PTR = 768
+const FOUND_PTR = 772
+const ASSET_PTR = 1024               # this note's assets (up to 16 x 8 felts)
 
 #! A back-dated reference block buys at most this many blocks on the before-expiry paths.
 pub const CLAIM_FUZZ = 64
@@ -75,7 +79,7 @@ pub const CLAIM_FUZZ = 64
 # ERRORS
 # =================================================================================================
 
-const ERR_STORAGE_ITEMS = "challenge: note storage must hold exactly 40 items"
+const ERR_STORAGE_ITEMS = "challenge: note storage must hold the 16 header items plus game data in whole words"
 const ERR_EXPIRED = "challenge: the deadline has passed"
 const ERR_NOT_EXPIRED = "challenge: the deadline has not passed yet"
 const ERR_ONE_ASSET = "challenge: the note must hold exactly one asset"
@@ -86,14 +90,17 @@ const ERR_NO_CHALLENGE = "challenge: no challenge note bound to this prize and c
 # STORAGE
 # =================================================================================================
 
-#! Loads the note storage to STORAGE_PTR.
+#! Loads the note storage to STORAGE_PTR and records its length: 16 header items plus the game's
+#! data, in whole words.
 #!
 #! Inputs:  []
 #! Outputs: []
 pub proc load_storage
-    push.NUM_STORAGE_ITEMS push.STORAGE_PTR exec.active_note::get_bounded_storage
+    push.MAX_STORAGE_ITEMS push.STORAGE_PTR exec.active_note::get_bounded_storage
     # => [num_storage_items]
-    eq.NUM_STORAGE_ITEMS assert.err=ERR_STORAGE_ITEMS
+    dup u32gte.HEADER_ITEMS assert.err=ERR_STORAGE_ITEMS
+    dup u32mod.4 assertz.err=ERR_STORAGE_ITEMS
+    mem_store.NUM_ITEMS_PTR
 end
 
 # PARTIES
@@ -172,15 +179,18 @@ pub proc assert_after_challenge_deadline
     exec.before_challenge_deadline assertz.err=ERR_NOT_EXPIRED
 end
 
-# SCORE
+# VERDICT
 # =================================================================================================
 
+#! Asks the game whether the answer beats the target.
+#!
 #! Inputs:  [ANSWER]
 #! Outputs: [beats_target]
-pub proc score_beats_target
-    push.GAME_DATA_PTR movdn.4 exec.score::score
-    # => [score]
-    mem_load.TARGET_PTR gt
+pub proc answer_beats_target
+    mem_load.TARGET_PTR movdn.4
+    push.GAME_DATA_PTR movdn.4
+    # => [ANSWER, data_ptr, target]
+    exec.score::beats_target
 end
 
 # ASSETS
@@ -242,17 +252,18 @@ end
 #! Inputs:  [challenge_deadline]
 #! Outputs: []
 proc compute_expected_challenge_commitment
-    # copy the 10 storage words
-    padw mem_loadw_le.0  mem_storew_le.64 dropw
-    padw mem_loadw_le.4  mem_storew_le.68 dropw
-    padw mem_loadw_le.8  mem_storew_le.72 dropw
-    padw mem_loadw_le.12 mem_storew_le.76 dropw
-    padw mem_loadw_le.16 mem_storew_le.80 dropw
-    padw mem_loadw_le.20 mem_storew_le.84 dropw
-    padw mem_loadw_le.24 mem_storew_le.88 dropw
-    padw mem_loadw_le.28 mem_storew_le.92 dropw
-    padw mem_loadw_le.32 mem_storew_le.96 dropw
-    padw mem_loadw_le.36 mem_storew_le.100 dropw
+    # copy this note's storage, word by word
+    mem_load.NUM_ITEMS_PTR push.0
+    # => [i, n]
+    dup dup.2 lt
+    while.true
+        padw dup.4 mem_loadw_le
+        # => [WORD, i, n]
+        dup.4 add.EXPECTED_PTR mem_storew_le dropw
+        # => [i, n]
+        add.4 dup dup.2 lt
+    end
+    drop drop
 
     # challenge_deadline as claimed by the consumer (the commitment check proves it)
     mem_store.EXPECTED_DEADLINE_PTR
@@ -266,7 +277,7 @@ proc compute_expected_challenge_commitment
     exec.active_note::get_note_id
     mem_storew_le.EXPECTED_PRIZE_ID_PTR dropw
 
-    push.NUM_STORAGE_ITEMS push.EXPECTED_PTR exec.note::compute_storage_commitment
+    mem_load.NUM_ITEMS_PTR push.EXPECTED_PTR exec.note::compute_storage_commitment
     # => [COMMITMENT]
     mem_storew_le.EXPECTED_COMMITMENT_PTR dropw
 end

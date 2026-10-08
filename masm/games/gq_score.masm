@@ -142,3 +142,14 @@ pub proc score
     movup.2 exec.round_score add
     # => [score]
 end
+
+#! The verdict the challenge core asks the game for: does this answer beat the target?
+#! GeoQuiz: a strictly higher score wins.
+#!
+#! Inputs:  [a0, a1, a2, a3, data_ptr, target]
+#! Outputs: [beats_target]
+pub proc beats_target
+    exec.score
+    # => [score, target]
+    swap gt
+end

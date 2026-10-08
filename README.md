@@ -24,8 +24,9 @@ web/              React app (frontend-template v0.17 lineage) + Bread wallet ada
 
 ## Note storage layout
 
-Both notes carry the same 40 felts: the prize's facts first, then the challenge's own, then the
-script root and the game data. A challenge note is its prize note's storage with three fields
+Both notes carry the same layout: 16 header felts the core owns, then the game's data in whole
+words (GeoQuiz uses 24, so 40 felts in all). The prize's facts come first, then the challenge's
+own, then the script root and the game data. A challenge note is its prize note's storage with three fields
 filled in, which is how the prize script recognises a legitimate challenge: it rebuilds the 40
 felts a challenge of it must have and compares the storage hash.
 
@@ -61,8 +62,10 @@ Testnet: `cargo run --release --bin gq_faucet deploy|mint <account> <GQ>` and
 
 ## Adapting it to another game
 
-1. Replace `masm/games/gq_score.masm` with your `score(ANSWER, data_ptr) -> u32` procedure. The core
-   gives it the one-Word note argument and a pointer to 24 felts of game data you define.
+1. Replace `masm/games/gq_score.masm` with your `beats_target(ANSWER, data_ptr, target) -> bool`
+   procedure. The core hands it the one-Word note argument, a pointer to your game data (any
+   number of whole words after the 16-felt header) and the champion's target; you decide what
+   "beats" means (GeoQuiz: a strictly higher score).
 2. Mirror the scoring in `integration/src/rules.rs` (test vectors) and `web/src/lib/rules.ts`.
 3. Keep `masm/challenge/*` as is. Storage layout, the four paths and the binding check do not know
    what the game is.

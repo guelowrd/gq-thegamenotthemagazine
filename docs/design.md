@@ -63,8 +63,11 @@ token or amount.
 
 Both include `challenge_core.masm` (storage layout, deadline checks, the
 "find my challenge note" check, asset moves) and call one game procedure,
-`score(ANSWER, game_data_ptr) -> u32`, provided by `games/gq_score.masm`.
-Another game replaces that one file. Anything not matching a path aborts.
+`beats_target(ANSWER, game_data_ptr, target) -> bool`, provided by
+`games/gq_score.masm`. The core never sees a score; the game decides what beats
+the target. Game data is any whole number of words after the 16-felt header;
+the core reads the storage length at run time. Another game replaces that one
+file. Anything not matching a path aborts.
 
 Why two scripts and not one with a kind field: two artifacts named after the
 two concepts explain themselves, each has two paths, and a game can ship a new
@@ -84,7 +87,7 @@ hardcoded.
  7      challenge_deadline block by which the player must settle; zero in a prize note
  8..11  PRIZE_ID           zero in a prize note
 12..15  CHALLENGE_ROOT     challenge.masm script root
-16..39  GAME DATA          opaque to the core; GeoQuiz: SEED(4) DATASET(4) 4×{city,lat,lon,cos}
+16..    GAME DATA          whole words, any length; GeoQuiz: SEED(4) DATASET(4) 4×{city,lat,lon,cos} = 24
 ```
 
 A challenge note is a copy of its prize note's storage with `player`,
@@ -107,7 +110,7 @@ initial assets, not their storage contents. So the prize script:
    the note id; the claimant supplies it) and builds the storage the note must
    have: its own storage with `player = active_account::get_id()`,
    `PRIZE_ID = active_note::get_note_id()` and that deadline;
-3. hashes the 40 felts with `note::compute_storage_commitment` and compares
+3. hashes the whole storage (same length as its own) with `note::compute_storage_commitment` and compares
    with `input_note::get_storage_info(i).commitment`; a lie about the deadline,
    the player, the prize or the quiz hashes differently;
 4. checks the note's initial assets hold ≥ `min_stake` of the prize's asset;

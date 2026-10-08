@@ -24,7 +24,7 @@ pub proc main(args: NoteArgs)
         exec.core::receive_all
     else
         exec.core::assert_before_expiry
-        exec.core::score_beats_target
+        exec.core::answer_beats_target
         # => [beats_target]
         assert.err=ERR_PRIZE_TARGET_NOT_BEATEN
         exec.core::assert_challenge_present
