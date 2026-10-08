@@ -25,7 +25,7 @@ cargo run --release --bin build_scripts     # once, and after any change under m
 cd web && yarn install && yarn dev          # http://localhost:5173
 ```
 
-1. Install Bread (https://miden.fi, v1.17.1+, testnet), create a wallet, fund fees ("Fund your wallet": 0.01 USDCx).
+1. Install Bread (latest release at https://github.com/0xMiden/wallet/releases, v1.17.1+, testnet build), create a wallet, fund fees ("Fund your wallet": 0.01 USDCx).
 2. Get GQ: `cargo run --release --bin gq_faucet mint <your mtst1… address> 10` (anyone with the
    faucet key; ask Gaylord). Bread auto-claims the public P2ID note.
 3. Connect, play, "Post prize". Another Bread account: "Challenge", play, the app settles (win →
