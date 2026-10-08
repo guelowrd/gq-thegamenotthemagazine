@@ -52,7 +52,7 @@ challenge's deadline in the advice map under the challenge note id, and the hash
 Toolchain (once): `cargo install --locked midenup && midenup install 0.17.0`.
 
 ```sh
-cargo test -p integration --release          # scoring reference, 17 MockChain tests (all four paths and their failures)
+cargo test -p integration --release          # scoring reference, 21 MockChain tests (all four paths, their failures, deadlines, a longer game tail)
 cargo run --release --bin build_scripts      # assembles the two note scripts into web/public/scripts/
 cd web && yarn install && yarn test && yarn dev
 ```
