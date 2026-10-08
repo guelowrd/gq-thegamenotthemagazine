@@ -151,6 +151,15 @@ function GqApp() {
         </p>
         {error && <p className="error">{error}</p>}
         {authCheck !== null && <p className="muted">auth-args self-check: {authCheck ? "ok" : "MISMATCH"}</p>}
+        <p className="muted">block {height} · {notes.filter((n) => n.kind === "prize" && !n.consumed).length} open prize(s)</p>
+        <Lobby
+          me={null}
+          notes={notes}
+          height={height}
+          onChallenge={() => setError("Connect Bread first to challenge a prize.")}
+          onSettle={() => undefined}
+          onCollect={() => undefined}
+        />
       </main>
     );
   }

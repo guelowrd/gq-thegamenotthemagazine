@@ -31,7 +31,7 @@ export function Lobby({ me, notes, height, onChallenge, onSettle, onCollect }: L
     <div className="lobby">
       <section>
         <h2>Open prizes</h2>
-        {prizes.length === 0 && <p className="muted">No prize yet. Play and post one.</p>}
+        {prizes.length === 0 && <p className="muted">No open prize found yet (the app syncs every 15 s). Play and post one.</p>}
         <ul>
           {prizes.map((p) => (
             <li key={p.id}>
