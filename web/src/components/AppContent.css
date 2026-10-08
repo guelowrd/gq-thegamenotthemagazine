@@ -1,9 +1,12 @@
+html, body { margin: 0; background: #f7f9fb; }
 .gq {
   max-width: 1040px;
   margin: 0 auto;
   padding: 16px;
+  min-height: 100vh;
   font-family: system-ui, sans-serif;
   color: #1d2530;
+  text-align: left;
 }
 .gq h1 { font-size: 1.4rem; margin: 0; }
 .gq h2 { font-size: 1.05rem; margin: 18px 0 6px; }

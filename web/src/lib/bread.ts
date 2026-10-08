@@ -46,16 +46,14 @@ export function multisigAuthArgs(boundBlock: number, salt: Word4, feeFaucet: Acc
 }
 
 /** Development check: the browser-side commitment must equal the Rust reference's. */
-export function selfCheckAuthArgs(): void {
-  for (const v of authVectors) {
+export function selfCheckAuthArgs(): boolean {
+  return authVectors.every((v) => {
     const salt = v.salt.map(BigInt) as Word4;
     const { commitment } = multisigAuthArgs(v.bound_block, salt, AccountId.fromHex(v.fee_faucet));
-    if (commitment.toHex() !== v.commitment) {
-      console.error("[gq] multisig auth-arg commitment differs from the Rust reference", commitment.toHex(), v.commitment);
-    } else {
-      console.info("[gq] multisig auth-arg commitment matches the Rust reference");
-    }
-  }
+    const ok = commitment.toHex() === v.commitment;
+    if (!ok) console.error("[gq] multisig auth-arg commitment differs from the Rust reference", commitment.toHex(), v.commitment);
+    return ok;
+  });
 }
 
 /** A request builder carrying the auth args Bread's multisig needs, bound to the current tip. */

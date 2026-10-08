@@ -17,3 +17,23 @@
 
 Balances after (GQ): champion 2 (+1 GQ forfeit still sitting in its P2ID note), loser 4, winner 8.
 Explorer: `https://testnet.midenscan.com/tx/<id>`.
+
+## Web app (Bread wallet)
+
+```sh
+cargo run --release --bin build_scripts     # once, and after any change under masm/
+cd web && yarn install && yarn dev          # http://localhost:5173
+```
+
+1. Install Bread (https://miden.fi, v1.17.1+, testnet), create a wallet, fund fees ("Fund your wallet": 0.01 USDCx).
+2. Get GQ: `cargo run --release --bin gq_faucet mint <your mtst1… address> 10` (anyone with the
+   faucet key; ask Gaylord). Bread auto-claims the public P2ID note.
+3. Connect, play, "Post prize". Another Bread account: "Challenge", play, the app settles (win →
+   stake back, plus the prize if you claimed first; loss → stake forfeited to the champion).
+4. After expiry the champion sees "Reclaim prize" / "Collect stake".
+
+Every transaction is built by the app (`web/src/lib/bread.ts`) and signed in Bread. Bread
+accounts are guarded multisigs, so the request carries the multisig auth args (bound block,
+salt, fee conversion info) and declares the bound block; the app checks its commitment against
+the Rust reference at start-up in development ("auth-args self-check: ok").
+Notes the wallet never synced travel with their inclusion proofs (`importNotes`).

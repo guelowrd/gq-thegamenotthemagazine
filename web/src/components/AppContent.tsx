@@ -23,6 +23,20 @@ type Mode =
   | { kind: "done"; text: string; txId?: string };
 
 export function AppContent() {
+  // `useMidenClient()` throws until the provider has created the client, so gate on readiness first.
+  const { isReady } = useMiden();
+  if (!isReady) {
+    return (
+      <main className="gq">
+        <h1>GQ · GeoQuiz on Miden</h1>
+        <p className="muted">Initializing the Miden client…</p>
+      </main>
+    );
+  }
+  return <GqApp />;
+}
+
+function GqApp() {
   const client = useMidenClient();
   const { runExclusive, isReady } = useMiden();
   const wallet = useMidenFiWallet();
@@ -33,6 +47,7 @@ export function AppContent() {
   const [height, setHeight] = useState(0);
   const [mode, setMode] = useState<Mode>({ kind: "lobby" });
   const [error, setError] = useState<string | null>(null);
+  const [authCheck, setAuthCheck] = useState<boolean | null>(null);
 
   const me = wallet.connected && wallet.address ? accountFelts(parseAccountId(wallet.address)) : null;
 
@@ -45,7 +60,7 @@ export function AppContent() {
       })
       .catch((e) => setError(String(e)));
     loadScripts().catch((e) => setError(String(e)));
-    if (import.meta.env.DEV) selfCheckAuthArgs();
+    if (import.meta.env.DEV) setAuthCheck(selfCheckAuthArgs());
   }, []);
 
   const refresh = useCallback(async () => {
@@ -113,10 +128,14 @@ export function AppContent() {
       <main className="gq">
         <h1>GQ · GeoQuiz on Miden</h1>
         <p>Click where the city is. Beat the champion's score to take the prize; lose and your stake goes to them.</p>
-        <button onClick={() => void wallet.connect()} disabled={wallet.connecting}>
+        <button onClick={() => wallet.connect().catch((e) => setError(e instanceof Error ? e.message : String(e)))} disabled={wallet.connecting}>
           {wallet.connecting ? "Connecting…" : "Connect Bread wallet"}
         </button>
+        <p className="muted">
+          Bread extension: {wallet.wallet?.readyState ?? "not detected"}. Get it at miden.fi, create or restore a testnet wallet, then connect.
+        </p>
         {error && <p className="error">{error}</p>}
+        {authCheck !== null && <p className="muted">auth-args self-check: {authCheck ? "ok" : "MISMATCH"}</p>}
       </main>
     );
   }
@@ -210,6 +229,7 @@ export function AppContent() {
       )}
       <footer className="muted">
         1 GQ = {10 ** GQ_DECIMALS} base units · scoring v1 · testnet
+        {authCheck !== null && <> · auth-args self-check: {authCheck ? "ok" : "MISMATCH"}</>}
       </footer>
     </main>
   );
