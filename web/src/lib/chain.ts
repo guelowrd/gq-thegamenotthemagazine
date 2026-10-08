@@ -158,3 +158,22 @@ export async function fetchNotesWithProof(ids: string[]): Promise<{ inputs: Inpu
     rpc.free();
   }
 }
+
+/** Loads one GQ note straight from the node by id (no tag sync needed), e.g. from a shared link. */
+export async function fetchGqNote(id: string): Promise<GqNote> {
+  const { prizeRoot, challengeRoot } = await loadScripts();
+  const { inputs } = await fetchNotesWithProof([id]);
+  const note = inputs[0].note();
+  const root = note.recipient().script().root().toHex();
+  if (root !== prizeRoot && root !== challengeRoot) throw new Error("This note is not a GQ prize or challenge.");
+  const storage = decodeStorage(note.recipient().storage().items().map((f) => f.asInt()));
+  const gq = note.assets().fungibleAssets().find((a) => a.faucetId().toString() === GQ_FAUCET);
+  return { id, idWord: wordFromHex(id), kind: root === prizeRoot ? "prize" : "challenge", storage, amount: gq?.amount() ?? 0n, consumed: false };
+}
+
+/** The shareable link to a prize, and the X post that carries it. */
+export function prizeLinks(prizeId: string, score: number) {
+  const url = `${location.origin}${location.pathname}?prize=${prizeId}`;
+  const text = `I scored ${score} on GQ, a GeoQuiz on @0xMiden. Beat my score and take my prize:`;
+  return { url, x: `https://x.com/intent/post?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}` };
+}

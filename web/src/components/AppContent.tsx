@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useMidenClient, useMiden } from "@miden-sdk/react";
 import { useMidenFiWallet } from "@miden-sdk/miden-wallet-adapter-react";
 import { CITIES_URL, EXPLORER_BASE_URL, GQ_DECIMALS, MIN_CHALLENGE_WINDOW_BLOCKS, PRIZE_LIFETIME_BLOCKS, STAKE } from "@/config";
-import { accountFelts, listGqNotes, loadScripts, parseAccountId, syncGq, type GqNote } from "@/lib/chain";
+import { accountFelts, fetchGqNote, listGqNotes, loadScripts, parseAccountId, prizeLinks, syncGq, wordFromHex, type GqNote } from "@/lib/chain";
 import { postChallenge, postPrize, settle, collect, selfCheckAuthArgs, setSubmitAttemptListener, waitFor, type Submitted } from "@/lib/bread";
 import { answerWord, type ChallengeStorage } from "@/lib/notes";
 import { datasetWord, quizCities, randomSeed, type Place, type Word4 } from "@/lib/quiz";
@@ -20,7 +20,7 @@ type Mode =
   | { kind: "post-prize"; seed: Word4; cities: City[]; result: PlayResult }
   | { kind: "play-challenger"; challenge: GqNote; prize?: GqNote }
   | { kind: "busy"; text: string }
-  | { kind: "done"; text: string; txId?: string };
+  | { kind: "done"; text: string; txId?: string; share?: { url: string; x: string } };
 
 export function AppContent() {
   // `useMidenClient()` throws until the provider has created the client, so gate on readiness first.
@@ -48,6 +48,8 @@ function GqApp() {
   const [mode, setMode] = useState<Mode>({ kind: "lobby" });
   const [error, setError] = useState<string | null>(null);
   const [authCheck, setAuthCheck] = useState<boolean | null>(null);
+  const [sharedPrize, setSharedPrize] = useState<GqNote | null>(null);
+  const sharedPrizeId = new URLSearchParams(location.search).get("prize");
 
   const me = wallet.connected && wallet.address ? accountFelts(parseAccountId(wallet.address)) : null;
 
@@ -61,6 +63,8 @@ function GqApp() {
       .catch((e) => setError(String(e)));
     loadScripts().catch((e) => setError(String(e)));
     if (import.meta.env.DEV) setAuthCheck(selfCheckAuthArgs());
+    if (sharedPrizeId) fetchGqNote(sharedPrizeId).then(setSharedPrize).catch((e) => setError(`Shared prize: ${e instanceof Error ? e.message : e}`));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const refresh = useCallback(async () => {
@@ -85,23 +89,32 @@ function GqApp() {
    * exists; otherwise: the consumed notes are gone). Bread only acknowledges the request; a
    * transaction can still fail inside the wallet, so nothing is called committed before it shows.
    */
-  async function run(text: string, posted: boolean, fn: () => Promise<Submitted>) {
+  async function run(
+    text: string,
+    posted: boolean,
+    fn: () => Promise<Submitted>,
+    onConfirmed?: (s: Submitted) => Mode | void,
+  ) {
     setError(null);
     setMode({ kind: "busy", text });
     setSubmitAttemptListener((attempt, total) => setMode({ kind: "busy", text: `${text} (attempt ${attempt}/${total})` }));
     try {
-      const { txId, noteIds } = await fn();
+      const submitted = await fn();
+      const { txId, noteIds } = submitted;
       setMode({ kind: "busy", text: `${text}: accepted by Bread, waiting for the chain` });
       const seen = await waitFor(client, runExclusive, async () => {
         const records = await Promise.all(noteIds.map((id) => client.getInputNote(id)));
         return posted ? records.every((r) => !!r) : records.every((r) => !!r?.isConsumed());
       });
-      setMode({
-        kind: "done",
-        text: seen ? `${text}: confirmed on chain` : `${text}: Bread accepted the request but the chain does not show it yet. Check Bread's activity; it may have failed there.`,
-        txId,
-      });
       void refresh();
+      const next = seen ? onConfirmed?.(submitted) : undefined;
+      setMode(
+        next ?? {
+          kind: "done",
+          text: seen ? `${text}: confirmed on chain` : `${text}: Bread accepted the request but the chain does not show it yet. Check Bread's activity; it may have failed there.`,
+          txId,
+        },
+      );
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
       setMode({ kind: "lobby" });
@@ -114,17 +127,55 @@ function GqApp() {
     quizCities(seed, places).then((cities) => setMode({ kind: "play-champion", seed, cities }));
   }
 
+  /** Posts the challenge note and, once it is on chain, starts the quiz right away. */
   function challengePrize(prize: GqNote) {
-    if (!wallet.address || !dataset) return;
+    if (!wallet.address || !dataset || !me) return;
     if (prize.storage.expiryBlock - height < MIN_CHALLENGE_WINDOW_BLOCKS) return setError("This prize expires too soon to challenge.");
-    run("Posting your challenge", true, async () => {
-      // refuse a quiz that does not come from the seed and this dataset
-      const expected = await quizCities(prize.storage.seed, places);
-      const same = expected.every((c, i) => JSON.stringify(c) === JSON.stringify(prize.storage.cities[i]));
-      if (!same || prize.storage.dataset.some((f, i) => f !== dataset[i])) throw new Error("This prize's quiz does not match the dataset.");
-      return postChallenge(client, wallet, prize, me!);
-    });
+    const player = me;
+    run(
+      "Posting your challenge",
+      true,
+      async () => {
+        // refuse a quiz that does not come from the seed and this dataset
+        const expected = await quizCities(prize.storage.seed, places);
+        const same = expected.every((c, i) => JSON.stringify(c) === JSON.stringify(prize.storage.cities[i]));
+        if (!same || prize.storage.dataset.some((f, i) => f !== dataset[i])) throw new Error("This prize's quiz does not match the dataset.");
+        return postChallenge(client, wallet, prize, player);
+      },
+      ({ noteIds }) => ({
+        kind: "play-challenger",
+        prize,
+        challenge: {
+          id: noteIds[0],
+          idWord: wordFromHex(noteIds[0]),
+          kind: "challenge",
+          storage: { ...prize.storage, player, prizeId: prize.idWord },
+          amount: prize.storage.minStake,
+          consumed: false,
+        },
+      }),
+    );
   }
+
+  const sharedPrizeCard = (connected: boolean) =>
+    sharedPrize && (
+      <section className="result">
+        <h2>You were challenged</h2>
+        <p>
+          Prize <strong>{fmtGq(sharedPrize.amount)}</strong> · beat <strong>{sharedPrize.storage.target}</strong> on four cities · stake{" "}
+          {fmtGq(sharedPrize.storage.minStake)} · {Math.max(0, sharedPrize.storage.expiryBlock - height)} blocks left
+        </p>
+        {connected ? (
+          me && !(me.suffix === sharedPrize.storage.champion.suffix && me.prefix === sharedPrize.storage.champion.prefix) ? (
+            <button onClick={() => challengePrize(sharedPrize)}>Challenge &amp; play ({fmtGq(sharedPrize.storage.minStake)})</button>
+          ) : (
+            <p className="muted">This is your own prize.</p>
+          )
+        ) : (
+          <p className="muted">Connect Bread to challenge it in one click.</p>
+        )}
+      </section>
+    );
 
   const settleAfterPlay = (challenge: GqNote, prize: GqNote | undefined) => (r: PlayResult) => {
     const target = challenge.storage.target;
@@ -151,15 +202,7 @@ function GqApp() {
         </p>
         {error && <p className="error">{error}</p>}
         {authCheck !== null && <p className="muted">auth-args self-check: {authCheck ? "ok" : "MISMATCH"}</p>}
-        <p className="muted">block {height} · {notes.filter((n) => n.kind === "prize" && !n.consumed).length} open prize(s)</p>
-        <Lobby
-          me={null}
-          notes={notes}
-          height={height}
-          onChallenge={() => setError("Connect Bread first to challenge a prize.")}
-          onSettle={() => undefined}
-          onCollect={() => undefined}
-        />
+        {sharedPrizeCard(false)}
       </main>
     );
   }
@@ -176,6 +219,7 @@ function GqApp() {
 
       {mode.kind === "lobby" && (
         <>
+          {sharedPrizeCard(true)}
           <section className="cta">
             <button onClick={startChampion} disabled={!dataset || places.length === 0}>
               Play &amp; post a prize (you stake {fmtGq(STAKE)}; each challenger stakes {fmtGq(STAKE)})
@@ -219,7 +263,12 @@ function GqApp() {
                   cities: mode.cities,
                 };
                 return postPrize(client, wallet, storage, STAKE);
-              })
+              }, ({ txId, noteIds }) => ({
+                kind: "done",
+                text: `Your prize is live (score to beat: ${mode.result.score}). Share it so someone comes and challenges you.`,
+                txId,
+                share: prizeLinks(noteIds[0], mode.result.score),
+              }))
             }
           >
             Post prize
@@ -243,6 +292,18 @@ function GqApp() {
       {mode.kind === "done" && (
         <section className="result">
           <p>{mode.text}</p>
+          {mode.share && (
+            <p>
+              <a className="button" href={mode.share.x} target="_blank" rel="noreferrer">
+                Share on X
+              </a>{" "}
+              <button className="secondary" onClick={() => void navigator.clipboard.writeText(mode.share!.url)}>
+                Copy challenge link
+              </button>
+              <br />
+              <span className="mono">{mode.share.url}</span>
+            </p>
+          )}
           {mode.txId && (
             <a href={`${EXPLORER_BASE_URL}/tx/${mode.txId}`} target="_blank" rel="noreferrer">
               View transaction

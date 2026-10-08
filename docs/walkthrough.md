@@ -36,6 +36,10 @@ cd web && yarn install && yarn dev          # http://localhost:5173
 3. Connect, play, "Post prize". Another Bread account: "Challenge", play, the app settles (win →
    stake back, plus the prize if you claimed first; loss → stake forfeited to the champion).
 4. After expiry the champion sees "Reclaim prize" / "Collect stake".
+5. Share: after posting, the champion gets "Share on X" and a link of the form
+   `<app>/?prize=<note id>`. Opening it loads the prize straight from the node (no lobby needed)
+   and offers "Challenge & play": one click posts the challenge note and starts the quiz as soon
+   as the note is on chain; the app then settles the challenge (and claims the prize on a win).
 
 Every transaction is built by the app (`web/src/lib/bread.ts`) and signed in Bread. Bread
 accounts are guarded multisigs, so the request carries the multisig auth args (bound block,
