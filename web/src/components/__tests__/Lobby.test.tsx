@@ -37,40 +37,40 @@ describe("Lobby", () => {
   it("lets a stranger challenge an open prize and passes the prize to the handler", () => {
     const h = handlers();
     render(<Lobby me={me} notes={[prize]} height={100} {...h} />);
-    fireEvent.click(screen.getByRole("button", { name: /challenge for 1 GQ/i }));
+    fireEvent.click(screen.getByRole("button", { name: /play \(1 GQ\)/i }));
     expect(h.onChallenge).toHaveBeenCalledWith(prize);
   });
 
   it("shows the champion their own prize without a challenge button, and reclaim only once expired", () => {
     const h = handlers();
     const { rerender } = render(<Lobby me={champion} notes={[prize]} height={100} {...h} />);
-    expect(screen.queryByRole("button", { name: /challenge/i })).toBeNull();
-    expect(screen.getByText(/\(yours\)/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /play/i })).toBeNull();
+    expect(screen.getByText(/yours/)).toBeInTheDocument();
     rerender(<Lobby me={champion} notes={[prize]} height={1000} {...h} />);
-    fireEvent.click(screen.getByRole("button", { name: /reclaim prize/i }));
+    fireEvent.click(screen.getByRole("button", { name: /take it back/i }));
     expect(h.onCollect).toHaveBeenCalledWith(prize);
   });
 
   it("offers Play & settle on my open challenge with its prize, and nothing once its deadline passed", () => {
     const h = handlers();
     const { rerender } = render(<Lobby me={me} notes={[prize, myChallenge]} height={100} {...h} />);
-    fireEvent.click(screen.getByRole("button", { name: /play & settle/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^play$/i }));
     expect(h.onSettle).toHaveBeenCalledWith(myChallenge, prize);
     rerender(<Lobby me={me} notes={[prize, myChallenge]} height={200} {...h} />);
-    expect(screen.queryByRole("button", { name: /play & settle/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^play$/i })).toBeNull();
   });
 
   it("lets the champion collect a challenge only from its deadline on", () => {
     const h = handlers();
     const { rerender } = render(<Lobby me={champion} notes={[prize, myChallenge]} height={199} {...h} />);
-    expect(screen.queryByRole("button", { name: /collect stake/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /take it/i })).toBeNull();
     rerender(<Lobby me={champion} notes={[prize, myChallenge]} height={200} {...h} />);
-    fireEvent.click(screen.getByRole("button", { name: /collect stake/i }));
+    fireEvent.click(screen.getByRole("button", { name: /take it/i }));
     expect(h.onCollect).toHaveBeenCalledWith(myChallenge);
   });
 
   it("hides consumed notes", () => {
     render(<Lobby me={me} notes={[{ ...prize, consumed: true }]} height={100} {...handlers()} />);
-    expect(screen.queryByRole("button", { name: /challenge for/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /play/i })).toBeNull();
   });
 });

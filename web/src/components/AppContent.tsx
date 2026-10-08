@@ -4,7 +4,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useMidenClient, useMiden } from "@miden-sdk/react";
 import { useMidenFiWallet } from "@miden-sdk/miden-wallet-adapter-react";
-import { CITIES_URL, EXPLORER_BASE_URL, GQ_DECIMALS, MIN_CHALLENGE_WINDOW_BLOCKS, PRIZE_LIFETIME_BLOCKS, STAKE } from "@/config";
+import { CITIES_URL, MIN_CHALLENGE_WINDOW_BLOCKS, PRIZE_LIFETIME_BLOCKS, STAKE } from "@/config";
 import { accountFelts, fetchGqNote, listGqNotes, loadScripts, parseAccountId, prizeLinks, syncGq, wordFromHex, type GqNote } from "@/lib/chain";
 import { postChallenge, postPrize, settle, collect, selfCheckAuthArgs, setSubmitAttemptListener, waitFor, type Submitted } from "@/lib/bread";
 import { answerWord, type ChallengeStorage } from "@/lib/notes";
@@ -98,11 +98,11 @@ function GqApp() {
   ) {
     setError(null);
     setMode({ kind: "busy", text });
-    setSubmitAttemptListener((attempt, total) => setMode({ kind: "busy", text: `${text} (attempt ${attempt}/${total})` }));
+    setSubmitAttemptListener((attempt) => setMode({ kind: "busy", text: attempt > 1 ? `${text} (try ${attempt})` : text }));
     try {
       const submitted = await fn();
       const { txId, noteIds } = submitted;
-      setMode({ kind: "busy", text: `${text}: accepted by Bread, waiting for the chain` });
+      setMode({ kind: "busy", text: `${text}` });
       const seen = await waitFor(client, runExclusive, async () => {
         const records = await Promise.all(noteIds.map((id) => client.getInputNote(id)));
         return posted ? records.every((r) => !!r) : records.every((r) => !!r?.isConsumed());
@@ -179,43 +179,37 @@ function GqApp() {
     if (state === "claimed" || state === "expired") {
       return (
         <section className="result">
-          <h2>This prize is gone</h2>
-          <p className="muted">{state === "claimed" ? "It has already been claimed or reclaimed." : "It expired before anyone claimed it."} Play and post your own.</p>
+          <h2>This one is over.</h2>
         </section>
       );
     }
     return (
       <section className="result">
-        <h2>Can you beat {sharedPrize.storage.target}?</h2>
-        <p>
-          Someone scored <strong>{sharedPrize.storage.target}</strong> on four cities and put <strong>{fmtGq(sharedPrize.amount)}</strong> on it.
-          Stake {fmtGq(sharedPrize.storage.minStake)}, play the same four cities within 6 minutes, score higher and take both.
-          Prize open for {Math.max(0, sharedPrize.storage.expiryBlock - height)} more blocks.
-        </p>
-        {!connected && <p className="muted">Connect Bread to challenge it in one click.</p>}
-        {state === "mine" && <p className="muted">This is your own prize.</p>}
-        {state === "already-challenged" && <button onClick={() => challengePrize(sharedPrize)}>Play your open challenge</button>}
-        {state === "open" && connected && (
-          <button onClick={() => challengePrize(sharedPrize)}>Challenge &amp; play ({fmtGq(sharedPrize.storage.minStake)})</button>
-        )}
+        <h2>Beat {sharedPrize.storage.target}?</h2>
+        <p>Win {fmtGq(sharedPrize.amount)}.</p>
+        {!connected && <button onClick={connect}>Play ({fmtGq(sharedPrize.storage.minStake)})</button>}
+        {state === "mine" && <p className="muted">This is yours.</p>}
+        {state === "already-challenged" && <button onClick={() => challengePrize(sharedPrize)}>Play</button>}
+        {state === "open" && connected && <button onClick={() => challengePrize(sharedPrize)}>Play ({fmtGq(sharedPrize.storage.minStake)})</button>}
       </section>
     );
   };
 
+  const connect = () => wallet.connect().catch((e) => setError(e instanceof Error ? e.message : String(e)));
+
   if (!wallet.connected) {
     return (
       <main className="gq">
-        <h1>GQ · GeoQuiz on Miden</h1>
-        <p>Click where the city is. Beat the champion's score to take the prize and your stake back; fall short and your stake goes to them.</p>
-        <button onClick={() => wallet.connect().catch((e) => setError(e instanceof Error ? e.message : String(e)))} disabled={wallet.connecting}>
-          {wallet.connecting ? "Connecting…" : "Connect Bread wallet"}
-        </button>
-        <p className="muted">
-          Bread extension: {wallet.wallet?.readyState ?? "not detected"}. Get it at miden.xyz/bread, create or restore a testnet wallet, then connect.
-        </p>
+        <h1>GQ</h1>
+        <p>Find the city on the map.</p>
+        {sharedPrize ? sharedPrizeCard(false) : (
+          <button onClick={connect} disabled={wallet.connecting}>
+            {wallet.connecting ? "…" : "Play"}
+          </button>
+        )}
+        {wallet.wallet?.readyState !== "Installed" && <p className="muted">You need the Bread wallet first.</p>}
         {error && <p className="error">{error}</p>}
-        {authCheck !== null && <p className="muted">auth-args self-check: {authCheck ? "ok" : "MISMATCH"}</p>}
-        {sharedPrizeCard(false)}
+        {import.meta.env.DEV && authCheck === false && <p className="error">dev: auth-args self-check MISMATCH</p>}
       </main>
     );
   }
@@ -223,10 +217,9 @@ function GqApp() {
   return (
     <main className="gq">
       <header className="top">
-        <h1>GQ · GeoQuiz</h1>
-        <span className="mono">{wallet.address}</span>
-        <span className="muted">block {height}</span>
-        <button onClick={() => void wallet.disconnect()}>Disconnect</button>
+        <h1>GQ</h1>
+        <span className="muted">{wallet.address?.slice(0, 10)}…</span>
+        <button className="secondary" onClick={() => void wallet.disconnect()}>Leave</button>
       </header>
       {error && <p className="error">{error}</p>}
 
@@ -235,7 +228,7 @@ function GqApp() {
           {sharedPrizeCard(true)}
           <section className="cta">
             <button onClick={startChampion} disabled={!dataset || places.length === 0}>
-              Play &amp; post a prize (you stake {fmtGq(STAKE)}; each challenger stakes {fmtGq(STAKE)})
+              Play
             </button>
           </section>
           <Lobby
@@ -246,7 +239,7 @@ function GqApp() {
             onSettle={(challenge, prize) =>
               setMode({ kind: "play-challenger", challenges: prize ? myOpenChallengesOn(prize) : [challenge], prize })
             }
-            onCollect={(note) => run(note.kind === "prize" ? "Reclaiming your prize" : "Collecting the stake", false, () => collect(client, wallet, note))}
+            onCollect={(note) => run("Taking it", false, () => collect(client, wallet, note))}
           />
         </>
       )}
@@ -257,14 +250,11 @@ function GqApp() {
 
       {mode.kind === "post-prize" && (
         <section className="result">
-          <h2>You scored {mode.result.score}</h2>
-          <p>
-            Stake {fmtGq(STAKE)} as the prize: challengers stake the same {fmtGq(STAKE)} and must score more than {mode.result.score} on the same
-            four cities within {PRIZE_LIFETIME_BLOCKS} blocks. Each one who falls short forfeits their stake to you.
-          </p>
+          <h2>{mode.result.score} points</h2>
+          <p>Put {fmtGq(STAKE)} on it? Whoever beats you takes it. Whoever fails pays you {fmtGq(STAKE)}.</p>
           <button
             onClick={() =>
-              run("Posting your prize", true, () => {
+              run("Posting", true, () => {
                 const storage: ChallengeStorage = {
                   expiryBlock: height + PRIZE_LIFETIME_BLOCKS,
                   target: mode.result.score,
@@ -281,16 +271,16 @@ function GqApp() {
                 return postPrize(client, wallet, storage, STAKE);
               }, ({ txId, noteIds }) => ({
                 kind: "done",
-                text: `Your prize is live (score to beat: ${mode.result.score}). Share it so someone comes and challenges you.`,
+                text: "Now find someone to beat you.",
                 txId,
                 share: prizeLinks(noteIds[0], mode.result.score),
               }))
             }
           >
-            Post prize
+            Yes
           </button>
           <button className="secondary" onClick={() => setMode({ kind: "lobby" })}>
-            Discard
+            No
           </button>
         </section>
       )}
@@ -301,37 +291,26 @@ function GqApp() {
 
       {mode.kind === "busy" && (
         <section className="result">
-          <p>{mode.text}… Approve in Bread, then wait for the transaction to commit.</p>
+          <p>{mode.text}… check your wallet.</p>
         </section>
       )}
 
       {mode.kind === "done" && (
         <section className="result">
-          <p>{mode.text}</p>
+          <h2>{mode.text}</h2>
           {mode.share && (
             <p>
               <a className="button" href={mode.share.x} target="_blank" rel="noreferrer">
                 Share on X
               </a>{" "}
               <button className="secondary" onClick={() => void navigator.clipboard.writeText(mode.share!.url)}>
-                Copy challenge link
+                Copy link
               </button>
-              <br />
-              <span className="mono">{mode.share.url}</span>
             </p>
           )}
-          {mode.txId && (
-            <a href={`${EXPLORER_BASE_URL}/tx/${mode.txId}`} target="_blank" rel="noreferrer">
-              View transaction
-            </a>
-          )}
-          <button onClick={() => setMode({ kind: "lobby" })}>Back to lobby</button>
+          <button onClick={() => setMode({ kind: "lobby" })}>OK</button>
         </section>
       )}
-      <footer className="muted">
-        1 GQ = {10 ** GQ_DECIMALS} base units · scoring v1 · testnet
-        {authCheck !== null && <> · auth-args self-check: {authCheck ? "ok" : "MISMATCH"}</>}
-      </footer>
     </main>
   );
 }

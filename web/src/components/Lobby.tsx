@@ -6,7 +6,6 @@ import { challengeDeadline, type AccountFelts } from "@/lib/notes";
 
 export const fmtGq = (v: bigint) => `${(Number(v) / 10 ** GQ_DECIMALS).toLocaleString(undefined, { maximumFractionDigits: GQ_DECIMALS })} GQ`;
 const sameAccount = (a: AccountFelts | null, b: AccountFelts | null) => !!a && !!b && a.suffix === b.suffix && a.prefix === b.prefix;
-const short = (id: string) => `${id.slice(0, 8)}…${id.slice(-4)}`;
 
 export type LobbyProps = {
   me: AccountFelts | null;
@@ -31,18 +30,16 @@ export function Lobby({ me, notes, height, onChallenge, onSettle, onCollect }: L
   return (
     <div className="lobby">
       <section>
-        <h2>Open prizes</h2>
-        {prizes.length === 0 && <p className="muted">No open prize found yet (the app syncs every 15 s). Play and post one.</p>}
+        <h2>Beat someone</h2>
+        {prizes.length === 0 && <p className="muted">Nobody to beat yet.</p>}
         <ul>
           {prizes.map((p) => (
             <li key={p.id}>
-              <span className="mono">{short(p.id)}</span> · prize <strong>{fmtGq(p.amount)}</strong> · beat{" "}
-              <strong>{p.storage.target}</strong> · stake {fmtGq(p.storage.minStake)} ·{" "}
-              {expired(p) ? <em>expired</em> : <em>{p.storage.expiryBlock - height} blocks left</em>}
+              <strong>{p.storage.target}</strong> · {fmtGq(p.amount)}
               {mine(p) ? (
-                expired(p) ? <button onClick={() => onCollect(p)}>Reclaim prize</button> : <span className="muted"> (yours)</span>
+                expired(p) ? <button onClick={() => onCollect(p)}>Take it back</button> : <span className="muted"> yours</span>
               ) : (
-                !expired(p) && <button onClick={() => onChallenge(p)}>Challenge for {fmtGq(STAKE)}</button>
+                !expired(p) && <button onClick={() => onChallenge(p)}>Play ({fmtGq(STAKE)})</button>
               )}
             </li>
           ))}
@@ -50,32 +47,32 @@ export function Lobby({ me, notes, height, onChallenge, onSettle, onCollect }: L
       </section>
 
       {me && (
-        <section>
-          <h2>My challenges</h2>
-          {myChallenges.length === 0 && <p className="muted">None open.</p>}
-          <ul>
-            {myChallenges.map((c) => {
-              const prize = prizeById(c.storage.prizeId);
-              return (
-                <li key={c.id}>
-                  <span className="mono">{short(c.id)}</span> · stake {fmtGq(c.amount)} · beat <strong>{c.storage.target}</strong> ·{" "}
-                  {expired(c) ? <em>expired</em> : <em>{deadline(c) - height} blocks left to settle</em>}
-                  {!expired(c) && <button onClick={() => onSettle(c, prize && !prize.consumed ? prize : undefined)}>Play &amp; settle</button>}
-                </li>
-              );
-            })}
-          </ul>
-        </section>
+        myChallenges.length > 0 && (
+          <section>
+            <h2>Finish your game</h2>
+            <ul>
+              {myChallenges.map((c) => {
+                const prize = prizeById(c.storage.prizeId);
+                return (
+                  <li key={c.id}>
+                    beat <strong>{c.storage.target}</strong>
+                    {expired(c) ? <span className="muted"> too late</span> : <button onClick={() => onSettle(c, prize && !prize.consumed ? prize : undefined)}>Play</button>}
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        )
       )}
 
       {me && challengesOnMyPrizes.length > 0 && (
         <section>
-          <h2>Challenges on my prizes</h2>
+          <h2>For you</h2>
           <ul>
             {challengesOnMyPrizes.map((c) => (
               <li key={c.id}>
-                <span className="mono">{short(c.id)}</span> · stake {fmtGq(c.amount)} ·{" "}
-                {expired(c) ? <button onClick={() => onCollect(c)}>Collect stake</button> : <em>{deadline(c) - height} blocks left</em>}
+                {fmtGq(c.amount)}
+                {expired(c) ? <button onClick={() => onCollect(c)}>Take it</button> : <span className="muted"> someone is playing…</span>}
               </li>
             ))}
           </ul>

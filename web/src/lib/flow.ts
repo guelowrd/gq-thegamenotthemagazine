@@ -35,8 +35,8 @@ export function sharedPrizeState(prize: GqNote, me: AccountFelts | null, myOpen:
 
 /** Why a challenge cannot be posted right now, or null when it can. */
 export function challengeRefusal(prize: GqNote, height: number, minWindow: number): string | null {
-  if (prize.consumed) return "This prize has already been claimed.";
-  if (prize.storage.expiryBlock - height < minWindow) return "This prize expires too soon to challenge.";
+  if (prize.consumed) return "This one is over.";
+  if (prize.storage.expiryBlock - height < minWindow) return "Too late for this one.";
   return null;
 }
 
@@ -51,13 +51,11 @@ export function settlePlan(challenges: GqNote[], prize: GqNote | undefined, scor
   const target = challenges[0].storage.target;
   const won = score > target;
   const claimPrize = won && !!prize && !prize.consumed && prize.storage.expiryBlock > height;
-  const n = challenges.length > 1 ? ` (${challenges.length} challenge notes)` : "";
-  const deadline = Math.max(...challenges.map((c) => challengeDeadline(c.storage)));
   const text = claimPrize
-    ? `You scored ${score} > ${target}. Claiming the prize and your stake${n}`
+    ? `${score} points. You win!`
     : won
-      ? `You scored ${score} > ${target}. Recovering your stake${n}`
-      : `You scored ${score}, not above ${target}. Your stake goes to the champion when the challenge expires (block ${deadline}, ${Math.max(0, deadline - height)} blocks from now).`;
+      ? `${score} points. You beat it, but the prize is gone. Your stake comes back.`
+      : `${score} points. Not enough. Your stake goes to the champion.`;
   return { won, claimPrize, text };
 }
 
@@ -88,9 +86,7 @@ export async function learnBreadOffset(
 
 /** The outcome line after Bread accepted a request: only a chain-confirmed effect is "confirmed". */
 export function outcomeText(action: string, seenOnChain: boolean): string {
-  return seenOnChain
-    ? `${action}: confirmed on chain`
-    : `${action}: Bread accepted the request but the chain does not show it yet. Check Bread's activity; it may have failed there.`;
+  return seenOnChain ? `${action}. Done!` : `${action}… not done yet. Check your wallet.`;
 }
 
 /** Bread anchors its sync height a block or two after the dApp binds one; see bread.ts. */

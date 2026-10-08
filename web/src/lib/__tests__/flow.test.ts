@@ -77,8 +77,8 @@ describe("shared prize page", () => {
 describe("posting a challenge", () => {
   it("refuses a claimed prize or one about to expire", () => {
     expect(challengeRefusal(prize, 100, 140)).toBeNull();
-    expect(challengeRefusal(prize, 900, 140)).toMatch(/too soon/);
-    expect(challengeRefusal({ ...prize, consumed: true }, 100, 140)).toMatch(/already been claimed/);
+    expect(challengeRefusal(prize, 900, 140)).toMatch(/too late/i);
+    expect(challengeRefusal({ ...prize, consumed: true }, 100, 140)).toMatch(/over/);
   });
 });
 
@@ -86,22 +86,22 @@ describe("settling after a play", () => {
   it("claims the prize with every open challenge on a win", () => {
     const plan = settlePlan([challenge(me, 500, false, "0xa"), challenge(me, 500, false, "0xb")], prize, 2001, 100);
     expect(plan).toMatchObject({ won: true, claimPrize: true });
-    expect(plan.text).toMatch(/Claiming the prize and your stake \(2 challenge notes\)/);
+    expect(plan.text).toMatch(/You win!/);
   });
 
   it("only recovers the stake when the prize is gone, and forfeits on a loss or a tie", () => {
     expect(settlePlan([challenge(me, 500)], { ...prize, consumed: true }, 2001, 100)).toMatchObject({ won: true, claimPrize: false });
-    expect(settlePlan([challenge(me, 500)], undefined, 2001, 100).text).toMatch(/Recovering your stake/);
+    expect(settlePlan([challenge(me, 500)], undefined, 2001, 100).text).toMatch(/stake comes back/);
     expect(settlePlan([challenge(me, 500)], prize, 2000, 100)).toMatchObject({ won: false, claimPrize: false });
-    expect(settlePlan([challenge(me, 500)], prize, 1999, 100).text).toMatch(/goes to the champion when the challenge expires \(block 500, 400 blocks from now\)/);
+    expect(settlePlan([challenge(me, 500)], prize, 1999, 100).text).toMatch(/goes to the champion/);
     expect(() => settlePlan([], prize, 5000, 100)).toThrow();
   });
 });
 
 describe("outcome wording", () => {
   it("never says committed before the chain shows the effect", () => {
-    expect(outcomeText("Posting your prize", true)).toBe("Posting your prize: confirmed on chain");
-    expect(outcomeText("Posting your prize", false)).toMatch(/does not show it yet/);
+    expect(outcomeText("Posting", true)).toBe("Posting. Done!");
+    expect(outcomeText("Posting", false)).toMatch(/not done yet/);
   });
 });
 

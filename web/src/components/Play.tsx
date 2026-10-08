@@ -61,14 +61,11 @@ export function Play({
   return (
     <section className="play">
       <header className="play-header">
-        <span>
-          Round {round + 1} / {cities.length}
+        <span className="muted">
+          {round + 1} / {cities.length}
         </span>
-        <strong>
-          {place?.name ?? `city #${current.idx}`}
-          {place ? `, ${place.country}` : ""}
-        </strong>
-        <span className="timer">{(elapsed / 100).toFixed(1)} s</span>
+        <strong>Where is {place?.name ?? `city #${current.idx}`}?</strong>
+        <span className="timer">{(elapsed / 100).toFixed(0)}</span>
       </header>
       <WorldMap
         onPick={pick}
@@ -84,10 +81,8 @@ export function Play({
       />
       {answered && (
         <footer className="play-footer">
-          <span>
-            Round score: <strong>{roundScore(current, answered)}</strong>
-          </span>
-          <button onClick={next}>{round + 1 < cities.length ? "Next city" : "See result"}</button>
+          <strong>+{roundScore(current, answered)}</strong>
+          <button onClick={next}>{round + 1 < cities.length ? "Next" : "Done"}</button>
         </footer>
       )}
     </section>

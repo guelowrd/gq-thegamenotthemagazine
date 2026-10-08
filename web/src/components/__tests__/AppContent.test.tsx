@@ -101,25 +101,25 @@ describe("shared prize link, connected as a stranger", () => {
   it("posts one challenge on click, then starts the quiz when the note is on chain", async () => {
     bread.postChallenge.mockResolvedValue({ txId: "tx", noteIds: ["0xnew"], deadline: 220 });
     render(<AppContent />);
-    const button = await screen.findByRole("button", { name: /challenge & play/i });
+    const button = await screen.findByRole("button", { name: /play \(1 GQ\)/i });
     fireEvent.click(button);
     await waitFor(() => expect(bread.postChallenge).toHaveBeenCalledTimes(1));
     expect(bread.postChallenge.mock.calls[0][2]).toBe(prize);
-    await screen.findByText(/round 1 \/ 4/i);
+    await screen.findByText(/where is c0\?/i);
   });
 
   it("does not post a second challenge while one is open: it goes straight to the quiz", async () => {
     chain.notes = [prize, myChallenge];
     render(<AppContent />);
-    fireEvent.click(await screen.findByRole("button", { name: /play your open challenge/i }));
-    await screen.findByText(/round 1 \/ 4/i);
+    fireEvent.click(await screen.findByRole("button", { name: /^play$/i }));
+    await screen.findByText(/where is c0\?/i);
     expect(bread.postChallenge).not.toHaveBeenCalled();
   });
 
   it("shows a claimed prize as gone, with no button", async () => {
     chain.shared = { ...prize, consumed: true };
     render(<AppContent />);
-    await screen.findByText(/this prize is gone/i);
+    await screen.findByText(/this one is over/i);
     expect(screen.queryByRole("button", { name: /challenge & play|challenge for/i })).toBeNull();
   });
 });
@@ -130,10 +130,11 @@ describe("lobby, connected", () => {
     const second = { ...myChallenge, id: "0xc2", idWord: [2n, 2n, 2n, 2n] as [bigint, bigint, bigint, bigint] };
     chain.notes = [prize, myChallenge, second];
     render(<AppContent />);
-    const buttons = await screen.findAllByRole("button", { name: /play & settle/i });
-    fireEvent.click(buttons[0]);
-    await screen.findByText(/round 1 \/ 4/i);
-    // the play screen was opened for both notes; the settle call happens after the quiz
-    expect(buttons).toHaveLength(2);
+    await screen.findByText(/finish your game/i);
+    // the top "Play" (post a prize) plus one "Play" per open challenge
+    const buttons = screen.getAllByRole("button", { name: /^play$/i });
+    expect(buttons).toHaveLength(3);
+    fireEvent.click(buttons[1]);
+    await screen.findByText(/where is c0\?/i);
   });
 });
