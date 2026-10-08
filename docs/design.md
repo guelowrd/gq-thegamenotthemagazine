@@ -59,10 +59,10 @@ token or amount.
 | artifact | paths | who consumes |
 |---|---|---|
 | `prize.masm`     | **claim** (challenger, before expiry, winning answer, with their challenge note in the same tx) / **reclaim** (champion, after expiry) | prize assets go to the consumer |
-| `challenge.masm` | **settle** (player, before expiry: win → refund; lose → forfeit to champion as public P2ID) / **collect** (champion, after expiry) | |
+| `challenge.masm` | **settle** (player, before the challenge deadline, winning answer only: stake back) / **collect** (champion, from the deadline on) | |
 
 Both include `challenge_core.masm` (storage layout, deadline checks, the
-"find my challenge note" check, asset moves) and call one game procedure,
+"find my challenge note" check, asset receipt) and call one game procedure,
 `beats_target(ANSWER, game_data_ptr, target) -> bool`, provided by
 `games/gq_score.masm`. The core never sees a score; the game decides what beats
 the target. Game data is any whole number of words after the 16-felt header;
@@ -138,9 +138,9 @@ a challenge on a prize with fewer than `MIN_CHALLENGE_WINDOW_BLOCKS` left.
 - Winner who is first: one transaction consumes the prize (claim) and their
   challenge note (settle, win): prize plus stake back.
 - Later winners: settle their challenge note alone (refund) before its deadline.
-- Loser: the UI submits the real answers; the script forfeits the stake to the
-  champion as a public P2ID. If they never submit, the champion collects from
-  the challenge deadline on. Prize closure never refunds challenges.
+- Loser: nothing to sign. A losing answer cannot settle; the champion collects
+  the stake from the challenge deadline (~6 min) on. Prize closure never refunds
+  challenges.
 - Champion reclaims an unclaimed prize after expiry.
 
 ### Accounts and signer

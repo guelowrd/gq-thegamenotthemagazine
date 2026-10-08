@@ -3,7 +3,8 @@
 A small, complete reference for a **challenge mechanic** on Miden testnet v0.17: a champion posts a
 **prize note** with a score to beat; challengers post **challenge notes** with a stake, play the same
 quiz, and the chain recomputes the score from their answers. Beat the target and you take the prize
-(first come, first served) and your stake back; fall short and your stake goes to the champion.
+(first come, first served) and your stake back; fall short and your stake goes to the champion once
+the challenge's short deadline passes. A loser signs nothing.
 
 GeoQuiz is the game plugged into it: a city name appears, you click the map, points for distance
 and speed. Players use the [Bread](https://www.miden.xyz/bread) wallet.

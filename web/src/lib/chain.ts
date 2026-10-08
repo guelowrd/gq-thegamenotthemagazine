@@ -125,7 +125,7 @@ export function buildGqNote(sender: AccountId, script: NoteScript, storageFelts:
   return new Note(assets, metadata, recipient);
 }
 
-function endpoint(): Endpoint {
+export function endpoint(): Endpoint {
   return MIDEN_RPC_URL === "testnet"
     ? Endpoint.testnet()
     : MIDEN_RPC_URL === "devnet"

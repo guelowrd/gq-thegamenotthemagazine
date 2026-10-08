@@ -42,19 +42,48 @@ export function challengeRefusal(prize: GqNote, height: number, minWindow: numbe
 
 export type SettlePlan = { won: boolean; claimPrize: boolean; text: string };
 
-/** After a play: which notes to settle, whether to claim, and what to tell the player. */
+/**
+ * After a play: a win settles the open challenges (and claims the prize if it is still there);
+ * a loss sends nothing to the chain, the stake waits for the champion at the deadline.
+ */
 export function settlePlan(challenges: GqNote[], prize: GqNote | undefined, score: number, height: number): SettlePlan {
   if (challenges.length === 0) throw new Error("no challenge note to settle");
   const target = challenges[0].storage.target;
   const won = score > target;
   const claimPrize = won && !!prize && !prize.consumed && prize.storage.expiryBlock > height;
   const n = challenges.length > 1 ? ` (${challenges.length} challenge notes)` : "";
+  const deadline = Math.max(...challenges.map((c) => challengeDeadline(c.storage)));
   const text = claimPrize
     ? `You scored ${score} > ${target}. Claiming the prize and your stake${n}`
     : won
       ? `You scored ${score} > ${target}. Recovering your stake${n}`
-      : `You scored ${score} ≤ ${target}. Forfeiting your stake to the champion${n}`;
+      : `You scored ${score}, not above ${target}. Your stake goes to the champion when the challenge expires (block ${deadline}, ${Math.max(0, deadline - height)} blocks from now).`;
   return { won, claimPrize, text };
+}
+
+/** The two block commitments in Bread's anchor-mismatch message: the one we bound, the one it anchored. */
+export function parseAnchorMismatch(e: unknown): { bound: string; anchor: string } | null {
+  const m = /binds block commitment (0x[0-9a-f]+) but the captured chain anchor is (0x[0-9a-f]+)/i.exec(e instanceof Error ? e.message : String(e));
+  return m ? { bound: m[1].toLowerCase(), anchor: m[2].toLowerCase() } : null;
+}
+
+/**
+ * Bread's height relative to the block we bound: the block near `boundBlock` whose commitment is
+ * `anchor`. `commitmentOf(n)` reads a header from the node. Null when no nearby block matches.
+ */
+export async function learnBreadOffset(
+  boundBlock: number,
+  anchor: string,
+  commitmentOf: (n: number) => Promise<string | null>,
+  radius = 8,
+): Promise<number | null> {
+  for (let d = 0; d <= radius; d++) {
+    for (const n of d === 0 ? [boundBlock] : [boundBlock + d, boundBlock - d]) {
+      if (n < 0) continue;
+      if ((await commitmentOf(n))?.toLowerCase() === anchor) return n - boundBlock;
+    }
+  }
+  return null;
 }
 
 /** The outcome line after Bread accepted a request: only a chain-confirmed effect is "confirmed". */
@@ -70,19 +99,24 @@ export const isAnchorMismatch = (e: unknown) =>
 
 /**
  * Submits with a fresh bound block per attempt, retrying only on Bread's anchor mismatch.
- * `expectedLag` is the block offset of the first attempt; later attempts alternate offset and
- * offset + 1. `attempt(offset)` builds and submits; it must throw on failure.
+ * `attempt(offset, n)` builds at the fresh tip plus `offset`, submits, and must throw on failure.
+ * After a mismatch, `offsetFromError(e)` may tell by how many blocks Bread was off; the next
+ * attempt corrects by that amount, otherwise it alternates offset and offset + 1.
  */
 export async function submitWithRetry<T>(
   attempt: (offset: number, n: number) => Promise<T>,
   expectedLag: number,
   retries: number,
+  offsetFromError: (e: unknown) => Promise<number | null> = async () => null,
 ): Promise<T> {
+  let offset = expectedLag;
   for (let n = 1; ; n++) {
     try {
-      return await attempt(expectedLag + ((n - 1) % 2), n);
+      return await attempt(offset, n);
     } catch (e) {
       if (!isAnchorMismatch(e) || n >= retries) throw e;
+      const learned = await offsetFromError(e);
+      offset = learned === null ? expectedLag + (n % 2) : offset + learned;
     }
   }
 }

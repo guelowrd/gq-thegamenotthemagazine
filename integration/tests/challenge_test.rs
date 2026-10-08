@@ -6,7 +6,7 @@ mod common;
 use anyhow::Result;
 use common::*;
 use integration::{felt, rules::vectors};
-use miden_client::{asset::FungibleAsset, note::P2idNote, Felt, Word};
+use miden_client::{asset::FungibleAsset, Word};
 
 // --- claim ---------------------------------------------------------------------------------
 
@@ -169,27 +169,16 @@ async fn settle_win_refunds_stake() -> Result<()> {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn settle_loss_forfeits_stake_to_champion() -> Result<()> {
+async fn settle_with_losing_answer_fails_and_the_stake_waits_for_the_champion() -> Result<()> {
     let mut s = setup(1000)?;
     let challenge = s.standard_challenge()?;
-    let before = s.balance(s.challenger.id());
-    let tx = s
-        .consume(s.challenger.id(), &[&challenge], answer_word(&losing_answers()))
-        .await
-        .expect("settle with a loss");
-    assert_eq!(tx.output_notes().num_notes(), 1);
-    let p2id = tx.output_notes().get_note(0);
-    assert_eq!(
-        p2id.recipient().expect("public note").script().root(),
-        P2idNote::script_root()
-    );
-    let stake = FungibleAsset::new(s.faucet.id(), STAKE)?;
-    assert!(p2id.assets().iter().any(|a| a.unwrap_fungible() == stake));
-    let items = p2id.recipient().expect("public note").storage().items();
-    assert_eq!(items[0], s.champion.id().suffix());
-    assert_eq!(items[1], Felt::from(s.champion.id().prefix()));
+    let r = s.consume(s.challenger.id(), &[&challenge], answer_word(&losing_answers())).await;
+    assert!(r.is_err(), "a losing answer cannot settle");
+    s.jump_to(CHALLENGE_DEADLINE)?;
+    let before = s.balance(s.champion.id());
+    let tx = s.consume(s.champion.id(), &[&challenge], Word::default()).await.expect("champion collects");
     s.commit(&tx)?;
-    assert_eq!(s.balance(s.challenger.id()), before, "the loser keeps nothing");
+    assert_eq!(s.balance(s.champion.id()), before + STAKE);
     Ok(())
 }
 
@@ -316,8 +305,8 @@ async fn longer_game_tail_is_accepted() -> Result<()> {
 
 // --- scoring vectors: MASM agrees with the Rust reference -----------------------------------
 
-/// For every vector, a target of `score - 1` wins and a target of `score` loses. Together these
-/// pin the on-chain score to the exact value the reference computes.
+/// For every vector, a target of `score - 1` settles (win) and a target of `score` is refused.
+/// Together these pin the on-chain score to the exact value the reference computes.
 #[tokio::test(flavor = "multi_thread")]
 async fn masm_score_matches_reference_on_vectors() -> Result<()> {
     for v in vectors() {
@@ -325,12 +314,8 @@ async fn masm_score_matches_reference_on_vectors() -> Result<()> {
         for (target, wins) in [(v.score.saturating_sub(1), v.score > 0), (v.score, false)] {
             let mut s = setup_with_cities(target, v.cities)?;
             let challenge = s.standard_challenge()?;
-            let tx = s
-                .consume(s.challenger.id(), &[&challenge], word)
-                .await
-                .unwrap_or_else(|e| panic!("vector {}: settle failed: {e}", v.name));
-            let forfeited = tx.output_notes().num_notes() == 1;
-            assert_eq!(!forfeited, wins, "vector {} target {target}", v.name);
+            let r = s.consume(s.challenger.id(), &[&challenge], word).await;
+            assert_eq!(r.is_ok(), wins, "vector {} target {target}: {:?}", v.name, r.err());
         }
     }
     Ok(())

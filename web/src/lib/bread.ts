@@ -12,18 +12,19 @@ import {
   NoteAndArgsArray,
   NoteArray,
   Poseidon2,
+  RpcClient,
   TransactionRequestBuilder,
   Word,
   type TransactionRequest,
 } from "@miden-sdk/miden-sdk";
 import { Transaction } from "@miden-sdk/miden-wallet-adapter-base";
 import type { useMidenFiWallet } from "@miden-sdk/miden-wallet-adapter-react";
-import { buildGqNote, fetchNotesWithProof, feltArray, loadScripts, parseAccountId, syncGq, type Client, type GqNote } from "./chain";
+import { buildGqNote, endpoint, fetchNotesWithProof, feltArray, loadScripts, parseAccountId, syncGq, type Client, type GqNote } from "./chain";
 import { CHALLENGE_WINDOW_BLOCKS, GQ_FAUCET, NETWORK_POLL_INTERVAL_MS, NETWORK_POLL_TIMEOUT_MS } from "@/config";
 import { challengeStorage, encodeStorage, type AccountFelts, type ChallengeStorage } from "./notes";
 import { CHALLENGE_DEADLINE_INDEX } from "./notes";
 import { randomSeed, type Word4 } from "./quiz";
-import { submitWithRetry } from "./flow";
+import { learnBreadOffset, parseAnchorMismatch, submitWithRetry } from "./flow";
 import authVectors from "../../../rules/auth_vectors.json";
 
 type Wallet = ReturnType<typeof useMidenFiWallet>;
@@ -67,13 +68,26 @@ export function selfCheckAuthArgs(): boolean {
  * every ~3 s, so the bound block has to be as fresh as possible: sync first, bind the result,
  * submit at once. `submit` retries with a fresh block when Bread still reports the mismatch.
  */
-async function breadBuilder(client: Client, blockOffset: number): Promise<TransactionRequestBuilder> {
+async function breadBuilder(client: Client, blockOffset: number): Promise<{ builder: TransactionRequestBuilder; boundBlock: number }> {
   const feeFaucet = await client.feeFaucetId();
   const boundBlock = (await waitForFreshBlock(client)) + blockOffset;
   const { elements, commitment } = multisigAuthArgs(boundBlock, randomSeed(), feeFaucet);
   const advice = new AdviceMap();
   advice.insert(commitment, feltArray(elements));
-  return new TransactionRequestBuilder().withAuthArg(commitment).extendAdviceMap(advice).withBlockNumbers([boundBlock]);
+  const builder = new TransactionRequestBuilder().withAuthArg(commitment).extendAdviceMap(advice).withBlockNumbers([boundBlock]);
+  return { builder, boundBlock };
+}
+
+/** The commitment of block `n` as the node reports it (null when the node has no such block yet). */
+async function blockCommitment(n: number): Promise<string | null> {
+  const rpc = new RpcClient(endpoint());
+  try {
+    return (await rpc.getBlockHeaderByNumber(n)).commitment().toHex();
+  } catch {
+    return null;
+  } finally {
+    rpc.free();
+  }
 }
 
 /** Bread's view of the GQ balance; throws a readable error when it is below `needed`. */
@@ -144,14 +158,22 @@ async function submit(
   if (!wallet.address || !wallet.requestTransaction) throw new Error("Bread is not connected");
   const address = wallet.address;
   const requestTransaction = wallet.requestTransaction;
+  let lastBound = 0;
   return submitWithRetry(
     async (offset, attempt) => {
       onSubmitAttempt(attempt, ANCHOR_RETRIES);
-      const request = build(await breadBuilder(client, offset));
-      return requestTransaction(Transaction.createCustomTransaction(address, address, request, inputNoteIds, importNotes));
+      const { builder, boundBlock } = await breadBuilder(client, offset);
+      lastBound = boundBlock;
+      return requestTransaction(Transaction.createCustomTransaction(address, address, build(builder), inputNoteIds, importNotes));
     },
     importNotes?.length ? 1 : 0,
     ANCHOR_RETRIES,
+    async (e) => {
+      const parsed = parseAnchorMismatch(e);
+      const learned = parsed ? await learnBreadOffset(lastBound, parsed.anchor, blockCommitment) : null;
+      console.warn(`[gq] Bread anchored ${learned === null ? "at an unknown block" : `${learned} block(s) from the bound one`}; rebuilding`);
+      return learned;
+    },
   );
 }
 

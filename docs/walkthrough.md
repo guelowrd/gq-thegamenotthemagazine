@@ -33,8 +33,9 @@ cd web && yarn install && yarn dev          # http://localhost:5173
 2. Get GQ: `cargo run --release --bin gq_faucet mint <your mtst1… address> 10` (anyone with the
    faucet key; ask Gaylord). Bread auto-claims the public P2ID note. The stake is 1 GQ: the champion
    stakes it as the prize, each challenger stakes it to play.
-3. Connect, play, "Post prize". Another Bread account: "Challenge", play, the app settles (win →
-   stake back, plus the prize if you claimed first; loss → stake forfeited to the champion).
+3. Connect, play, "Post prize". Another Bread account: "Challenge", play. A win settles (stake
+   back, plus the prize if you claimed first); a loss signs nothing, the champion collects the
+   stake once the challenge deadline (~6 min) passes.
 4. After expiry the champion sees "Reclaim prize" / "Collect stake".
 5. Share: after posting, the champion gets "Share on X" and a link of the form
    `<app>/?prize=<note id>`. Opening it loads the prize straight from the node (no lobby needed)

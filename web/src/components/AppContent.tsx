@@ -165,6 +165,11 @@ function GqApp() {
 
   const settleAfterPlay = (challenges: GqNote[], prize: GqNote | undefined) => (r: PlayResult) => {
     const plan = settlePlan(challenges, prize, r.score, height);
+    if (!plan.won) {
+      // nothing to sign on a loss: the stake waits for the champion at the deadline
+      setMode({ kind: "done", text: plan.text });
+      return;
+    }
     run(plan.text, false, () => settle(client, wallet, challenges, plan.claimPrize ? prize : undefined, answerWord(r.answers)));
   };
 
@@ -181,10 +186,11 @@ function GqApp() {
     }
     return (
       <section className="result">
-        <h2>You were challenged</h2>
+        <h2>Can you beat {sharedPrize.storage.target}?</h2>
         <p>
-          Prize <strong>{fmtGq(sharedPrize.amount)}</strong> · beat <strong>{sharedPrize.storage.target}</strong> on four cities · stake{" "}
-          {fmtGq(sharedPrize.storage.minStake)} · {Math.max(0, sharedPrize.storage.expiryBlock - height)} blocks left
+          Someone scored <strong>{sharedPrize.storage.target}</strong> on four cities and put <strong>{fmtGq(sharedPrize.amount)}</strong> on it.
+          Stake {fmtGq(sharedPrize.storage.minStake)}, play the same four cities within 6 minutes, score higher and take both.
+          Prize open for {Math.max(0, sharedPrize.storage.expiryBlock - height)} more blocks.
         </p>
         {!connected && <p className="muted">Connect Bread to challenge it in one click.</p>}
         {state === "mine" && <p className="muted">This is your own prize.</p>}
@@ -200,7 +206,7 @@ function GqApp() {
     return (
       <main className="gq">
         <h1>GQ · GeoQuiz on Miden</h1>
-        <p>Click where the city is. Beat the champion's score to take the prize; lose and your stake goes to them.</p>
+        <p>Click where the city is. Beat the champion's score to take the prize and your stake back; fall short and your stake goes to them.</p>
         <button onClick={() => wallet.connect().catch((e) => setError(e instanceof Error ? e.message : String(e)))} disabled={wallet.connecting}>
           {wallet.connecting ? "Connecting…" : "Connect Bread wallet"}
         </button>

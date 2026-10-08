@@ -5,8 +5,10 @@ import type { ChallengeStorage } from "../notes";
 import {
   challengeRefusal,
   isAnchorMismatch,
+  learnBreadOffset,
   myOpenChallengesOn,
   outcomeText,
+  parseAnchorMismatch,
   settlePlan,
   sharedPrizeState,
   submitWithRetry,
@@ -91,7 +93,7 @@ describe("settling after a play", () => {
     expect(settlePlan([challenge(me, 500)], { ...prize, consumed: true }, 2001, 100)).toMatchObject({ won: true, claimPrize: false });
     expect(settlePlan([challenge(me, 500)], undefined, 2001, 100).text).toMatch(/Recovering your stake/);
     expect(settlePlan([challenge(me, 500)], prize, 2000, 100)).toMatchObject({ won: false, claimPrize: false });
-    expect(settlePlan([challenge(me, 500)], prize, 1999, 100).text).toMatch(/Forfeiting/);
+    expect(settlePlan([challenge(me, 500)], prize, 1999, 100).text).toMatch(/goes to the champion when the challenge expires \(block 500, 400 blocks from now\)/);
     expect(() => settlePlan([], prize, 5000, 100)).toThrow();
   });
 });
@@ -119,6 +121,19 @@ describe("submitting through Bread", () => {
     const other = vi.fn().mockRejectedValue(new Error("You need 1 GQ"));
     await expect(submitWithRetry(other, 0, 3)).rejects.toThrow(/GQ/);
     expect(other).toHaveBeenCalledTimes(1);
+  });
+
+  it("learns Bread's block from its error and corrects the next attempt by that offset", async () => {
+    const e = new Error("SummaryAnchorMismatchError: the transaction summary binds block commitment 0xAAA but the captured chain anchor is 0xBBB; retry");
+    expect(parseAnchorMismatch(e)).toEqual({ bound: "0xaaa", anchor: "0xbbb" });
+    expect(parseAnchorMismatch(new Error("other"))).toBeNull();
+    const headers: Record<number, string> = { 100: "0xaaa", 101: "0xccc", 102: "0xbbb" };
+    expect(await learnBreadOffset(100, "0xbbb", async (n) => headers[n] ?? null)).toBe(2);
+    expect(await learnBreadOffset(100, "0xzzz", async (n) => headers[n] ?? null)).toBeNull();
+
+    const attempt = vi.fn<(offset: number, n: number) => Promise<string>>().mockRejectedValueOnce(e).mockResolvedValue("tx");
+    await expect(submitWithRetry(attempt, 1, 5, async () => 2)).resolves.toBe("tx");
+    expect(attempt.mock.calls.map(([offset]) => offset)).toEqual([1, 3]);
   });
 
   it("recognises Bread's anchor errors", () => {

@@ -2,7 +2,8 @@
 #!
 #! A champion posts a PRIZE note holding the prize and a target score. A challenger posts a
 #! CHALLENGE note holding their stake, bound to one prize. Whoever beats the target with a verified
-#! answer takes the prize; a challenger who does not loses the stake to the champion.
+#! answer takes the prize and their stake back; a challenge that is not won before its deadline is
+#! collected by the champion.
 #!
 #! Both notes share one storage layout (40 felts). A challenge note is its prize note's storage
 #! with `player`, `challenge_deadline` and `PRIZE_ID` filled in, which is what lets the prize
@@ -28,10 +29,8 @@
 #! ANSWER is the note argument (one Word), data_ptr points at the game data, target is felt 2.
 #!
 #! Both notes must hold exactly one asset. Consuming accounts must expose the standard
-#! `basic::receive_asset`, `basic::move_asset_to_note` and `note_creator::create_note` procedures
-#! (every standard wallet does).
+#! `basic::receive_asset` procedure (every standard wallet does).
 
-use {NOTE_TYPE_PUBLIC} from miden::protocol::note
 use miden::protocol::account_id
 use miden::protocol::active_account
 use miden::protocol::active_note
@@ -39,8 +38,6 @@ use miden::protocol::asset
 use miden::protocol::input_note
 use miden::protocol::note
 use miden::protocol::tx
-use miden::standards::note::note_tag
-use miden::standards::notes::p2id
 use miden::standards::wallets::basic
 use gq::score
 
@@ -212,35 +209,6 @@ proc load_own_asset
     push.ASSET_PTR exec.active_note::get_initial_assets
     # => [num_assets]
     eq.1 assert.err=ERR_ONE_ASSET
-end
-
-#! Sends this note's asset to the champion as a public P2ID note.
-#!
-#! Inputs:  []
-#! Outputs: []
-pub proc forfeit_to_champion
-    exec.load_own_asset
-
-    # P2ID serial = this note's serial with its first element + 1
-    exec.active_note::get_serial_number add.1
-    # => [SERIAL]
-    push.NOTE_TYPE_PUBLIC
-    mem_load.CHAMPION_PREFIX_PTR exec.note_tag::create_account_target
-    # => [tag, note_type, SERIAL]
-    mem_load.CHAMPION_PREFIX_PTR mem_load.CHAMPION_SUFFIX_PTR
-    # => [champion_suffix, champion_prefix, tag, note_type, SERIAL]
-    exec.p2id::create_output_note
-    # => [note_idx]
-
-    # the asset goes through the consumer's vault: receive it, then move it into the P2ID
-    exec.basic::move_note_assets_to_account
-    padw push.0.0.0 movup.7
-    # => [note_idx, pad(7)]
-    push.ASSET_PTR exec.asset::load
-    # => [ASSET_ID, ASSET_VALUE, note_idx, pad(7)]
-    call.basic::move_asset_to_note
-    # => [pad(16)]
-    dropw dropw dropw dropw
 end
 
 # CLAIM CHECK
