@@ -67,8 +67,7 @@ export function selfCheckAuthArgs(): boolean {
  */
 async function breadBuilder(client: Client): Promise<TransactionRequestBuilder> {
   const feeFaucet = await client.feeFaucetId();
-  await client.syncState();
-  const boundBlock = await client.getSyncHeight();
+  const boundBlock = await waitForFreshBlock(client);
   const { elements, commitment } = multisigAuthArgs(boundBlock, randomSeed(), feeFaucet);
   const advice = new AdviceMap();
   advice.insert(commitment, feltArray(elements));
@@ -104,8 +103,28 @@ export async function waitFor(client: Client, runExclusive: <T>(fn: () => Promis
 
 export type Submitted = { txId: string; noteIds: string[] };
 
-const ANCHOR_RETRIES = 5;
-const isAnchorMismatch = (e: unknown) => /SummaryAnchorMismatch|captured chain anchor/i.test(e instanceof Error ? e.message : String(e));
+/**
+ * Syncs until the chain tip advances (or ~6 s pass) and returns the new tip, so the request is
+ * bound at the very start of a block's ~3 s lifetime: Bread, which anchors at its own sync height
+ * a second or two later, then sees the same block.
+ */
+async function waitForFreshBlock(client: Client): Promise<number> {
+  const start = (await client.syncState()).blockNum();
+  const deadline = Date.now() + 6_000;
+  while (Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 250));
+    const now = (await client.syncState()).blockNum();
+    if (now > start) return now;
+  }
+  return start;
+}
+
+const ANCHOR_RETRIES = 8;
+const isAnchorMismatch = (e: unknown) =>
+  /SummaryAnchorMismatch|captured chain anchor|ChainBehindBoundBlock|has not reached that block/i.test(e instanceof Error ? e.message : String(e));
+/** Progress callback for the UI: which attempt is running. */
+export let onSubmitAttempt: (attempt: number, total: number) => void = () => {};
+export const setSubmitAttemptListener = (fn: typeof onSubmitAttempt) => (onSubmitAttempt = fn);
 
 /** Builds the request from a fresh builder and submits it to Bread, retrying on an anchor mismatch. */
 async function submit(
@@ -117,6 +136,7 @@ async function submit(
 ): Promise<string> {
   if (!wallet.address || !wallet.requestTransaction) throw new Error("Bread is not connected");
   for (let attempt = 1; ; attempt++) {
+    onSubmitAttempt(attempt, ANCHOR_RETRIES);
     const request = build(await breadBuilder(client));
     const tx = Transaction.createCustomTransaction(wallet.address, wallet.address, request, inputNoteIds, importNotes);
     try {

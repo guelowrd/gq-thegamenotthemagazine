@@ -6,7 +6,7 @@ import { useMidenClient, useMiden } from "@miden-sdk/react";
 import { useMidenFiWallet } from "@miden-sdk/miden-wallet-adapter-react";
 import { CITIES_URL, EXPLORER_BASE_URL, GQ_DECIMALS, MIN_CHALLENGE_WINDOW_BLOCKS, PRIZE_LIFETIME_BLOCKS, STAKE } from "@/config";
 import { accountFelts, listGqNotes, loadScripts, parseAccountId, syncGq, type GqNote } from "@/lib/chain";
-import { postChallenge, postPrize, settle, collect, selfCheckAuthArgs, waitFor, type Submitted } from "@/lib/bread";
+import { postChallenge, postPrize, settle, collect, selfCheckAuthArgs, setSubmitAttemptListener, waitFor, type Submitted } from "@/lib/bread";
 import { answerWord, type ChallengeStorage } from "@/lib/notes";
 import { datasetWord, quizCities, randomSeed, type Place, type Word4 } from "@/lib/quiz";
 import { type City } from "@/lib/rules";
@@ -88,6 +88,7 @@ function GqApp() {
   async function run(text: string, posted: boolean, fn: () => Promise<Submitted>) {
     setError(null);
     setMode({ kind: "busy", text });
+    setSubmitAttemptListener((attempt, total) => setMode({ kind: "busy", text: `${text} (attempt ${attempt}/${total})` }));
     try {
       const { txId, noteIds } = await fn();
       setMode({ kind: "busy", text: `${text}: accepted by Bread, waiting for the chain` });
