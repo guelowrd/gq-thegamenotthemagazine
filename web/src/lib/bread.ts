@@ -27,7 +27,8 @@ import { randomSeed, type Word4 } from "./quiz";
 import { learnBreadOffset, parseAnchorMismatch, submitWithRetry } from "./flow";
 import authVectors from "../../../rules/auth_vectors.json";
 
-type Wallet = ReturnType<typeof useMidenFiWallet>;
+/** What the app needs from a signer: Bread's adapter hook, or the local test wallet. */
+export type Wallet = Pick<ReturnType<typeof useMidenFiWallet>, "address" | "requestTransaction" | "requestAssets"> & { local?: boolean };
 
 /** The 12 felts a multisig account reads from its auth args (miden-standards `MultisigAuthArgs`). */
 export function authArgElements(boundBlock: number, salt: Word4, feeFaucet: { suffix: bigint; prefix: bigint }): bigint[] {
@@ -158,6 +159,11 @@ async function submit(
   if (!wallet.address || !wallet.requestTransaction) throw new Error("Bread is not connected");
   const address = wallet.address;
   const requestTransaction = wallet.requestTransaction;
+  if (wallet.local) {
+    // single-signature account in our own store: the SDK's builder does the fee work, no anchor dance
+    const builder = await client.feeAwareTransactionRequestBuilder(AccountId.fromHex(address));
+    return requestTransaction(Transaction.createCustomTransaction(address, address, await build(builder), inputNoteIds, importNotes));
+  }
   let lastBound = 0;
   return submitWithRetry(
     async (offset, attempt) => {

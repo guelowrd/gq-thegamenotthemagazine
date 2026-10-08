@@ -4,6 +4,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useMidenClient, useMiden } from "@miden-sdk/react";
 import { useMidenFiWallet } from "@miden-sdk/miden-wallet-adapter-react";
+import { LOCAL_WALLET, useLocalWallet } from "@/lib/localWallet";
 import { CITIES_URL, MIN_CHALLENGE_WINDOW_BLOCKS, PRIZE_LIFETIME_BLOCKS, STAKE } from "@/config";
 import { accountFelts, fetchGqNote, listGqNotes, loadScripts, parseAccountId, prizeLinks, syncGq, wordFromHex, type GqNote } from "@/lib/chain";
 import { postChallenge, postPrize, settle, collect, selfCheckAuthArgs, setSubmitAttemptListener, waitFor, type Submitted } from "@/lib/bread";
@@ -40,7 +41,9 @@ export function AppContent() {
 function GqApp() {
   const client = useMidenClient();
   const { runExclusive, isReady } = useMiden();
-  const wallet = useMidenFiWallet();
+  const bread = useMidenFiWallet();
+  const local = useLocalWallet(client, runExclusive);
+  const wallet = LOCAL_WALLET ? local : bread;
 
   const [places, setPlaces] = useState<Place[]>([]);
   const [dataset, setDataset] = useState<Word4 | null>(null);
@@ -223,7 +226,7 @@ function GqApp() {
         <p>Find the city on the map.</p>
         {sharedPrize ? sharedPrizeCard(false) : (
           <button onClick={connect} disabled={wallet.connecting}>
-            {wallet.connecting ? "…" : "Play"}
+            {wallet.connecting ? (LOCAL_WALLET && local.status) || "…" : "Play"}
           </button>
         )}
         {wallet.wallet?.readyState !== "Installed" && <p className="muted">You need the Bread wallet first.</p>}
@@ -238,7 +241,7 @@ function GqApp() {
     <main className="gq">
       <header className="top">
         <h1>GQ</h1>
-        <span className="muted">{wallet.address?.slice(0, 10)}…</span>
+        <span className="muted">{LOCAL_WALLET ? `test wallet ${wallet.address}` : `${wallet.address?.slice(0, 10)}…`}</span>
         <button className="secondary" onClick={() => void wallet.disconnect()}>Leave</button>
       </header>
       {error && <p className="error">{error}</p>}
