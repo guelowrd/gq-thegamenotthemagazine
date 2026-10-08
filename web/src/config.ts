@@ -6,9 +6,9 @@ export const APP_NAME = "GQ GeoQuiz";
 export const GQ_FAUCET = import.meta.env.VITE_GQ_FAUCET ?? "0x02a14387adb68f516e57cc5aa65891";
 export const GQ_DECIMALS = 6;
 
-// Challenge terms of the GeoQuiz UI. The contracts only know `min_stake`.
+// The stake of the GeoQuiz UI: the champion puts it in the prize note, each challenger puts the
+// same amount in their challenge note. The contracts only know `min_stake`.
 export const STAKE: bigint = BigInt(import.meta.env.VITE_GQ_STAKE ?? "1000000"); // 1 GQ
-export const DEFAULT_PRIZE: bigint = STAKE * 3n;
 export const PRIZE_LIFETIME_BLOCKS = 2_000; // claim window, in blocks
 export const MIN_CHALLENGE_WINDOW_BLOCKS = 100; // refuse to challenge a prize about to expire
 

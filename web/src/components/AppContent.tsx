@@ -4,9 +4,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { useMidenClient, useMiden } from "@miden-sdk/react";
 import { useMidenFiWallet } from "@miden-sdk/miden-wallet-adapter-react";
-import { CITIES_URL, DEFAULT_PRIZE, EXPLORER_BASE_URL, GQ_DECIMALS, MIN_CHALLENGE_WINDOW_BLOCKS, PRIZE_LIFETIME_BLOCKS, STAKE } from "@/config";
+import { CITIES_URL, EXPLORER_BASE_URL, GQ_DECIMALS, MIN_CHALLENGE_WINDOW_BLOCKS, PRIZE_LIFETIME_BLOCKS, STAKE } from "@/config";
 import { accountFelts, listGqNotes, loadScripts, parseAccountId, syncGq, type GqNote } from "@/lib/chain";
-import { postChallenge, postPrize, settle, collect, selfCheckAuthArgs } from "@/lib/bread";
+import { postChallenge, postPrize, settle, collect, selfCheckAuthArgs, waitFor, type Submitted } from "@/lib/bread";
 import { answerWord, type ChallengeStorage } from "@/lib/notes";
 import { datasetWord, quizCities, randomSeed, type Place, type Word4 } from "@/lib/quiz";
 import { type City } from "@/lib/rules";
@@ -80,12 +80,26 @@ function GqApp() {
     return () => clearInterval(t);
   }, [refresh]);
 
-  async function run(text: string, fn: () => Promise<string | void>) {
+  /**
+   * Runs a Bread transaction, then waits until the chain shows its effect (`posted`: the new note
+   * exists; otherwise: the consumed notes are gone). Bread only acknowledges the request; a
+   * transaction can still fail inside the wallet, so nothing is called committed before it shows.
+   */
+  async function run(text: string, posted: boolean, fn: () => Promise<Submitted>) {
     setError(null);
     setMode({ kind: "busy", text });
     try {
-      const txId = (await fn()) || undefined;
-      setMode({ kind: "done", text: `${text}: committed`, txId });
+      const { txId, noteIds } = await fn();
+      setMode({ kind: "busy", text: `${text}: accepted by Bread, waiting for the chain` });
+      const seen = await waitFor(client, runExclusive, async () => {
+        const records = await Promise.all(noteIds.map((id) => client.getInputNote(id)));
+        return posted ? records.every((r) => !!r) : records.every((r) => !!r?.isConsumed());
+      });
+      setMode({
+        kind: "done",
+        text: seen ? `${text}: confirmed on chain` : `${text}: Bread accepted the request but the chain does not show it yet. Check Bread's activity; it may have failed there.`,
+        txId,
+      });
       void refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -102,7 +116,7 @@ function GqApp() {
   function challengePrize(prize: GqNote) {
     if (!wallet.address || !dataset) return;
     if (prize.storage.expiryBlock - height < MIN_CHALLENGE_WINDOW_BLOCKS) return setError("This prize expires too soon to challenge.");
-    run("Posting your challenge", async () => {
+    run("Posting your challenge", true, async () => {
       // refuse a quiz that does not come from the seed and this dataset
       const expected = await quizCities(prize.storage.seed, places);
       const same = expected.every((c, i) => JSON.stringify(c) === JSON.stringify(prize.storage.cities[i]));
@@ -120,7 +134,7 @@ function GqApp() {
       : won
         ? `You scored ${r.score} > ${target}. Recovering your stake`
         : `You scored ${r.score} ≤ ${target}. Forfeiting your stake to the champion`;
-    run(text, () => settle(client, wallet, challenge, claimPrize ? prize : undefined, answerWord(r.answers)));
+    run(text, false, () => settle(client, wallet, challenge, claimPrize ? prize : undefined, answerWord(r.answers)));
   };
 
   if (!wallet.connected) {
@@ -154,7 +168,7 @@ function GqApp() {
         <>
           <section className="cta">
             <button onClick={startChampion} disabled={!dataset || places.length === 0}>
-              Play &amp; post a prize ({fmtGq(DEFAULT_PRIZE)}, challengers stake {fmtGq(STAKE)})
+              Play &amp; post a prize (you stake {fmtGq(STAKE)}; each challenger stakes {fmtGq(STAKE)})
             </button>
           </section>
           <Lobby
@@ -163,7 +177,7 @@ function GqApp() {
             height={height}
             onChallenge={challengePrize}
             onSettle={(challenge, prize) => setMode({ kind: "play-challenger", challenge, prize })}
-            onCollect={(note) => run(note.kind === "prize" ? "Reclaiming your prize" : "Collecting the stake", () => collect(client, wallet, note))}
+            onCollect={(note) => run(note.kind === "prize" ? "Reclaiming your prize" : "Collecting the stake", false, () => collect(client, wallet, note))}
           />
         </>
       )}
@@ -176,12 +190,12 @@ function GqApp() {
         <section className="result">
           <h2>You scored {mode.result.score}</h2>
           <p>
-            Post it as a prize of {fmtGq(DEFAULT_PRIZE)}: challengers stake {fmtGq(STAKE)} and must score more than {mode.result.score} on the same four
-            cities within {PRIZE_LIFETIME_BLOCKS} blocks.
+            Stake {fmtGq(STAKE)} as the prize: challengers stake the same {fmtGq(STAKE)} and must score more than {mode.result.score} on the same
+            four cities within {PRIZE_LIFETIME_BLOCKS} blocks. Each one who falls short forfeits their stake to you.
           </p>
           <button
             onClick={() =>
-              run("Posting your prize", () => {
+              run("Posting your prize", true, () => {
                 const storage: ChallengeStorage = {
                   expiryBlock: height + PRIZE_LIFETIME_BLOCKS,
                   target: mode.result.score,
@@ -194,7 +208,7 @@ function GqApp() {
                   dataset: dataset!,
                   cities: mode.cities,
                 };
-                return postPrize(client, wallet, storage, DEFAULT_PRIZE);
+                return postPrize(client, wallet, storage, STAKE);
               })
             }
           >
