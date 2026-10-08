@@ -45,12 +45,12 @@ pub struct ClientSetup {
 /// or client building fails
 pub async fn setup_client() -> Result<ClientSetup> {
     // Initialize keystore
-    let keystore_path = std::path::PathBuf::from("../keystore");
+    let keystore_path = std::path::PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../keystore"));
 
     let keystore =
         Arc::new(FilesystemKeyStore::new(keystore_path).context("Failed to initialize keystore")?);
 
-    let store_path = std::path::PathBuf::from("../store.sqlite3");
+    let store_path = std::path::PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../store.sqlite3"));
 
     let client = ClientBuilder::for_testnet()
         .sqlite_store(store_path)

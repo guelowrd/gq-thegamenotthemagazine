@@ -1,6 +1,7 @@
 pub mod faucet_api;
 pub mod funding;
 pub mod helpers;
+pub mod quiz;
 pub mod rules;
 pub mod scripts;
 pub mod storage;
