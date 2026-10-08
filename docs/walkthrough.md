@@ -20,6 +20,10 @@ Explorer: `https://testnet.midenscan.com/tx/<id>`.
 
 ## Web app (Bread wallet)
 
+First prize posted from Bread (2026-10-08): note `0x649864af…`, 1 GQ, target 2850, expiry block
+60634, tx `0x3d45e4bd3eb06055831646954503d8db75ebf8cdc12c8dff820a08baa290bc01`, from
+a Bread account.
+
 ```sh
 cargo run --release --bin build_scripts     # once, and after any change under masm/
 cd web && yarn install && yarn dev          # http://localhost:5173
