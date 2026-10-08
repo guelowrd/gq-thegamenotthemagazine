@@ -4,6 +4,7 @@
 import {
   AccountId,
   Endpoint,
+  Felt,
   FeltArray,
   FungibleAsset,
   InputNote,
@@ -21,11 +22,14 @@ import {
   NoteType,
   RpcClient,
   Word,
-  type WebClient,
 } from "@miden-sdk/miden-sdk";
+import type { useMidenClient } from "@miden-sdk/react";
 import { CHALLENGE_SCRIPT_URL, GQ_FAUCET, MIDEN_RPC_URL, PRIZE_SCRIPT_URL } from "@/config";
 import { decodeStorage, GQ_TAG, type AccountFelts, type ChallengeStorage } from "./notes";
 import type { Word4 } from "./quiz";
+
+/** The app's local wasm client, as `useMidenClient()` returns it. */
+export type Client = ReturnType<typeof useMidenClient>;
 
 export type Scripts = { prize: NoteScript; challenge: NoteScript; prizeRoot: string; challengeRoot: string };
 
@@ -47,11 +51,12 @@ export function loadScripts(): Promise<Scripts> {
   return scriptsPromise;
 }
 
-export const wordFromFelts = (w: Word4) => Word.newFromFelts(feltArray(w));
+export const wordFromFelts = (w: Word4) => Word.newFromFelts(w.map((v) => new Felt(v)));
 export const feltsFromWord = (w: Word): Word4 => w.toFelts().map((f) => f.asInt()) as Word4;
+export const wordFromHex = (hex: string): Word4 => feltsFromWord(Word.fromHex(hex));
 export function feltArray(values: bigint[]): FeltArray {
   const arr = new FeltArray();
-  for (const v of values) arr.push(new (Word as unknown as { Felt: new (v: bigint) => never }).Felt(v));
+  for (const v of values) arr.push(new Felt(v));
   return arr;
 }
 
@@ -74,7 +79,7 @@ export type GqNote = {
 };
 
 /** Registers the GQ tag (idempotent) and syncs. */
-export async function syncGq(client: WebClient): Promise<number> {
+export async function syncGq(client: Client): Promise<number> {
   const tags = await client.listTags();
   if (!tags.includes(String(GQ_TAG))) await client.addTag(String(GQ_TAG));
   const summary = await client.syncState();
@@ -82,7 +87,7 @@ export async function syncGq(client: WebClient): Promise<number> {
 }
 
 /** Every prize/challenge note the local store knows, newest first. */
-export async function listGqNotes(client: WebClient): Promise<GqNote[]> {
+export async function listGqNotes(client: Client): Promise<GqNote[]> {
   const { prizeRoot, challengeRoot } = await loadScripts();
   const records = await client.getInputNotes(new NoteFilter(NoteFilterTypes.All));
   const out: GqNote[] = [];
@@ -102,7 +107,7 @@ export async function listGqNotes(client: WebClient): Promise<GqNote[]> {
     if (!id) continue;
     out.push({
       id: id.toString(),
-      idWord: feltsFromWord(id.toWord()),
+      idWord: wordFromHex(id.toString()),
       kind: root === prizeRoot ? "prize" : "challenge",
       storage,
       amount: gq?.amount() ?? 0n,
@@ -143,7 +148,7 @@ export async function fetchNotesWithProof(ids: string[]): Promise<{ inputs: Inpu
     const files: Uint8Array[] = [];
     for (const f of fetched) {
       const input = f.asInputNote();
-      if (!input) throw new Error(`note ${f.noteId().toString()} is not public`);
+      if (!input) throw new Error(`note ${f.noteId.toString()} is not public`);
       inputs.push(input);
       files.push(NoteFile.fromInputNote(input).serialize());
     }

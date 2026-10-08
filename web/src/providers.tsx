@@ -32,7 +32,7 @@ export function AppProviders({ children }: { children: ReactNode }) {
     // in-memory SMT forests and is retained for this demo. Remote proving keeps
     // proof generation off the main thread (see useIncrementCounter).
     <MidenProvider
-      config={{ rpcUrl: MIDEN_RPC_URL, prover: MIDEN_PROVER, useWorker: false }}
+      config={{ rpcUrl: MIDEN_RPC_URL, prover: MIDEN_PROVER, useWorker: true }}
       loadingComponent={<div className="loading">Loading Miden WASM...</div>}
     >
       <MidenFiSignerProvider

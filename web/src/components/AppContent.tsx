@@ -1,80 +1,216 @@
-import { useMiden, useSyncState } from "@miden-sdk/react";
+// GQ screens: connect Bread → lobby → play → post a prize / challenge / settle / claim.
+// The app's own Miden client only reads the chain; Bread signs everything.
+
+import { useCallback, useEffect, useState } from "react";
+import { useMidenClient, useMiden } from "@miden-sdk/react";
 import { useMidenFiWallet } from "@miden-sdk/miden-wallet-adapter-react";
-import { WalletReadyState } from "@miden-sdk/miden-wallet-adapter-base";
-import reactLogo from "@/assets/react.svg";
-import midenLogo from "@/assets/miden.svg";
-import viteLogo from "/vite.svg";
-import { Counter } from "@/components/Counter";
+import { CITIES_URL, DEFAULT_PRIZE, EXPLORER_BASE_URL, GQ_DECIMALS, MIN_CHALLENGE_WINDOW_BLOCKS, PRIZE_LIFETIME_BLOCKS, STAKE } from "@/config";
+import { accountFelts, listGqNotes, loadScripts, parseAccountId, syncGq, type GqNote } from "@/lib/chain";
+import { postChallenge, postPrize, settle, collect, selfCheckAuthArgs } from "@/lib/bread";
+import { answerWord, type ChallengeStorage } from "@/lib/notes";
+import { datasetWord, quizCities, randomSeed, type Place, type Word4 } from "@/lib/quiz";
+import { type City } from "@/lib/rules";
+import { Lobby, fmtGq } from "./Lobby";
+import { Play, type PlayResult } from "./Play";
 import "./AppContent.css";
 
-function WalletButton() {
-  // Use the MidenFi-specific hook (not the generic `useSigner()`) so we can
-  // gate on `wallet.readyState`. `useSigner().connect()` calls through to the
-  // same provider, but at the moment the user clicks the button the adapter
-  // may not yet have detected `window.midenWallet` — detection is polled, see
-  // `scopePollingDetectionStrategy` in @miden-sdk/miden-wallet-adapter-base.
-  // When readyState is NotDetected, MidenFiSignerProvider falls back to
-  // `window.open(adapter.url, "_blank")` — the Chrome Web Store URL — which
-  // on some platforms redirects to the Play Store. Disabling the button
-  // until the extension is detected prevents the fallback from firing.
-  const { wallet, connected, connecting, connect, disconnect } =
-    useMidenFiWallet();
-  const readyState = wallet?.readyState;
-  const walletReady =
-    readyState === WalletReadyState.Installed ||
-    readyState === WalletReadyState.Loadable;
-
-  if (!walletReady) {
-    return <button disabled>Install MidenFi Wallet</button>;
-  }
-  if (connected) {
-    return <button onClick={disconnect}>Disconnect Wallet</button>;
-  }
-  if (connecting) {
-    return <button disabled>Connecting...</button>;
-  }
-  return <button onClick={connect}>Connect Wallet</button>;
-}
+type Mode =
+  | { kind: "lobby" }
+  | { kind: "play-champion"; seed: Word4; cities: City[] }
+  | { kind: "post-prize"; seed: Word4; cities: City[]; result: PlayResult }
+  | { kind: "play-challenger"; challenge: GqNote; prize?: GqNote }
+  | { kind: "busy"; text: string }
+  | { kind: "done"; text: string; txId?: string };
 
 export function AppContent() {
-  const { isReady, isInitializing, error } = useMiden();
-  const { syncHeight } = useSyncState();
+  const client = useMidenClient();
+  const { runExclusive, isReady } = useMiden();
+  const wallet = useMidenFiWallet();
 
-  if (error) {
+  const [places, setPlaces] = useState<Place[]>([]);
+  const [dataset, setDataset] = useState<Word4 | null>(null);
+  const [notes, setNotes] = useState<GqNote[]>([]);
+  const [height, setHeight] = useState(0);
+  const [mode, setMode] = useState<Mode>({ kind: "lobby" });
+  const [error, setError] = useState<string | null>(null);
+
+  const me = wallet.connected && wallet.address ? accountFelts(parseAccountId(wallet.address)) : null;
+
+  useEffect(() => {
+    fetch(CITIES_URL)
+      .then(async (r) => {
+        const bytes = new Uint8Array(await r.arrayBuffer());
+        setDataset(await datasetWord(bytes));
+        setPlaces(JSON.parse(new TextDecoder().decode(bytes)));
+      })
+      .catch((e) => setError(String(e)));
+    loadScripts().catch((e) => setError(String(e)));
+    if (import.meta.env.DEV) selfCheckAuthArgs();
+  }, []);
+
+  const refresh = useCallback(async () => {
+    if (!isReady || !client) return;
+    try {
+      const h = await runExclusive(() => syncGq(client));
+      setHeight(h);
+      setNotes(await runExclusive(() => listGqNotes(client)));
+    } catch (e) {
+      setError(String(e));
+    }
+  }, [client, isReady, runExclusive]);
+
+  useEffect(() => {
+    void refresh();
+    const t = setInterval(() => void refresh(), 15_000);
+    return () => clearInterval(t);
+  }, [refresh]);
+
+  async function run(text: string, fn: () => Promise<string | void>) {
+    setError(null);
+    setMode({ kind: "busy", text });
+    try {
+      const txId = (await fn()) || undefined;
+      setMode({ kind: "done", text: `${text}: committed`, txId });
+      void refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+      setMode({ kind: "lobby" });
+    }
+  }
+
+  function startChampion() {
+    if (!dataset) return;
+    const seed = randomSeed();
+    quizCities(seed, places).then((cities) => setMode({ kind: "play-champion", seed, cities }));
+  }
+
+  function challengePrize(prize: GqNote) {
+    if (!wallet.address || !dataset) return;
+    if (prize.storage.expiryBlock - height < MIN_CHALLENGE_WINDOW_BLOCKS) return setError("This prize expires too soon to challenge.");
+    run("Posting your challenge", async () => {
+      // refuse a quiz that does not come from the seed and this dataset
+      const expected = await quizCities(prize.storage.seed, places);
+      const same = expected.every((c, i) => JSON.stringify(c) === JSON.stringify(prize.storage.cities[i]));
+      if (!same || prize.storage.dataset.some((f, i) => f !== dataset[i])) throw new Error("This prize's quiz does not match the dataset.");
+      return postChallenge(client, wallet, prize, me!);
+    });
+  }
+
+  const settleAfterPlay = (challenge: GqNote, prize: GqNote | undefined) => (r: PlayResult) => {
+    const target = challenge.storage.target;
+    const won = r.score > target;
+    const claimPrize = won && prize && prize.storage.expiryBlock > height;
+    const text = claimPrize
+      ? `You scored ${r.score} > ${target}. Claiming the prize and your stake`
+      : won
+        ? `You scored ${r.score} > ${target}. Recovering your stake`
+        : `You scored ${r.score} ≤ ${target}. Forfeiting your stake to the champion`;
+    run(text, () => settle(client, wallet, challenge, claimPrize ? prize : undefined, answerWord(r.answers)));
+  };
+
+  if (!wallet.connected) {
     return (
-      <div className="loading">
-        <p>Failed to initialize Miden client</p>
-        <p className="error">{error.message}</p>
-      </div>
+      <main className="gq">
+        <h1>GQ · GeoQuiz on Miden</h1>
+        <p>Click where the city is. Beat the champion's score to take the prize; lose and your stake goes to them.</p>
+        <button onClick={() => void wallet.connect()} disabled={wallet.connecting}>
+          {wallet.connecting ? "Connecting…" : "Connect Bread wallet"}
+        </button>
+        {error && <p className="error">{error}</p>}
+      </main>
     );
   }
 
-  if (isInitializing || !isReady) {
-    return <div className="loading">Initializing Miden client...</div>;
-  }
-
   return (
-    <>
-      <div>
-        <a href="https://vite.dev" target="_blank" rel="noreferrer">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank" rel="noreferrer">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-        <a href="https://docs.miden.xyz" target="_blank" rel="noreferrer">
-          <img src={midenLogo} className="logo miden" alt="Miden logo" />
-        </a>
-      </div>
-      <h1>Vite + React + Miden</h1>
-      <div className="wallet-section">
-        <WalletButton />
-      </div>
-      <Counter />
-      <p className="read-the-docs">
-        Testnet block: {syncHeight ?? "syncing..."} | Click on the Vite, React,
-        and Miden logos to learn more
-      </p>
-    </>
+    <main className="gq">
+      <header className="top">
+        <h1>GQ · GeoQuiz</h1>
+        <span className="mono">{wallet.address}</span>
+        <span className="muted">block {height}</span>
+        <button onClick={() => void wallet.disconnect()}>Disconnect</button>
+      </header>
+      {error && <p className="error">{error}</p>}
+
+      {mode.kind === "lobby" && (
+        <>
+          <section className="cta">
+            <button onClick={startChampion} disabled={!dataset || places.length === 0}>
+              Play &amp; post a prize ({fmtGq(DEFAULT_PRIZE)}, challengers stake {fmtGq(STAKE)})
+            </button>
+          </section>
+          <Lobby
+            me={me}
+            notes={notes}
+            height={height}
+            onChallenge={challengePrize}
+            onSettle={(challenge, prize) => setMode({ kind: "play-challenger", challenge, prize })}
+            onCollect={(note) => run(note.kind === "prize" ? "Reclaiming your prize" : "Collecting the stake", () => collect(client, wallet, note))}
+          />
+        </>
+      )}
+
+      {mode.kind === "play-champion" && (
+        <Play cities={mode.cities} places={places} onDone={(result) => setMode({ kind: "post-prize", seed: mode.seed, cities: mode.cities, result })} />
+      )}
+
+      {mode.kind === "post-prize" && (
+        <section className="result">
+          <h2>You scored {mode.result.score}</h2>
+          <p>
+            Post it as a prize of {fmtGq(DEFAULT_PRIZE)}: challengers stake {fmtGq(STAKE)} and must score more than {mode.result.score} on the same four
+            cities within {PRIZE_LIFETIME_BLOCKS} blocks.
+          </p>
+          <button
+            onClick={() =>
+              run("Posting your prize", () => {
+                const storage: ChallengeStorage = {
+                  expiryBlock: height + PRIZE_LIFETIME_BLOCKS,
+                  target: mode.result.score,
+                  minStake: STAKE,
+                  champion: me!,
+                  player: null,
+                  prizeId: [0n, 0n, 0n, 0n],
+                  challengeRoot: [0n, 0n, 0n, 0n], // filled from the loaded script
+                  seed: mode.seed,
+                  dataset: dataset!,
+                  cities: mode.cities,
+                };
+                return postPrize(client, wallet, storage, DEFAULT_PRIZE);
+              })
+            }
+          >
+            Post prize
+          </button>
+          <button className="secondary" onClick={() => setMode({ kind: "lobby" })}>
+            Discard
+          </button>
+        </section>
+      )}
+
+      {mode.kind === "play-challenger" && (
+        <Play cities={mode.challenge.storage.cities} places={places} onDone={settleAfterPlay(mode.challenge, mode.prize)} />
+      )}
+
+      {mode.kind === "busy" && (
+        <section className="result">
+          <p>{mode.text}… Approve in Bread, then wait for the transaction to commit.</p>
+        </section>
+      )}
+
+      {mode.kind === "done" && (
+        <section className="result">
+          <p>{mode.text}</p>
+          {mode.txId && (
+            <a href={`${EXPLORER_BASE_URL}/tx/${mode.txId}`} target="_blank" rel="noreferrer">
+              View transaction
+            </a>
+          )}
+          <button onClick={() => setMode({ kind: "lobby" })}>Back to lobby</button>
+        </section>
+      )}
+      <footer className="muted">
+        1 GQ = {10 ** GQ_DECIMALS} base units · scoring v1 · testnet
+      </footer>
+    </main>
   );
 }

@@ -1,3 +1,4 @@
+pub mod auth_args;
 pub mod faucet_api;
 pub mod funding;
 pub mod helpers;

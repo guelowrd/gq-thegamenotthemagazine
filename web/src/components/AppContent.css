@@ -1,45 +1,31 @@
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
+.gq {
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 16px;
+  font-family: system-ui, sans-serif;
+  color: #1d2530;
 }
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
+.gq h1 { font-size: 1.4rem; margin: 0; }
+.gq h2 { font-size: 1.05rem; margin: 18px 0 6px; }
+.gq .top { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
+.gq .top .mono { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.gq .mono { font-family: ui-monospace, Menlo, monospace; font-size: 0.85rem; }
+.gq .muted { color: #6b7684; }
+.gq .error { color: #b3261e; background: #fdecea; padding: 8px 10px; border-radius: 6px; }
+.gq button {
+  background: #1f6feb; color: #fff; border: 0; border-radius: 6px; padding: 8px 12px;
+  font-size: 0.95rem; cursor: pointer; margin: 4px 6px 4px 0;
 }
-.logo.react:hover {
-  filter: drop-shadow(0 0 2em #61dafbaa);
-}
-.logo.miden:hover {
-  filter: drop-shadow(0 0 2em #ff5500);
-}
-
-@keyframes logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  a:nth-of-type(2) .logo {
-    animation: logo-spin infinite 20s linear;
-  }
-}
-
-.wallet-section {
-  display: flex;
-  justify-content: center;
-  margin-bottom: 1rem;
-}
-
-.loading {
-  padding: 2rem;
-  color: #888;
-}
-
-.read-the-docs {
-  color: #888;
-}
+.gq button.secondary { background: #e5e9ef; color: #1d2530; }
+.gq button:disabled { opacity: 0.5; cursor: default; }
+.gq ul { list-style: none; padding: 0; margin: 0; }
+.gq li { padding: 8px 0; border-bottom: 1px solid #e5e9ef; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.gq .cta { margin: 10px 0 4px; }
+.gq .result { padding: 16px; background: #f4f6f9; border-radius: 8px; }
+.world-map { width: 100%; height: auto; display: block; border-radius: 8px; }
+.world-map .sea { fill: #cfe3f5; }
+.world-map .land { fill: #e8efd9; stroke: #8fa36b; stroke-width: 0.6; }
+.play-header, .play-footer { display: flex; gap: 16px; align-items: center; justify-content: space-between; padding: 8px 0; }
+.play-header strong { font-size: 1.3rem; }
+.timer { font-variant-numeric: tabular-nums; min-width: 4ch; text-align: right; }
+.gq footer { margin-top: 24px; font-size: 0.8rem; }
