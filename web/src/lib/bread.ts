@@ -57,9 +57,17 @@ export function selfCheckAuthArgs(): boolean {
   });
 }
 
-/** A request builder carrying the auth args Bread's multisig needs, bound to the current tip. */
+/**
+ * A request builder carrying the auth args Bread's multisig needs, bound to the current tip.
+ *
+ * Bread anchors the request at ITS sync height when it receives it and rejects the request if
+ * that block differs from the bound block (`SummaryAnchorMismatchError`). Testnet makes a block
+ * every ~3 s, so the bound block has to be as fresh as possible: sync first, bind the result,
+ * submit at once. `submit` retries with a fresh block when Bread still reports the mismatch.
+ */
 async function breadBuilder(client: Client): Promise<TransactionRequestBuilder> {
   const feeFaucet = await client.feeFaucetId();
+  await client.syncState();
   const boundBlock = await client.getSyncHeight();
   const { elements, commitment } = multisigAuthArgs(boundBlock, randomSeed(), feeFaucet);
   const advice = new AdviceMap();
@@ -96,10 +104,28 @@ export async function waitFor(client: Client, runExclusive: <T>(fn: () => Promis
 
 export type Submitted = { txId: string; noteIds: string[] };
 
-async function submit(wallet: Wallet, request: TransactionRequest, inputNoteIds?: string[], importNotes?: Uint8Array[]): Promise<string> {
+const ANCHOR_RETRIES = 5;
+const isAnchorMismatch = (e: unknown) => /SummaryAnchorMismatch|captured chain anchor/i.test(e instanceof Error ? e.message : String(e));
+
+/** Builds the request from a fresh builder and submits it to Bread, retrying on an anchor mismatch. */
+async function submit(
+  client: Client,
+  wallet: Wallet,
+  build: (builder: TransactionRequestBuilder) => TransactionRequest,
+  inputNoteIds?: string[],
+  importNotes?: Uint8Array[],
+): Promise<string> {
   if (!wallet.address || !wallet.requestTransaction) throw new Error("Bread is not connected");
-  const tx = Transaction.createCustomTransaction(wallet.address, wallet.address, request, inputNoteIds, importNotes);
-  return wallet.requestTransaction(tx);
+  for (let attempt = 1; ; attempt++) {
+    const request = build(await breadBuilder(client));
+    const tx = Transaction.createCustomTransaction(wallet.address, wallet.address, request, inputNoteIds, importNotes);
+    try {
+      return await wallet.requestTransaction(tx);
+    } catch (e) {
+      if (!isAnchorMismatch(e) || attempt >= ANCHOR_RETRIES) throw e;
+      console.warn(`[gq] Bread anchored at another block than the request bound; rebuilding (attempt ${attempt + 1})`);
+    }
+  }
 }
 
 /** Champion: post a prize note. `storage.challengeRoot` is filled from the loaded script. */
@@ -111,8 +137,7 @@ export async function postPrize(client: Client, wallet: Wallet, storage: Challen
   const notes = new NoteArray();
   notes.push(note);
   const noteId = note.id().toString();
-  const request = (await breadBuilder(client)).withOwnOutputNotes(notes).build();
-  return { txId: await submit(wallet, request), noteIds: [noteId] };
+  return { txId: await submit(client, wallet, (b) => b.withOwnOutputNotes(notes).build()), noteIds: [noteId] };
 }
 
 /** Challenger: post a challenge note bound to `prize`, staking `prize.storage.minStake`. */
@@ -124,8 +149,7 @@ export async function postChallenge(client: Client, wallet: Wallet, prize: GqNot
   const notes = new NoteArray();
   notes.push(note);
   const noteId = note.id().toString();
-  const request = (await breadBuilder(client)).withOwnOutputNotes(notes).build();
-  return { txId: await submit(wallet, request), noteIds: [noteId] };
+  return { txId: await submit(client, wallet, (b) => b.withOwnOutputNotes(notes).build()), noteIds: [noteId] };
 }
 
 /**
@@ -136,16 +160,18 @@ export async function settle(client: Client, wallet: Wallet, challenge: GqNote, 
   const ids = prize ? [prize.id, challenge.id] : [challenge.id];
   const { inputs, files } = await fetchNotesWithProof(ids);
   const arg = Word.newFromFelts(feltsOf(answer));
-  let builder = await breadBuilder(client);
-  for (const input of inputs) builder = builder.withExplicitInputNote(input, arg);
-  return { txId: await submit(wallet, builder.build(), ids, files), noteIds: ids };
+  const build = (b: TransactionRequestBuilder) => {
+    for (const input of inputs) b = b.withExplicitInputNote(input, arg);
+    return b.build();
+  };
+  return { txId: await submit(client, wallet, build, ids, files), noteIds: ids };
 }
 
 /** Champion after expiry: reclaim a prize note or collect a forfeited challenge stake. */
 export async function collect(client: Client, wallet: Wallet, note: GqNote): Promise<Submitted> {
   const { inputs, files } = await fetchNotesWithProof([note.id]);
-  const builder = (await breadBuilder(client)).withExplicitInputNote(inputs[0], Word.newFromFelts(feltsOf([0n, 0n, 0n, 0n])));
-  return { txId: await submit(wallet, builder.build(), [note.id], files), noteIds: [note.id] };
+  const zero = Word.newFromFelts(feltsOf([0n, 0n, 0n, 0n]));
+  return { txId: await submit(client, wallet, (b) => b.withExplicitInputNote(inputs[0], zero).build(), [note.id], files), noteIds: [note.id] };
 }
 
 function feltsOf(w: Word4): Felt[] {

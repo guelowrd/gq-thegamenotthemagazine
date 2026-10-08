@@ -228,11 +228,23 @@ serial) -> note_idx`; P2ID storage `[suffix, prefix, 0, 0]`; web SDK
 (ScriptRoots)`, `RpcClient.getNotesById`; Bread `requestTransaction` custom
 payload with `transactionRequest` + `importNotes`.
 
-Known risk R1 (Bread): a 0.17 Guardian multisig needs auth args committed in
-the request; Bread does not add them, and the SDK helper
-(`feeAwareTransactionRequestBuilder`) wants the signer account in the dApp's
-store, which a private account defeats. First thing Phase 4 does is a trivial
-custom transaction through Bread on testnet.
+Bread specifics (found 2026-10-08, see `web/src/lib/bread.ts`):
+
+- A 0.17 Guardian multisig needs its auth args committed in the request. Bread
+  does not add them, and the SDK helper (`feeAwareTransactionRequestBuilder`)
+  only does so for accounts in the dApp's own store, which a private Bread
+  account never is. The app rebuilds `MultisigAuthArgs` itself (12 felts, Poseidon2
+  commitment, `withAuthArg` + `extendAdviceMap` + `withBlockNumbers`); the browser
+  commitment is checked against the Rust reference (`rules/auth_vectors.json`).
+- Bread's dry run (`executeForSummary` in `@openzeppelin/miden-multisig-client`)
+  captures the chain anchor at Bread's *own* sync height and rejects the request
+  with `SummaryAnchorMismatchError` when that block differs from the block the
+  request binds. Bread's own flows build and anchor with one client; a dApp
+  cannot know Bread's sync height, and testnet makes a block every ~3 s, so the
+  race is lost often. Mitigation here: sync right before binding the block and
+  retry up to five times on that error (the dry run runs before the approval
+  dialog, so retries cost no clicks). The proper fix is on the wallet side:
+  anchor a dApp request at the block it declares in `blockNumbers()`.
 
 ## 5. Repository layout (one repo, no submodules)
 

@@ -38,3 +38,8 @@ accounts are guarded multisigs, so the request carries the multisig auth args (b
 salt, fee conversion info) and declares the bound block; the app checks its commitment against
 the Rust reference at start-up in development ("auth-args self-check: ok").
 Notes the wallet never synced travel with their inclusion proofs (`importNotes`).
+
+Troubleshooting: `SummaryAnchorMismatchError: the transaction summary binds block commitment …
+but the captured chain anchor is …` comes from Bread anchoring at its own sync height; the app
+retries with a fresh block automatically (see design.md, Bread specifics). A `You need N GQ`
+error means the wallet has no GQ yet: mint with `gq_faucet mint`.
