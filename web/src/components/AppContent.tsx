@@ -6,7 +6,7 @@ import { useMidenClient, useMiden } from "@miden-sdk/react";
 import { useMidenFiWallet } from "@miden-sdk/miden-wallet-adapter-react";
 import { LOCAL_WALLET, useLocalWallet } from "@/lib/localWallet";
 import { CITIES_URL, MIN_CHALLENGE_WINDOW_BLOCKS, PRIZE_LIFETIME_BLOCKS, STAKE } from "@/config";
-import { accountFelts, fetchGqNote, listGqNotes, loadScripts, parseAccountId, prizeLinks, syncGq, wordFromHex, type GqNote } from "@/lib/chain";
+import { accountFelts, fetchGqNote, knownNote, listGqNotes, loadScripts, parseAccountId, prizeLinks, syncGq, wordFromHex, type GqNote } from "@/lib/chain";
 import { postChallenge, postPrize, settle, collect, selfCheckAuthArgs, setSubmitAttemptListener, waitFor, type Submitted } from "@/lib/bread";
 import { answerWord, type ChallengeStorage } from "@/lib/notes";
 import { challengeRefusal, myOpenChallengesOn as openChallengesOn, outcomeText, settlePlan, sharedPrizeState } from "@/lib/flow";
@@ -126,8 +126,8 @@ function GqApp() {
       const { txId, noteIds } = submitted;
       setMode({ kind: "busy", text: `${text}` });
       const seen = await waitFor(client, runExclusive, async () => {
-        const records = await Promise.all(noteIds.map((id) => client.getInputNote(id)));
-        return posted ? records.every((r) => !!r) : records.every((r) => !!r?.isConsumed());
+        const records = await Promise.all(noteIds.map((id) => knownNote(client, id)));
+        return posted ? records.every((r) => !!r) : records.every((r) => !!r?.consumed);
       });
       void refresh();
       const next = seen ? onConfirmed?.(submitted) : undefined;
@@ -139,9 +139,13 @@ function GqApp() {
   }
 
   function startChampion() {
-    if (!dataset) return;
+    if (!dataset || places.length === 0) return setError("Still loading the cities, try again in a second.");
     const seed = randomSeed();
-    quizCities(seed, places).then((cities) => setMode({ kind: "play-champion", seed, cities }));
+    quizCities(seed, places)
+      .then((cities) => {
+        setMode({ kind: "play-champion", seed, cities });
+      })
+      .catch((e) => setError(`Could not start: ${e instanceof Error ? e.message : e}`));
   }
 
   const myOpenChallengesOn = (prize: GqNote) => openChallengesOn(notes, me, prize, height);

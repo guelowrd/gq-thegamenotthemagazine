@@ -14,12 +14,12 @@
     "test:coverage": "vitest --run --coverage"
   },
   "dependencies": {
+    "@miden-sdk/miden-sdk": "0.17.1",
     "@miden-sdk/miden-wallet-adapter-base": "0.17.0",
     "@miden-sdk/miden-wallet-adapter-react": "0.17.0",
-    "@miden-sdk/miden-sdk": "0.17.1",
     "@miden-sdk/react": "0.17.0",
-    "react": "^19.1.1",
-    "react-dom": "^19.1.1"
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.36.0",
