@@ -64,7 +64,7 @@ Host side: `ChallengeStorage` in `integration/src/storage.rs` (Rust) and `web/sr
 | champion | any time | nothing; creates the **record** note (record script, your data, the prize) | | | record posted |
 | rival | before the record expires | nothing; creates a **shot** note (shot script, `shotStorage(record, …)`, the stake) | | | shot posted |
 | rival | before the shot's deadline | the shot (and the record, to claim the prize) | your `ANSWER`, on every note | each shot's id → `[shot_deadline]`, plus your game's entries | win: prize and stake back (or stake only) |
-| champion | after the shot's deadline / the record's expiry | the shot / the record | zero | | collect a lost stake / take the record back |
+| champion | after the shot's deadline / the record's expiry | the shot / the record, any number in one transaction | zero | | collect a lost stake / take the record back |
 
 A losing answer cannot consume anything, so a loss needs no transaction.
 

@@ -550,7 +550,7 @@ function GqApp() {
                   const open = record && me ? myOpenShotsOn(record) : [];
                   setMode({ kind: "play-rival", shots: open.length > 0 ? open : [shot], record });
                 }}
-                onCollect={(note) => void run("Taking it", false, () => collect(client, wallet, note), { kind: "lobby" })}
+                onCollect={(picked) => void run(picked.length > 1 ? "Taking them" : "Taking it", false, () => collect(client, wallet, picked), { kind: "lobby" })}
               />
               <p>{geocoinButton}</p>
             </>

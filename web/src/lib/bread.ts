@@ -283,14 +283,16 @@ export async function settle(client: Client, wallet: Wallet, shots: ChallengeNot
   return { txId: await submit(client, wallet, build, ids, files), noteIds: ids };
 }
 
-/** Champion after expiry: reclaim a record note or collect a lost shot's stake. */
-export async function collect(client: Client, wallet: Wallet, note: ChallengeNote): Promise<Submitted> {
-  const { files } = await fetchNotesWithProof([note.id]);
+/** Champion after expiry: reclaim records and collect lost shots' stakes, all in one transaction. */
+export async function collect(client: Client, wallet: Wallet, notes: ChallengeNote[]): Promise<Submitted> {
+  const ids = notes.map((n) => n.id);
+  const { files } = await fetchNotesWithProof(ids);
   const build = async (b: TransactionRequestBuilder) => {
-    const { inputs } = await fetchNotesWithProof([note.id]);
-    return b.withExplicitInputNote(inputs[0], wordOf(ZERO_WORD)).build();
+    const { inputs } = await fetchNotesWithProof(ids);
+    for (const input of inputs) b = b.withExplicitInputNote(input, wordOf(ZERO_WORD));
+    return b.build();
   };
-  return { txId: await submit(client, wallet, build, [note.id], files), noteIds: [note.id] };
+  return { txId: await submit(client, wallet, build, ids, files), noteIds: ids };
 }
 
 const wordOf = (w: Word4) => Word.newFromFelts(w.map((v) => new Felt(v)));

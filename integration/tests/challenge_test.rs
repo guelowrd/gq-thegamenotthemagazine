@@ -234,6 +234,23 @@ async fn shot_deadline_cuts_settle_short_and_opens_collect() -> Result<()> {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn champion_takes_every_lost_shot_and_the_expired_record_in_one_transaction() -> Result<()> {
+    let mut s = setup(1000)?;
+    let first = s.standard_shot()?;
+    let second = s.standard_shot()?;
+    s.jump_to(EXPIRY)?;
+    let before = s.balance(s.champion.id());
+    // the web app's collect: zero note argument, no advice
+    let tx = s
+        .consume_with_arg(s.champion.id(), &[&first, &s.record.clone(), &second], Word::default(), vec![])
+        .await
+        .expect("one collect takes them all");
+    s.commit(&tx)?;
+    assert_eq!(s.balance(s.champion.id()), before + PRIZE + 2 * STAKE);
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn shot_deadline_cannot_outlive_the_prize() -> Result<()> {
     let mut s = setup(1000)?;
     let storage = s.record_storage.shot_for(s.rival.id(), s.record.id(), EXPIRY + 1_000);

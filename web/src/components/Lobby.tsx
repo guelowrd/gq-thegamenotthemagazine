@@ -11,7 +11,7 @@ export type LobbyProps = {
   notes: ChallengeNote[];
   height: number;
   onSettle: (shot: ChallengeNote, record: ChallengeNote | undefined) => void;
-  onCollect: (note: ChallengeNote) => void;
+  onCollect: (notes: ChallengeNote[]) => void;
 };
 
 export function Lobby({ me, notes, height, onSettle, onCollect }: LobbyProps) {
@@ -27,16 +27,25 @@ export function Lobby({ me, notes, height, onSettle, onCollect }: LobbyProps) {
   const myShots = shots.filter((n) => sameAccount(me, n.storage.rival));
   const shotsAtMyRecords = shots.filter((n) => mine(n) && !sameAccount(me, n.storage.rival));
   const empty = myRecords.length + myShots.length + shotsAtMyRecords.length === 0;
+  // everything the champion can take now goes in one transaction: one wallet approval
+  const ready = [...myRecords, ...shotsAtMyRecords].filter(expired);
 
   return (
     <div className="lobby">
       {empty && <p className="muted">Play the World Tour and post your record: rivals pay a Geocoin to try to beat it!</p>}
+      {ready.length > 1 && (
+        <p>
+          <button className="btn primary" onClick={() => onCollect(ready)}>
+            Take all
+          </button>
+        </p>
+      )}
       {myRecords.map((p) => (
         <section key={p.id} className={`panel card${expired(p) ? " yellow" : ""}`}>
           <div className="eyebrow">{expired(p) ? "My record / over" : "My record / open"}</div>
           <div className="score">{p.storage.target.toLocaleString()} pts</div>
           {expired(p) ? (
-            <button className="btn primary" onClick={() => onCollect(p)}>
+            <button className="btn primary" onClick={() => onCollect([p])}>
               Take it back
             </button>
           ) : (
@@ -73,7 +82,7 @@ export function Lobby({ me, notes, height, onSettle, onCollect }: LobbyProps) {
             <div className="eyebrow">{expired(c) ? "For you / ready" : "For you / in play"}</div>
             <div className="score">{fmtGeocoin(c.amount)}</div>
             {expired(c) ? (
-              <button className="btn primary" onClick={() => onCollect(c)}>
+              <button className="btn primary" onClick={() => onCollect([c])}>
                 Take it
               </button>
             ) : (

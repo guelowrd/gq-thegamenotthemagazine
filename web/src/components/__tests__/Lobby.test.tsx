@@ -48,7 +48,7 @@ describe("Lobby", () => {
     expect(screen.queryByText(/on it/i)).toBeNull();
     rerender(<Lobby me={champion} notes={[prize]} height={1000} {...h} />);
     fireEvent.click(screen.getByRole("button", { name: /take it back/i }));
-    expect(h.onCollect).toHaveBeenCalledWith(prize);
+    expect(h.onCollect).toHaveBeenCalledWith([prize]);
   });
 
   it("offers Play & settle on my open shot with its record, and nothing once its deadline passed", () => {
@@ -66,7 +66,16 @@ describe("Lobby", () => {
     expect(screen.queryByRole("button", { name: /take it/i })).toBeNull();
     rerender(<Lobby me={champion} notes={[prize, myChallenge]} height={200} {...h} />);
     fireEvent.click(screen.getByRole("button", { name: /take it/i }));
-    expect(h.onCollect).toHaveBeenCalledWith(myChallenge);
+    expect(h.onCollect).toHaveBeenCalledWith([myChallenge]);
+    expect(screen.queryByRole("button", { name: /take all/i })).toBeNull();
+  });
+
+  it("takes everything the champion is owed in one go: lost shots and expired records", () => {
+    const h = handlers();
+    const second = { ...myChallenge, id: "0xc2", idWord: [2n, 2n, 2n, 2n] as [bigint, bigint, bigint, bigint] };
+    render(<Lobby me={champion} notes={[prize, myChallenge, second]} height={1000} {...h} />);
+    fireEvent.click(screen.getByRole("button", { name: /take all/i }));
+    expect(h.onCollect).toHaveBeenCalledWith([prize, myChallenge, second]);
   });
 
   it("hides consumed notes", () => {
