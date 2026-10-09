@@ -86,6 +86,12 @@ export async function learnBreadOffset(
   return null;
 }
 
+/**
+ * The wallet took the request but the chain never showed its effect. Bread answers a dApp as soon
+ * as the user approves and can still fail afterwards in its own queue, without telling the dApp.
+ */
+export const NOT_FINISHED = "Your wallet did not finish. Open it to see why, then try again.";
+
 /** The outcome line after Bread accepted a request: only a chain-confirmed effect is "confirmed". */
 export function outcomeText(action: string, seenOnChain: boolean): string {
   const sentence = /[.!?]$/.test(action) ? action : `${action}.`;

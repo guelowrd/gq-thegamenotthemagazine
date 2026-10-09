@@ -2,7 +2,7 @@
 // link or code, take a shot) / Player Hub (my records, my shots, what rivals left me).
 // The app's own Miden client only reads the chain (and mints Geocoins); the wallet signs the rest.
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useMidenClient, useMiden } from "@miden-sdk/react";
 import { useMidenFiWallet } from "@miden-sdk/miden-wallet-adapter-react";
 import { LOCAL_WALLET, useLocalWallet } from "@/lib/localWallet";
@@ -12,7 +12,7 @@ import { CITIES_URL, MIN_SHOT_WINDOW_BLOCKS, RECORD_LIFETIME_BLOCKS, STAKE } fro
 import { accountFelts, fetchGqNote, knownNote, listGqNotes, loadScripts, parseAccountId, recordLinks, syncGq, wordFromHex, type GqNote } from "@/lib/chain";
 import { postShot, postRecord, settle, collect, selfCheckAuthArgs, setSubmitAttemptListener, waitFor, type Submitted } from "@/lib/bread";
 import { shotDeadline, type ChallengeStorage } from "@/lib/notes";
-import { shotRefusal, myOpenShotsOn as openShotsOn, outcomeText, parseCode, reportRows, settlePlan, sharedRecordState, type ReportRow } from "@/lib/flow";
+import { NOT_FINISHED, shotRefusal, myOpenShotsOn as openShotsOn, outcomeText, parseCode, reportRows, settlePlan, sharedRecordState, type ReportRow } from "@/lib/flow";
 import { datasetWord, quizCities, randomSeed, type Place, type Word4 } from "@/lib/quiz";
 import { type City } from "@/lib/rules";
 import { Lobby, fmtGc } from "./Lobby";
@@ -27,8 +27,9 @@ type Mode =
   | { kind: "play-champion"; seed: Word4; cities: City[] }
   | { kind: "post-record"; seed: Word4; cities: City[]; result: PlayResult }
   | { kind: "play-rival"; shots: GqNote[]; record?: GqNote }
-  | { kind: "busy"; text: string }
-  | { kind: "done"; title?: string; text: string; rows?: ReportRow[]; txId?: string; share?: { url: string; x: string } };
+  /** `back`: where the Back button, a failure or a wallet that never finishes returns to */
+  | { kind: "busy"; text: string; back: Mode }
+  | { kind: "done"; title?: string; text: string; rows?: ReportRow[]; txId?: string; share?: { url: string; x: string }; retry?: () => void };
 
 /** Something that needs a connected wallet; it runs once the wallet is there. */
 type Intent = { kind: "post"; m: Extract<Mode, { kind: "post-record" }> } | { kind: "shot"; record: GqNote } | { kind: "geocoins" };
@@ -69,7 +70,11 @@ function GqApp() {
   const [sharedRecord, setSharedRecord] = useState<GqNote | null>(null);
   const [code, setCode] = useState("");
   const [pending, setPending] = useState<Intent | null>(null);
-  const sound = useSound(mode.kind === "play-champion" || mode.kind === "play-rival" ? "play" : "home");
+  const sound = useSound(
+    mode.kind === "play-champion" ? "play" : mode.kind === "play-rival" ? "vs" : mode.kind === "post-record" || (mode.kind === "done" && mode.rows) ? "result" : "home",
+  );
+  // a Back press (or a newer run) makes an older run's late answer land nowhere
+  const runToken = useRef(0);
 
   const me = wallet.connected && wallet.address ? accountFelts(parseAccountId(wallet.address)) : null;
 
@@ -133,13 +138,17 @@ function GqApp() {
 
   /**
    * Runs a wallet transaction, then waits until the chain shows its effect (`posted`: the new note
-   * exists; otherwise: the consumed notes are gone). A wallet only acknowledges the request; a
-   * transaction can still fail inside it, so nothing is called done before the chain shows it.
+   * exists; otherwise: the consumed notes are gone). A wallet only acknowledges the request (Bread
+   * answers as soon as you approve, and can still fail afterwards in its own queue), so nothing is
+   * called done before the chain shows it. A failure, or a wallet that never finishes, returns to
+   * `back` with the error: the score or the record stays on screen, ready for another try.
    */
-  async function run(text: string, posted: boolean, fn: () => Promise<Submitted>, onConfirmed?: (s: Submitted) => Mode | void) {
+  async function run(text: string, posted: boolean, fn: () => Promise<Submitted>, back: Mode, onConfirmed?: (s: Submitted) => Mode | void) {
+    const token = ++runToken.current;
+    const live = () => runToken.current === token;
     setError(null);
-    setMode({ kind: "busy", text });
-    setSubmitAttemptListener((attempt) => setMode({ kind: "busy", text: attempt > 1 ? `${text} (try ${attempt})` : text }));
+    setMode({ kind: "busy", text, back });
+    setSubmitAttemptListener((attempt) => live() && setMode({ kind: "busy", text: attempt > 1 ? `${text} (try ${attempt})` : text, back }));
     try {
       const submitted = await fn();
       const { txId, noteIds } = submitted;
@@ -147,12 +156,15 @@ function GqApp() {
         const records = await Promise.all(noteIds.map((id) => knownNote(client, id)));
         return posted ? records.every((r) => !!r) : records.every((r) => !!r?.consumed);
       });
+      if (!live()) return;
       void refresh();
-      const next = seen ? onConfirmed?.(submitted) : undefined;
-      setMode(next ?? { kind: "done", text: outcomeText(text, seen), txId });
+      if (seen) return setMode(onConfirmed?.(submitted) ?? { kind: "done", text: outcomeText(text, true), txId });
+      setError(NOT_FINISHED);
+      setMode(back);
     } catch (e) {
+      if (!live()) return;
       fail(e);
-      setMode({ kind: "lobby" });
+      setMode(back);
     }
   }
 
@@ -187,6 +199,7 @@ function GqApp() {
         };
         return postRecord(client, wallet, storage, STAKE);
       },
+      m,
       ({ txId, noteIds }) => ({ kind: "done", title: "Record posted!", text: "Now find someone to beat you.", txId, share: recordLinks(noteIds[0], m.result.score) }),
     );
   }
@@ -215,6 +228,7 @@ function GqApp() {
         if (!same || record.storage.dataset.some((f, i) => f !== dataset[i])) throw new Error("This record's quiz does not match the dataset.");
         return postShot(client, wallet, record, rival);
       },
+      { kind: "lobby" },
       (submitted) => ({
         kind: "play-rival",
         record,
@@ -240,22 +254,26 @@ function GqApp() {
       setMode({ kind: "done", title: "The record stands.", text: plan.text, rows });
       return;
     }
-    void run(plan.text, false, () => settle(client, wallet, shots, plan.claimPrize ? record : undefined, r.answers), () => ({
-      kind: "done",
-      title: "Record smashed!",
-      text: outcomeText(plan.text, true),
-      rows,
-    }));
+    const claim = (): void =>
+      void run(
+        plan.text,
+        false,
+        () => settle(client, wallet, shots, plan.claimPrize ? record : undefined, r.answers),
+        // the win stands on failure: the report stays and the claim can be sent again
+        { kind: "done", title: "Record smashed!", text: plan.text, rows, retry: claim },
+        () => ({ kind: "done", title: "Record smashed!", text: outcomeText(plan.text, true), rows }),
+      );
+    claim();
   };
 
   /** Mints the grant to the connected wallet; the local wallet then claims it, Bread claims by itself. */
   async function getGeocoins() {
     setError(null);
-    setMode({ kind: "busy", text: "Getting Geocoins" });
+    setMode({ kind: "busy", text: "Getting Geocoins", back: { kind: "lobby" } });
     try {
       const txId = await mintGeocoins(wallet.address!);
       if (LOCAL_WALLET) await local.claim();
-      setMode({ kind: "done", title: "Ka-ching!", text: `${fmtGc(GEOCOIN_GRANT)} in your pocket. Done!`, txId });
+      setMode({ kind: "done", text: `${fmtGc(GEOCOIN_GRANT)} for you! Open your wallet to take them.`, txId });
     } catch (e) {
       fail(e);
       setMode({ kind: "lobby" });
@@ -274,6 +292,16 @@ function GqApp() {
     <button className="btn" onClick={() => withWallet({ kind: "geocoins" })}>
       Empty pockets? Get Geocoins now!
     </button>
+  );
+  const codeBox = (
+    <section className="panel">
+      <div className="panel-title">Have a code?</div>
+      <p className="muted">Paste a record link or code.</p>
+      <input value={code} onChange={(e) => setCode(e.target.value)} placeholder="paste the link or code" aria-label="Record link or code" />
+      <button className="btn" onClick={openCode}>
+        Go
+      </button>
+    </section>
   );
 
   const recordCard = () => {
@@ -339,14 +367,11 @@ function GqApp() {
 
       {mode.kind === "lobby" && tab === "1p" && (
         <>
-          <h1>
-            Locate. Challenge.
-            <br />
-            Win.
+          <h1 className="slogan">
+            <span>Locate.</span> <span>Challenge.</span> <span>Win.</span>
           </h1>
           <div className="cols">
             <div className="panel map-frame">
-              <div className="panel-title">World map</div>
               <WorldMap />
             </div>
             <aside className="panel">
@@ -362,20 +387,11 @@ function GqApp() {
       )}
 
       {mode.kind === "lobby" && tab === "vs" && (
-        <div className="cols">
+        <div className="arena">
           <img className="hero" src="/brand/hero-arena.webp" alt="" width={1440} height={960} />
-          <div>
-            {recordCard() ?? (
-              <section className="panel">
-                <div className="panel-title">Have a code?</div>
-                <p className="muted">Paste a record link or code.</p>
-                <input value={code} onChange={(e) => setCode(e.target.value)} placeholder="paste the link or code" aria-label="Record link or code" />
-                <button className="btn" onClick={openCode}>
-                  Go
-                </button>
-              </section>
-            )}
-            <p style={{ marginTop: 16 }}>{geocoinButton}</p>
+          <div className="overlay">
+            {recordCard() ?? codeBox}
+            {geocoinButton}
           </div>
         </div>
       )}
@@ -393,7 +409,7 @@ function GqApp() {
                   const open = record && me ? myOpenShotsOn(record) : [];
                   setMode({ kind: "play-rival", shots: open.length > 0 ? open : [shot], record });
                 }}
-                onCollect={(note) => void run("Taking it", false, () => collect(client, wallet, note))}
+                onCollect={(note) => void run("Taking it", false, () => collect(client, wallet, note), { kind: "lobby" })}
               />
               <p>{geocoinButton}</p>
             </>
@@ -444,6 +460,15 @@ function GqApp() {
         <section className="panel">
           <h2>{mode.text}…</h2>
           <p className="muted">Check your wallet.</p>
+          <button
+            className="btn"
+            onClick={() => {
+              runToken.current++;
+              setMode(mode.back);
+            }}
+          >
+            Back
+          </button>
         </section>
       )}
 
@@ -462,7 +487,12 @@ function GqApp() {
               </button>
             </p>
           )}
-          <button className="btn primary" onClick={() => setMode({ kind: "lobby" })}>
+          {mode.retry && (
+            <button className="btn primary" onClick={mode.retry}>
+              Try again
+            </button>
+          )}
+          <button className={mode.retry ? "btn" : "btn primary"} onClick={() => setMode({ kind: "lobby" })}>
             OK
           </button>
         </section>

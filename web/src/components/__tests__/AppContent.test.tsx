@@ -77,6 +77,7 @@ vi.mock("@/lib/quiz", async (orig) => ({
 }));
 
 import { useMidenClient, useMint } from "@miden-sdk/react";
+import { waitFor as waitForMock } from "@/lib/bread";
 import { AppContent } from "../AppContent";
 
 beforeEach(() => {
@@ -121,6 +122,23 @@ describe("shared record link, connected as a stranger", () => {
     expect(bread.postShot).not.toHaveBeenCalled();
   });
 
+  it("comes back to the record, error shown, when the wallet never finishes (Bread fails after approval)", async () => {
+    bread.postShot.mockResolvedValue({ txId: "tx", noteIds: ["0xnew"], deadline: 220 });
+    vi.mocked(waitForMock).mockResolvedValueOnce(false);
+    render(<AppContent />);
+    fireEvent.click(await screen.findByRole("button", { name: /insert geocoin/i }));
+    await screen.findByText(/your wallet did not finish/i);
+    expect(screen.getByRole("button", { name: /insert geocoin/i })).toBeInTheDocument();
+  });
+
+  it("Back leaves a request that hangs and returns to the record", async () => {
+    bread.postShot.mockReturnValue(new Promise(() => undefined));
+    render(<AppContent />);
+    fireEvent.click(await screen.findByRole("button", { name: /insert geocoin/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /^back$/i }));
+    expect(await screen.findByRole("button", { name: /insert geocoin/i })).toBeInTheDocument();
+  });
+
   it("shows a claimed record as gone, with no button", async () => {
     chain.shared = { ...prize, consumed: true };
     render(<AppContent />);
@@ -153,9 +171,9 @@ describe("home, connected", () => {
     vi.mocked(useMidenClient).mockReturnValue({ importAccountById } as never);
     const mint = vi.fn(async () => ({ transactionId: "tx" }));
     vi.mocked(useMint).mockReturnValue({ mint, result: null, isLoading: false, stage: "idle", error: null, reset: vi.fn() } as never);
-    await start(/^vs$/i);
+    await start(/champion vs rival/i);
     fireEvent.click(await screen.findByRole("button", { name: /get geocoins/i }));
-    await screen.findByText(/10 GC in your pocket/i);
+    await screen.findByText(/10 GC for you! Open your wallet to take them/i);
     expect(importAccountById).toHaveBeenCalledTimes(1);
     expect(mint).toHaveBeenCalledWith(expect.objectContaining({ targetAccountId: "mtst1me", amount: 10_000_000n, noteType: "public" }));
   });
@@ -177,7 +195,7 @@ describe("home, connected", () => {
   it("does not list other people's records, but opens one from a pasted code (old ?prize= links too)", async () => {
     window.history.replaceState({}, "", "/");
     chain.notes = [prize];
-    await start(/^vs$/i);
+    await start(/champion vs rival/i);
     await screen.findByText(/have a code\?/i);
     expect(screen.queryByText(/2,?000/)).toBeNull();
     fireEvent.change(screen.getByPlaceholderText(/paste the link or code/i), {

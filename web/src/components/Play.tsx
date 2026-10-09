@@ -93,7 +93,6 @@ export function Play({
       </div>
       <div className="cols">
         <div className="panel map-frame">
-          <div className="panel-title">World map / drop your pin</div>
           <WorldMap
             onPick={pick}
             disabled={!!lastPick}

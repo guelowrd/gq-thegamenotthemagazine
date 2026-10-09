@@ -263,15 +263,14 @@ Bread specifics (found 2026-10-08, see `web/src/lib/bread.ts`):
   account never is. The app rebuilds `MultisigAuthArgs` itself (12 felts, Poseidon2
   commitment, `withAuthArg` + `extendAdviceMap` + `withBlockNumbers`); the browser
   commitment is checked against the Rust reference (`rules/auth_vectors.json`).
-- Bread's dry run (`executeForSummary` in `@openzeppelin/miden-multisig-client`)
-  captures the chain anchor at Bread's *own* sync height and rejects the request
-  with `SummaryAnchorMismatchError` when that block differs from the block the
-  request binds. Bread's own flows build and anchor with one client; a dApp
-  cannot know Bread's sync height, and testnet makes a block every ~3 s, so the
-  race is lost often. Mitigation here: sync right before binding the block and
-  retry up to five times on that error (the dry run runs before the approval
-  dialog, so retries cost no clicks). The proper fix is on the wallet side:
-  anchor a dApp request at the block it declares in `blockNumbers()`.
+- Bread checks the anchor again **after the user approves**, when its queue turns the request
+  into a Guardian proposal (`createCustomProposal` → `executeForSummary`): the transaction goes
+  through only if Bread's sync height then is exactly the block the request binds. The time spent
+  approving makes that rare. Bread has already answered the dApp at approval, so the dApp cannot see
+  the failure or retry. The app's answer: it waits for the effect on chain, returns to the screen
+  you came from with "Your wallet did not finish" when it never shows, and keeps a Back button on
+  the waiting screen. Root cause and repro for the wallet team: `docs/bread-anchor-mismatch.md`
+  (corrected 2026-10-09 evening: the dry run's own mismatch is swallowed, it is not the one users see).
 
 ## 5. Repository layout (one repo, no submodules)
 

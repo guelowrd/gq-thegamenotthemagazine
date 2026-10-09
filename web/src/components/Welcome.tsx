@@ -2,11 +2,13 @@
 
 export function Welcome({ onStart }: { onStart: () => void }) {
   return (
-    <button className="welcome" onClick={onStart} aria-label="Click to start">
-      <img src="/brand/hero-city.webp" alt="" width={1440} height={960} />
-      <span className="start" aria-hidden="true">
-        Click to start
-      </span>
-    </button>
+    <div className="welcome-screen">
+      <button className="welcome" onClick={onStart} aria-label="Click to start">
+        <img src="/brand/hero-city.webp" alt="" width={1440} height={960} />
+        <span className="start" aria-hidden="true">
+          Click to start
+        </span>
+      </button>
+    </div>
   );
 }
