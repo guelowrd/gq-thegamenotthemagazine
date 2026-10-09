@@ -27,6 +27,23 @@ async fn claim_wins_prize_and_returns_stake() -> Result<()> {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn claim_works_whichever_note_runs_first() -> Result<()> {
+    // Clients order input notes by id, so the challenge script can run before the prize script and
+    // move its stake out of the note first; the prize must check the stake the challenge was
+    // created with, not what is left in it.
+    let mut s = setup(1000)?;
+    let challenge = s.standard_challenge()?;
+    let before = s.balance(s.challenger.id());
+    let tx = s
+        .consume(s.challenger.id(), &[&challenge, &s.prize.clone()], answer_word(&perfect_answers()))
+        .await
+        .expect("claim succeeds with the challenge note first");
+    s.commit(&tx)?;
+    assert_eq!(s.balance(s.challenger.id()), before + PRIZE + STAKE);
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn claim_with_losing_answer_fails() -> Result<()> {
     let mut s = setup(1000)?;
     let challenge = s.standard_challenge()?;

@@ -22,6 +22,12 @@ export const MIN_CHALLENGE_WINDOW_BLOCKS = CHALLENGE_WINDOW_BLOCKS + 20;
 // Where the assembled note scripts live (written by `cargo run --bin build_scripts`).
 export const PRIZE_SCRIPT_URL = "/scripts/prize.bin";
 export const CHALLENGE_SCRIPT_URL = "/scripts/challenge.bin";
+/**
+ * Prize scripts this app no longer posts but still recognises, so a champion can take an old
+ * prize back after expiry and collect its failed challenges. Claims against them are not offered.
+ * 0x320f36…: before 2026-10-09 (read the challenge's current assets instead of its initial ones).
+ */
+export const LEGACY_PRIZE_ROOTS = ["0x320f3695342f5e8d67c54f685c448713ff8a8efee3d90cc2b3ffa9e33487bba2"];
 export const CITIES_URL = "/cities.json";
 export const WORLD_URL = "/world.json";
 

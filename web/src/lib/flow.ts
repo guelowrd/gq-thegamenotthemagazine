@@ -35,7 +35,7 @@ export function sharedPrizeState(prize: GqNote, me: AccountFelts | null, myOpen:
 
 /** Why a challenge cannot be posted right now, or null when it can. */
 export function challengeRefusal(prize: GqNote, height: number, minWindow: number): string | null {
-  if (prize.consumed) return "This one is over.";
+  if (prize.consumed || prize.legacy) return "This one is over.";
   if (prize.storage.expiryBlock - height < minWindow) return "Too late for this one.";
   return null;
 }
@@ -86,7 +86,8 @@ export async function learnBreadOffset(
 
 /** The outcome line after Bread accepted a request: only a chain-confirmed effect is "confirmed". */
 export function outcomeText(action: string, seenOnChain: boolean): string {
-  return seenOnChain ? `${action}. Done!` : `${action}… not done yet. Check your wallet.`;
+  const sentence = /[.!?]$/.test(action) ? action : `${action}.`;
+  return seenOnChain ? `${sentence} Done!` : `${action}… not done yet. Check your wallet.`;
 }
 
 /** Bread anchors its sync height a block or two after the dApp binds one; see bread.ts. */

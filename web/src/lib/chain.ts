@@ -24,7 +24,7 @@ import {
   Word,
 } from "@miden-sdk/miden-sdk";
 import type { useMidenClient } from "@miden-sdk/react";
-import { CHALLENGE_SCRIPT_URL, GQ_FAUCET, MIDEN_RPC_URL, PRIZE_SCRIPT_URL } from "@/config";
+import { CHALLENGE_SCRIPT_URL, GQ_FAUCET, LEGACY_PRIZE_ROOTS, MIDEN_RPC_URL, PRIZE_SCRIPT_URL } from "@/config";
 import { decodeStorage, GQ_TAG, type AccountFelts, type ChallengeStorage } from "./notes";
 import type { Word4 } from "./quiz";
 
@@ -76,7 +76,17 @@ export type GqNote = {
   storage: ChallengeStorage;
   amount: bigint;
   consumed: boolean;
+  /** Posted with a prize script this app has since replaced: collect and reclaim only. */
+  legacy?: boolean;
 };
+
+/** What a note script root means to this app, or null for a foreign note. */
+function kindOf(root: string, { prizeRoot, challengeRoot }: Scripts): Pick<GqNote, "kind" | "legacy"> | null {
+  if (root === prizeRoot) return { kind: "prize" };
+  if (root === challengeRoot) return { kind: "challenge" };
+  if (LEGACY_PRIZE_ROOTS.includes(root)) return { kind: "prize", legacy: true };
+  return null;
+}
 
 /** Registers the GQ tag (idempotent) and syncs. */
 export async function syncGq(client: Client): Promise<number> {
@@ -86,35 +96,47 @@ export async function syncGq(client: Client): Promise<number> {
   return summary.blockNum();
 }
 
-/** Every prize/challenge note the local store knows, newest first. */
+/**
+ * Every prize/challenge note the local store knows, newest first. Notes posted by others arrive
+ * through the GQ tag as input notes; notes this client's own account posted exist only as output
+ * notes, so both lists are read.
+ */
 export async function listGqNotes(client: Client): Promise<GqNote[]> {
-  const { prizeRoot, challengeRoot } = await loadScripts();
-  const records = await client.getInputNotes(new NoteFilter(NoteFilterTypes.All));
-  const out: GqNote[] = [];
-  for (const r of records) {
-    const details = r.details();
-    const root = details.recipient().script().root().toHex();
-    if (root !== prizeRoot && root !== challengeRoot) continue;
-    const felts = details.recipient().storage().items().map((f) => f.asInt());
+  const scripts = await loadScripts();
+  const toGqNote = (id: NoteId | undefined, recipient: NoteRecipient | undefined, assets: NoteAssets, consumed: boolean): GqNote | null => {
+    if (!id || !recipient) return null;
+    const kind = kindOf(recipient.script().root().toHex(), scripts);
+    if (!kind) return null;
     let storage: ChallengeStorage;
     try {
-      storage = decodeStorage(felts);
+      storage = decodeStorage(recipient.storage().items().map((f) => f.asInt()));
     } catch {
-      continue; // same script, foreign layout
+      return null; // same script, foreign layout
     }
-    const gq = details.assets().fungibleAssets().find((a) => a.faucetId().toString() === GQ_FAUCET);
-    const id = r.id();
-    if (!id) continue;
-    out.push({
-      id: id.toString(),
-      idWord: wordFromHex(id.toString()),
-      kind: root === prizeRoot ? "prize" : "challenge",
-      storage,
-      amount: gq?.amount() ?? 0n,
-      consumed: r.isConsumed(),
-    });
+    const gq = assets.fungibleAssets().find((a) => a.faucetId().toString() === GQ_FAUCET);
+    return { id: id.toString(), idWord: wordFromHex(id.toString()), ...kind, storage, amount: gq?.amount() ?? 0n, consumed };
+  };
+  const seen = new Set<string>();
+  const out: GqNote[] = [];
+  const add = (n: GqNote | null) => {
+    if (!n || seen.has(n.id)) return;
+    seen.add(n.id);
+    out.push(n);
+  };
+  for (const r of await client.getInputNotes(new NoteFilter(NoteFilterTypes.All))) {
+    const d = r.details();
+    add(toGqNote(r.id(), d.recipient(), d.assets(), r.isConsumed()));
   }
+  for (const r of await client.getOutputNotes(new NoteFilter(NoteFilterTypes.All))) add(toGqNote(r.id(), r.recipient(), r.assets(), r.isConsumed()));
   return out.reverse();
+}
+
+/** The store's record of a note, whether it came in (input) or went out (output); undefined if unknown. */
+export async function knownNote(client: Client, id: string): Promise<{ consumed: boolean } | undefined> {
+  const input = await client.getInputNote(id);
+  if (input) return { consumed: input.isConsumed() };
+  const output = await client.getOutputNote(id).catch(() => undefined);
+  return output ? { consumed: output.isConsumed() } : undefined;
 }
 
 /** Builds a prize or challenge note exactly as the contracts expect it; `serial` fixes its id. */
@@ -165,11 +187,11 @@ export async function fetchNotesWithProof(ids: string[]): Promise<{ inputs: Inpu
  * consumed notes too).
  */
 export async function fetchGqNote(id: string): Promise<GqNote> {
-  const { prizeRoot, challengeRoot } = await loadScripts();
+  const scripts = await loadScripts();
   const { inputs } = await fetchNotesWithProof([id]);
   const note = inputs[0].note();
-  const root = note.recipient().script().root().toHex();
-  if (root !== prizeRoot && root !== challengeRoot) throw new Error("This note is not a GQ prize or challenge.");
+  const kind = kindOf(note.recipient().script().root().toHex(), scripts);
+  if (!kind) throw new Error("This note is not a GQ prize or challenge.");
   const storage = decodeStorage(note.recipient().storage().items().map((f) => f.asInt()));
   const gq = note.assets().fungibleAssets().find((a) => a.faucetId().toString() === GQ_FAUCET);
   const rpc = new RpcClient(endpoint());
@@ -180,7 +202,7 @@ export async function fetchGqNote(id: string): Promise<GqNote> {
   } finally {
     rpc.free();
   }
-  return { id, idWord: wordFromHex(id), kind: root === prizeRoot ? "prize" : "challenge", storage, amount: gq?.amount() ?? 0n, consumed };
+  return { id, idWord: wordFromHex(id), ...kind, storage, amount: gq?.amount() ?? 0n, consumed };
 }
 
 /** The shareable link to a prize, and the X post that carries it. */

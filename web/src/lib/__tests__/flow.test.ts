@@ -79,6 +79,7 @@ describe("posting a challenge", () => {
     expect(challengeRefusal(prize, 100, 140)).toBeNull();
     expect(challengeRefusal(prize, 900, 140)).toMatch(/too late/i);
     expect(challengeRefusal({ ...prize, consumed: true }, 100, 140)).toMatch(/over/);
+    expect(challengeRefusal({ ...prize, legacy: true }, 100, 140)).toMatch(/over/);
   });
 });
 
@@ -101,6 +102,7 @@ describe("settling after a play", () => {
 describe("outcome wording", () => {
   it("never says committed before the chain shows the effect", () => {
     expect(outcomeText("Posting", true)).toBe("Posting. Done!");
+    expect(outcomeText("5200 points. You win!", true)).toBe("5200 points. You win! Done!");
     expect(outcomeText("Posting", false)).toMatch(/not done yet/);
   });
 });

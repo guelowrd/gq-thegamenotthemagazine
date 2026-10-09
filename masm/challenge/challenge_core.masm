@@ -69,6 +69,8 @@ const EXPECTED_PRIZE_ID_PTR = 520
 const EXPECTED_COMMITMENT_PTR = 768
 const FOUND_PTR = 772
 const ASSET_PTR = 1024               # this note's assets (up to 16 x 8 felts)
+const OTHER_ASSET_PTR = 1152         # a challenge note's initial assets, same layout
+const OTHER_ASSET_VALUE_PTR = 1156
 
 #! A back-dated reference block buys at most this many blocks on the before-expiry paths.
 pub const CLAIM_FUZZ = 64
@@ -281,14 +283,18 @@ proc check_input_note
         eqw movdn.8 dropw dropw
         # => [storage_matches, i]
         if.true
-            dup push.0
-            # => [asset_index = 0, i, i]
-            exec.input_note::get_asset
-            # => [ASSET_ID, ASSET_VALUE, i]
-            padw mem_loadw_le.ASSET_PTR
-            # => [OWN_ASSET_ID, ASSET_ID, ASSET_VALUE, i]
+            # the stake the challenge was created with: input notes run in the client's order, so
+            # its own script may already have emptied the note by now
+            dup push.OTHER_ASSET_PTR
+            # => [dest_ptr, i, i]
+            exec.input_note::get_initial_assets
+            # => [num_assets, i]
+            eq.1 assert.err=ERR_ONE_ASSET
+            padw mem_loadw_le.OTHER_ASSET_PTR padw mem_loadw_le.ASSET_PTR
+            # => [OWN_ASSET_ID, ASSET_ID, i]
             eqw assert.err=ERR_WRONG_ASSET
             dropw dropw
+            padw mem_loadw_le.OTHER_ASSET_VALUE_PTR
             # => [ASSET_VALUE, i]
             exec.asset::fungible_value_into_amount_unchecked
             # => [amount, i]

@@ -28,6 +28,10 @@ async fn main() -> Result<()> {
         let tip = client.get_sync_height().await?;
         let rec = client.get_input_note(miden_client::note::NoteId::try_from_hex(&id)?).await?.expect("note in store");
         let note: miden_client::note::Note = rec.try_into()?;
+        println!("script root {}", note.script().root().to_hex());
+        for a in note.assets().iter() {
+            println!("asset {a:?}");
+        }
         let nullifier = note.nullifier();
         let from = tip.as_u32().saturating_sub(2_000);
         let rpc = GrpcClient::new(&Endpoint::testnet(), 10_000);
