@@ -6,7 +6,7 @@ mod common;
 use anyhow::Result;
 use common::*;
 use integration::{felt, rules::vectors};
-use miden_client::asset::FungibleAsset;
+use miden_client::{asset::FungibleAsset, Word};
 
 // --- claim ---------------------------------------------------------------------------------
 
@@ -268,10 +268,10 @@ async fn settle_with_answers_that_do_not_match_the_commitment_fails() -> Result<
     let mut s = setup(1000)?;
     let shot = s.standard_shot()?;
     // commit to a losing answer, supply a perfect one in the advice map
-    let (key, _) = integration::answer_advice(&losing_answers());
-    let (_, perfect) = integration::answer_advice(&perfect_answers());
+    let (key, _) = integration::rules::answer_advice(&losing_answers());
+    let (_, perfect) = integration::rules::answer_advice(&perfect_answers());
     let owned = vec![shot.clone()];
-    let mut advice = integration::deadline_advice(&owned)?;
+    let mut advice = integration::deadline_advice(Word::from(s.shot_script.root()), &owned);
     advice.push((key, perfect));
     let e = s.consume_with_arg(s.rival.id(), &[&shot], key, advice).await.unwrap_err();
     assert_masm_error(&e, "gq: the advice map does not hold the answers the note argument commits to");
@@ -333,6 +333,37 @@ async fn longer_game_tail_is_accepted() -> Result<()> {
         .consume(s.rival.id(), &[&record, &shot], Some(&perfect_answers()))
         .await
         .expect("claim with a 68-felt layout");
+    s.commit(&tx)?;
+    assert_eq!(s.balance(s.rival.id()), before + PRIZE + STAKE);
+    Ok(())
+}
+
+// --- another game on the same core --------------------------------------------------------------
+
+/// A whole game, for the record: the note argument is the rival's number (in all four felts), and
+/// it beats the target when it is higher. No game data. The core does the rest.
+const HIGHER_NUMBER_WINS: &str = "
+pub proc beats_target
+    # => [N, N, N, N, data_ptr, target]
+    drop drop drop swap drop
+    # => [n, target]
+    swap gt
+end
+";
+
+#[tokio::test(flavor = "multi_thread")]
+async fn another_game_plugs_into_the_same_core() -> Result<()> {
+    let mut s = setup_for(1000, HIGHER_NUMBER_WINS, vec![])?;
+    let shot = s.standard_shot()?;
+    let number = |n: u64| Word::new([felt(n); 4]);
+    let advice = integration::deadline_advice(Word::from(s.shot_script.root()), std::slice::from_ref(&shot));
+    let r = s.consume_with_arg(s.rival.id(), &[&s.record.clone(), &shot], number(1000), advice.clone()).await;
+    assert!(r.is_err(), "a tie does not beat the record");
+    let before = s.balance(s.rival.id());
+    let tx = s
+        .consume_with_arg(s.rival.id(), &[&s.record.clone(), &shot], number(1001), advice)
+        .await
+        .expect("a higher number claims the prize and the stake");
     s.commit(&tx)?;
     assert_eq!(s.balance(s.rival.id()), before + PRIZE + STAKE);
     Ok(())

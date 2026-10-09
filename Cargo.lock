@@ -2136,7 +2136,6 @@ dependencies = [
  "anyhow",
  "miden-client",
  "miden-client-sqlite-store",
- "miden-mast-package",
  "miden-protocol",
  "miden-standards",
  "miden-testing",

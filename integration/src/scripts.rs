@@ -1,4 +1,6 @@
-//! Assembles the two note scripts from `masm/`.
+//! Assembles the two note scripts: `record.masm` and `shot.masm` on the challenge core, linked with
+//! a game. A game is one MASM module that exports `beats_target` (see `challenge_core.masm`); the
+//! core imports it as `game::rules`.
 
 use anyhow::{Context, Result};
 use miden_client::note::NoteScript;
@@ -9,20 +11,26 @@ pub const CHALLENGE_CORE_MASM: &str = include_str!("../../masm/challenge/challen
 pub const RECORD_MASM: &str = include_str!("../../masm/challenge/record.masm");
 pub const SHOT_MASM: &str = include_str!("../../masm/challenge/shot.masm");
 
-fn builder() -> Result<CodeBuilder> {
-    CodeBuilder::default()
-        .with_linked_module("gq::score", GQ_SCORE_MASM)
-        .context("link gq::score")?
-        .with_linked_module("challenge::core", CHALLENGE_CORE_MASM)
-        .context("link challenge::core")
+/// The record and shot scripts for the game in `game_masm`.
+pub fn scripts_for(game_masm: &str) -> Result<(NoteScript, NoteScript)> {
+    let builder = || -> Result<CodeBuilder> {
+        CodeBuilder::default()
+            .with_linked_module("game::rules", game_masm)
+            .context("link the game as game::rules")?
+            .with_linked_module("challenge::core", CHALLENGE_CORE_MASM)
+            .context("link challenge::core")
+    };
+    let record = builder()?.compile_note_script(RECORD_MASM).context("compile record.masm")?;
+    let shot = builder()?.compile_note_script(SHOT_MASM).context("compile shot.masm")?;
+    Ok((record, shot))
 }
 
+/// GeoQuizz's record script.
 pub fn record_script() -> Result<NoteScript> {
-    builder()?.compile_note_script(RECORD_MASM).context("compile record.masm")
+    Ok(scripts_for(GQ_SCORE_MASM)?.0)
 }
 
+/// GeoQuizz's shot script.
 pub fn shot_script() -> Result<NoteScript> {
-    builder()?
-        .compile_note_script(SHOT_MASM)
-        .context("compile shot.masm")
+    Ok(scripts_for(GQ_SCORE_MASM)?.1)
 }

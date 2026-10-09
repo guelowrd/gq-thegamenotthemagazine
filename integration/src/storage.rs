@@ -1,41 +1,16 @@
-//! Host-side view of the shot note storage (`masm/shot/challenge_core.masm`).
+//! The challenge mechanic's note storage, host side (`masm/challenge/challenge_core.masm`).
 //!
-//! Both the record note and the shot note use this 64-felt layout; a shot note is its
-//! record note's storage with `rival`, `shot_deadline` and `record_id` filled in.
-//! Layout: champion(2) target min_stake expiry | rival(2) shot_deadline | RECORD_ID(4) |
-//! SHOT_ROOT(4) | game data(48).
+//! A record note and its shot notes share one layout: a 16-felt header the core owns, then the
+//! game's data in whole words, any length. A shot note is its record note's storage with `rival`,
+//! `shot_deadline` and `record_id` filled in; that is how the record recognises its shots.
+//! Header: champion(2) target min_stake expiry | rival(2) shot_deadline | RECORD_ID(4) | SHOT_ROOT(4).
 
 use miden_client::{account::AccountId, note::NoteId, Felt, Word};
 
-use crate::{felt, rules::{City, ROUNDS}};
+use crate::felt;
 
-pub const NUM_STORAGE_ITEMS: usize = 64;
-pub const GAME_DATA_LEN: usize = 8 + 4 * ROUNDS;
+pub const HEADER_ITEMS: usize = 16;
 pub const SHOT_DEADLINE_INDEX: usize = 7;
-
-/// Game-specific payload (48 felts): seed, dataset hash, ten cities.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct GqGameData {
-    pub seed: Word,
-    pub dataset: Word,
-    pub cities: [City; ROUNDS],
-}
-
-impl GqGameData {
-    pub fn to_felts(&self) -> [Felt; GAME_DATA_LEN] {
-        let mut out = [felt(0); GAME_DATA_LEN];
-        out[..4].copy_from_slice(self.seed.as_elements());
-        out[4..8].copy_from_slice(self.dataset.as_elements());
-        for (i, c) in self.cities.iter().enumerate() {
-            let base = 8 + 4 * i;
-            out[base] = felt(c.idx as u64);
-            out[base + 1] = felt(c.lat as u64);
-            out[base + 2] = felt(c.lon as u64);
-            out[base + 3] = felt(c.cos as u64);
-        }
-        out
-    }
-}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ChallengeStorage {
@@ -48,7 +23,8 @@ pub struct ChallengeStorage {
     /// Zero in a record note.
     pub record_id: Word,
     pub shot_root: Word,
-    pub game: [Felt; GAME_DATA_LEN],
+    /// The game's own data, whole words (GeoQuizz: `quiz::GqGameData`).
+    pub game: Vec<Felt>,
     /// Block by which the rival must settle; zero in a record note. A shot is settleable
     /// before `min(shot_deadline, expiry_block)`.
     pub shot_deadline: u32,
@@ -56,14 +32,8 @@ pub struct ChallengeStorage {
 
 impl ChallengeStorage {
     /// The record note's storage.
-    pub fn record(
-        expiry_block: u32,
-        target: u32,
-        min_stake: u64,
-        champion: AccountId,
-        shot_root: Word,
-        game: [Felt; GAME_DATA_LEN],
-    ) -> Self {
+    pub fn record(expiry_block: u32, target: u32, min_stake: u64, champion: AccountId, shot_root: Word, game: Vec<Felt>) -> Self {
+        assert!(game.len() % 4 == 0, "game data must be whole words");
         Self {
             expiry_block,
             target,
@@ -106,7 +76,6 @@ impl ChallengeStorage {
         v.extend_from_slice(self.record_id.as_elements());
         v.extend_from_slice(self.shot_root.as_elements());
         v.extend_from_slice(&self.game);
-        debug_assert_eq!(v.len(), NUM_STORAGE_ITEMS);
         v
     }
 }

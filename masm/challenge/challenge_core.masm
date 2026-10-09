@@ -24,7 +24,8 @@
 #! A shot settles before `min(shot_deadline, expiry_block)` and the champion collects from that
 #! block on, so a rival cannot pick a deadline past the record's own life.
 #!
-#! The game plugs in one procedure, `gq::score::beats_target`:
+#! The game plugs in one procedure, imported as `game::rules::beats_target` (link the game's module
+#! under that path; `integration/src/scripts.rs` shows how):
 #!   [ANSWER, data_ptr, target] -> [beats]
 #! ANSWER is the note argument (one Word), whatever the game makes of it (GeoQuizz: the commitment
 #! to ten packed answers it reads from the advice map), data_ptr points at the game data, target is
@@ -41,7 +42,7 @@ use miden::protocol::input_note
 use miden::protocol::note
 use miden::protocol::tx
 use miden::standards::wallets::basic
-use gq::score
+use game::rules
 
 # CONSTANTS
 # =================================================================================================
@@ -191,7 +192,7 @@ pub proc answer_beats_target
     mem_load.TARGET_PTR movdn.4
     push.GAME_DATA_PTR movdn.4
     # => [ANSWER, data_ptr, target]
-    exec.score::beats_target
+    exec.rules::beats_target
 end
 
 # ASSETS

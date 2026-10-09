@@ -1,27 +1,21 @@
 //! Common helper functions for scripts and tests
 
 use std::{
-    path::Path,
     sync::Arc,
     time::{Duration, Instant},
 };
 
-use anyhow::{anyhow, bail, ensure, Context, Result};
+use anyhow::{bail, ensure, Context, Result};
 use miden_client::{
-    account::{
-        component::{BasicWallet, InitStorageData, NoAuth},
-        Account, AccountBuilder, AccountComponent, AccountType, StorageSlotName,
-    },
+    account::{component::BasicWallet, Account, AccountBuilder, AccountType},
     auth::{AuthSecretKey, AuthSingleSig},
     builder::ClientBuilder,
     keystore::{FilesystemKeyStore, Keystore},
     store::TransactionFilter,
     transaction::{TransactionId, TransactionStatus},
-    utils::Deserializable,
-    Client, Felt, Word,
+    Client,
 };
 use miden_client_sqlite_store::ClientBuilderSqliteExt;
-use miden_mast_package::Package;
 use rand::Rng;
 
 pub(crate) const NETWORK_TIMEOUT: Duration = Duration::from_secs(600);
@@ -62,118 +56,17 @@ pub async fn setup_client() -> Result<ClientSetup> {
     Ok(ClientSetup { client, keystore })
 }
 
-/// Builds a Miden project in the specified directory
-///
-/// # Arguments
-/// * `dir` - Path to the directory containing the Cargo.toml
-/// * `release` - Whether to build in release mode
-///
-/// # Returns
-/// The compiled `Package`
-///
-/// # Errors
-/// Returns an error if compilation fails or if the output is not in the expected format
-pub fn build_project_in_dir(dir: &Path, release: bool) -> Result<Package> {
-    let profile = if release { "--release" } else { "--debug" };
-    let profile_name = if release { "release" } else { "debug" };
-    let manifest_path = dir.join("Cargo.toml");
-    let artifact_path = dir
-        .join("target")
-        .join("miden")
-        .join(profile_name)
-        .join("out.masp");
-
-    let args = vec![
-        profile.to_string(),
-        "-o".to_string(),
-        artifact_path.display().to_string(),
-        "--manifest-path".to_string(),
-        manifest_path.display().to_string(),
-    ];
-
-    let status = miden_build(args).context("Failed to compile project")?;
-
-    if !status.success() {
-        bail!("Failed to compile project package. See output for details.");
-    }
-
-    let package_bytes = std::fs::read(&artifact_path).context(format!(
-        "Failed to read compiled package from {}",
-        artifact_path.display()
-    ))?;
-
-    Package::read_from_bytes(&package_bytes).context("Failed to deserialize package from bytes")
-}
-
-/// The fixed key used by the counter contract to store the counter value.
-pub const COUNTER_STORAGE_KEY: Word = Word::new([Felt::ZERO, Felt::ZERO, Felt::ZERO, Felt::ONE]);
-
-/// Returns the storage slot name used by the counter account component.
-///
-/// # Errors
-/// Returns an error if the fixed storage slot name is invalid.
-pub fn counter_storage_slot() -> Result<StorageSlotName> {
-    StorageSlotName::new("counter_account::counter_contract::count_map")
-        .context("invalid counter storage slot name")
-}
-
-/// Configuration for creating an account with a custom component
+/// Configuration for creating a wallet account.
 pub struct AccountCreationConfig {
     /// The account type to create. The account type also encodes the
     /// storage visibility (`AccountType::Public` / `AccountType::Private`).
     pub account_type: AccountType,
-    /// Initial component storage data keyed by storage slot schema.
-    pub init_storage_data: InitStorageData,
 }
 
 impl Default for AccountCreationConfig {
     fn default() -> Self {
-        Self {
-            account_type: AccountType::Public,
-            init_storage_data: InitStorageData::default(),
-        }
+        Self { account_type: AccountType::Public }
     }
-}
-
-/// Creates an account with a custom component from a compiled package
-///
-/// # Arguments
-/// * `client` - The Miden client instance
-/// * `package` - The compiled package containing the account component
-/// * `config` - Configuration for account creation
-///
-/// # Returns
-/// The created `Account`
-///
-/// # Errors
-/// Returns an error if account creation or client operations fail
-pub async fn create_account_from_package(
-    client: &mut Client<FilesystemKeyStore>,
-    package: Arc<Package>,
-    config: AccountCreationConfig,
-) -> Result<Account> {
-    let account_component =
-        AccountComponent::from_package(Arc::unwrap_or_clone(package), &config.init_storage_data)
-            .context("Failed to create account component from package")?;
-
-    let mut init_seed = [0_u8; 32];
-    client.rng().fill_bytes(&mut init_seed);
-
-    let account = AccountBuilder::new(init_seed)
-        .account_type(config.account_type)
-        .with_component(account_component)
-        // Receive faucet notes to pay transaction fees.
-        .with_component(BasicWallet)
-        .with_component(NoAuth)
-        .build()
-        .context("Failed to build account")?;
-
-    client
-        .add_account(&account, false)
-        .await
-        .context("Failed to add account to client")?;
-
-    Ok(account)
 }
 
 /// Creates a basic wallet account with authentication
@@ -255,33 +148,4 @@ pub async fn wait_for_commit(
         );
         tokio::time::sleep(POLL_INTERVAL).await;
     }
-}
-
-fn miden_build(args: impl IntoIterator<Item = String>) -> anyhow::Result<std::process::ExitStatus> {
-    let mut cmd = match std::env::var_os("MIDENUP_HOME") {
-        Some(_) => std::process::Command::new("miden"),
-        None => match std::env::var_os("CARGO_MIDEN") {
-            Some(cargo_miden) => {
-                // The `cargo-miden` binary expects the `miden` subcommand token,
-                // the same as when cargo invokes it as `cargo miden`.
-                let mut cmd = std::process::Command::new(cargo_miden);
-                cmd.arg("miden");
-                cmd
-            }
-            None => {
-                let mut cmd = std::process::Command::new("cargo");
-                cmd.arg("miden");
-                cmd
-            }
-        },
-    };
-    cmd.arg("build").args(args);
-
-    let mut child = cmd
-        .spawn()
-        .map_err(|err| anyhow!("Failed to spawn build command: {err}"))?;
-
-    child
-        .wait()
-        .map_err(|err| anyhow!("Build command failed: {err}"))
 }

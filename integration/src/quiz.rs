@@ -1,7 +1,7 @@
 //! Deterministic quiz selection and dataset identity. Mirrors `web/src/lib/quiz.ts`; the two are
 //! checked against `rules/quiz_vectors.json`.
 
-use miden_client::Word;
+use miden_client::{Felt, Word};
 use sha2::{Digest, Sha256};
 
 use crate::{
@@ -56,11 +56,24 @@ pub fn cos_x100(lat: f64) -> u32 {
     (lat.to_radians().cos() * 100.0).round() as u32
 }
 
-pub fn quiz_cities(seed: Word, dataset: &[Place]) -> [City; ROUNDS] {
-    pick_indices(seed, dataset.len() as u32).map(|idx| {
-        let p = &dataset[idx as usize];
-        City { idx, lat: lat_to_cd(p.lat), lon: lon_to_cd(p.lon), cos: cos_x100(p.lat) }
-    })
+/// GeoQuizz's game data in a note (48 felts): seed, dataset hash, then [idx, lat, lon, cos] per city.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct GqGameData {
+    pub seed: Word,
+    pub dataset: Word,
+    pub cities: [City; ROUNDS],
+}
+
+impl GqGameData {
+    pub fn to_felts(&self) -> Vec<Felt> {
+        let mut out = Vec::with_capacity(8 + 4 * ROUNDS);
+        out.extend_from_slice(self.seed.as_elements());
+        out.extend_from_slice(self.dataset.as_elements());
+        for c in &self.cities {
+            out.extend([c.idx, c.lat, c.lon, c.cos].map(|v| felt(v as u64)));
+        }
+        out
+    }
 }
 
 /// Dataset identity: sha256 of the exact file bytes, first 16 bytes as four u32 little-endian.

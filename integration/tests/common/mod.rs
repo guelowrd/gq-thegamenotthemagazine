@@ -6,13 +6,14 @@ use std::collections::BTreeMap;
 
 use anyhow::Result;
 use integration::{
-    answer_advice,
     deadline_advice,
     felt,
     rules::{Answer, City, ROUNDS, VECTOR_CITIES},
-    scripts::{shot_script, record_script},
-    storage::{ChallengeStorage, GqGameData},
-    GQ_TAG,
+    scripts::{scripts_for, GQ_SCORE_MASM},
+    quiz::GqGameData,
+    rules::answer_advice,
+    storage::ChallengeStorage,
+    NOTE_TAG,
 };
 use miden_client::{
     account::{Account, AccountId},
@@ -80,7 +81,7 @@ pub fn build_note_felts(
         .note_storage(felts)?
         .add_assets([asset.into()])
         .note_type(NoteType::Public)
-        .tag(GQ_TAG)
+        .tag(NOTE_TAG)
         .build()?)
 }
 
@@ -102,6 +103,11 @@ pub fn setup(target: u32) -> Result<Setup> {
 }
 
 pub fn setup_with_cities(target: u32, cities: [City; ROUNDS]) -> Result<Setup> {
+    setup_for(target, GQ_SCORE_MASM, game_data(cities).to_felts())
+}
+
+/// The same chain for any game: its MASM module (exporting `beats_target`) and its note data.
+pub fn setup_for(target: u32, game_masm: &str, game: Vec<miden_client::Felt>) -> Result<Setup> {
     let mut builder = MockChain::builder();
     let faucet = builder.add_existing_basic_faucet(auth(), "GC", 1_000_000_000, None)?;
     let funds = |faucet: AccountId| FungibleAsset::new(faucet, FUNDS).map(Into::into);
@@ -110,18 +116,11 @@ pub fn setup_with_cities(target: u32, cities: [City; ROUNDS]) -> Result<Setup> {
     let stranger = builder.add_existing_wallet_with_assets(auth(), [funds(faucet.id())?])?;
     let chain = builder.build()?;
 
-    let shot_script = shot_script()?;
-    let record_storage = ChallengeStorage::record(
-        EXPIRY,
-        target,
-        STAKE,
-        champion.id(),
-        Word::from(shot_script.root()),
-        game_data(cities).to_felts(),
-    );
+    let (record_script, shot_script) = scripts_for(game_masm)?;
+    let record_storage = ChallengeStorage::record(EXPIRY, target, STAKE, champion.id(), Word::from(shot_script.root()), game);
     let record = build_note(
         champion.id(),
-        record_script()?,
+        record_script,
         &record_storage,
         FungibleAsset::new(faucet.id(), PRIZE)?,
         1,
@@ -203,7 +202,7 @@ impl Setup {
         answers: Option<&[Answer; ROUNDS]>,
     ) -> Result<ExecutedTransaction, TransactionExecutorError> {
         let owned: Vec<Note> = notes.iter().map(|n| (*n).clone()).collect();
-        let advice = deadline_advice(&owned).expect("advice");
+        let advice = deadline_advice(Word::from(self.shot_script.root()), &owned);
         self.consume_with_advice(account, notes, answers, advice).await
     }
 

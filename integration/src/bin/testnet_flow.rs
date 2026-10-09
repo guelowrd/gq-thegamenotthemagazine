@@ -12,15 +12,15 @@ use std::{sync::Arc, time::Duration};
 
 use anyhow::{Context, Result};
 use integration::{
-    answer_advice,
     deadline_advice,
     faucet_api::{request_fee_tokens, TESTNET_FAUCET_API},
     funding::ensure_accounts_funded,
     helpers::{create_basic_wallet_account, setup_client, wait_for_commit, AccountCreationConfig},
-    rules::{Answer, City, ROUNDS, VECTOR_CITIES},
+    quiz::GqGameData,
+    rules::{answer_advice, Answer, City, ROUNDS, VECTOR_CITIES},
     scripts::{shot_script, record_script},
-    storage::{ChallengeStorage, GqGameData},
-    GQ_TAG,
+    storage::ChallengeStorage,
+    NOTE_TAG,
 };
 use miden_client::{
     account::{Account, AccountId, AccountType},
@@ -49,7 +49,7 @@ async fn main() -> Result<()> {
     let setup = setup_client().await?;
     let mut client = setup.client;
     let keystore = setup.keystore;
-    client.add_note_tag(NoteTag::new(GQ_TAG)).await?;
+    client.add_note_tag(NoteTag::new(NOTE_TAG)).await?;
     client.sync_state().await?;
 
     let cfg = || AccountCreationConfig { account_type: AccountType::Private, ..Default::default() };
@@ -112,7 +112,7 @@ async fn main() -> Result<()> {
 
 fn make_note(client: &mut C, sender: AccountId, script: NoteScript, storage: &ChallengeStorage, asset: FungibleAsset) -> Result<Note> {
     let recipient = NoteRecipient::new(draw_word(client.rng()), script, NoteStorage::new(storage.to_felts())?);
-    let metadata = PartialNoteMetadata::new(sender, NoteType::Public).with_tag(NoteTag::new(GQ_TAG));
+    let metadata = PartialNoteMetadata::new(sender, NoteType::Public).with_tag(NoteTag::new(NOTE_TAG));
     Ok(Note::new(NoteAssets::new(vec![asset.into()])?, metadata, recipient))
 }
 
@@ -124,11 +124,11 @@ async fn post(client: &mut C, account: AccountId, note: &Note) -> Result<()> {
 }
 
 async fn consume(client: &mut C, account: AccountId, notes: &[&Note], answers: &[Answer; ROUNDS]) -> Result<()> {
-    // the notes are public and tagged GQ_TAG, so a sync brings them into the store
+    // the notes are public and tagged NOTE_TAG, so a sync brings them into the store
     client.sync_state().await?;
     let owned: Vec<Note> = notes.iter().map(|n| (*n).clone()).collect();
     let (commitment, packed) = answer_advice(answers);
-    let mut advice = deadline_advice(&owned)?;
+    let mut advice = deadline_advice(Word::from(shot_script()?.root()), &owned);
     advice.push((commitment, packed));
     let request = TransactionRequestBuilder::new()
         .input_notes(notes.iter().map(|n| ((*n).clone(), Some(commitment))))

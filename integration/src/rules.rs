@@ -122,6 +122,12 @@ pub fn answer_commitment(answers: &[Answer; ROUNDS]) -> Word {
     NoteStorage::new(felts).expect("ten items").commitment()
 }
 
+/// The advice-map entry carrying the answers: under their commitment (the note argument), the
+/// ten packed rounds. The score script reads them from there and re-hashes them.
+pub fn answer_advice(answers: &[Answer; ROUNDS]) -> (Word, Vec<Felt>) {
+    (answer_commitment(answers), pack_answers(answers).iter().map(|&v| crate::felt(v)).collect())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

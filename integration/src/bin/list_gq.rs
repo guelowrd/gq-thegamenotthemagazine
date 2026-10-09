@@ -1,18 +1,18 @@
-//! Lists every GQ record/shot note the chain carries under GQ_TAG (sender, kind, amount, state).
+//! Lists every GQ record/shot note the chain carries under NOTE_TAG (sender, kind, amount, state).
 //!   cargo run --release --bin list_gq
 
 use anyhow::Result;
 use integration::{
     helpers::setup_client,
     scripts::{shot_script, record_script},
-    GQ_TAG,
+    NOTE_TAG,
 };
 use miden_client::{note::NoteTag, store::NoteFilter, Word};
 
 #[tokio::main]
 async fn main() -> Result<()> {
     let mut client = setup_client().await?.client;
-    client.add_note_tag(NoteTag::new(GQ_TAG)).await?;
+    client.add_note_tag(NoteTag::new(NOTE_TAG)).await?;
     client.sync_state().await?;
     let record_root = record_script()?.root();
     let shot_root = shot_script()?.root();
@@ -21,7 +21,7 @@ async fn main() -> Result<()> {
     for r in records {
         let root = r.details().script().root();
         let kind = if root == record_root { "record" } else if root == shot_root { "shot" } else { "old-script" };
-        if r.metadata().map(|m| m.tag().as_u32()) != Some(GQ_TAG) { continue; }
+        if r.metadata().map(|m| m.tag().as_u32()) != Some(NOTE_TAG) { continue; }
         let items = r.details().storage().items();
         let amount: u64 = r.details().assets().iter_fungible().map(|a| a.amount().as_u64()).sum();
         let sender = r.metadata().map(|m| m.sender().to_hex()).unwrap_or_default();
