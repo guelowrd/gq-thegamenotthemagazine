@@ -36,7 +36,7 @@ export function Lobby({ me, notes, height, onSettle, onCollect }: LobbyProps) {
           <div className="eyebrow">{expired(p) ? "My record / over" : "My record / open"}</div>
           <div className="score">{p.storage.target.toLocaleString()} pts</div>
           {expired(p) ? (
-            <button className="btn primary wide" onClick={() => onCollect(p)}>
+            <button className="btn primary" onClick={() => onCollect(p)}>
               Take it back
             </button>
           ) : (
@@ -59,7 +59,7 @@ export function Lobby({ me, notes, height, onSettle, onCollect }: LobbyProps) {
               {expired(c) ? (
                 <p className="muted">The champion can take it now.</p>
               ) : (
-                <button className="btn primary wide" onClick={() => onSettle(c, record && !record.consumed ? record : undefined)}>
+                <button className="btn primary" onClick={() => onSettle(c, record && !record.consumed ? record : undefined)}>
                   Play
                 </button>
               )}
@@ -73,7 +73,7 @@ export function Lobby({ me, notes, height, onSettle, onCollect }: LobbyProps) {
             <div className="eyebrow">{expired(c) ? "For you / ready" : "For you / in play"}</div>
             <div className="score">{fmtGeocoin(c.amount)}</div>
             {expired(c) ? (
-              <button className="btn primary wide" onClick={() => onCollect(c)}>
+              <button className="btn primary" onClick={() => onCollect(c)}>
                 Take it
               </button>
             ) : (
