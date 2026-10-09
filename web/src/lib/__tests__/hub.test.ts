@@ -113,7 +113,13 @@ describe("boards", () => {
     const { coins, smashed, defended } = boards(notes, 3000, ME);
     expect(coins.top.map((r) => [name(r.who), r.value])).toEqual([["JHT", 2], ["KQX", 1]]);
     expect(smashed.top.map((r) => [name(r.who), r.value])).toEqual([["KQX", 1]]);
-    expect(defended.top.map((r) => [name(r.who), r.value])).toEqual([["JHT", 1]]);
+    expect(defended.top.map((r) => [name(r.who), r.value])).toEqual([["JHT", 2]]);
+  });
+
+  it("defended counts every rival who lost, on records still open too", () => {
+    const open = record(ME, 5382, { expiry: 5000 });
+    const notes = [open, shot(open, KQX, 200, { consumedAt: 900 }), shot(open, MUD, 300), shot(open, MUD, 800)];
+    expect(boards(notes, 400, ME).defended.top.map((r) => [name(r.who), r.value])).toEqual([["JHT", 2]]);
   });
 
   it("best scores: top 10 records, names may repeat, a tie goes to the first posted, my best row below with its real rank", () => {

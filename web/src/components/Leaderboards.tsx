@@ -1,5 +1,5 @@
 // The public boards, arcade style: rank, nickname, number. Read from the chain, no wallet needed.
-// Wide screens show them all; narrow ones pick one with the tabs.
+// Wide screens show them all (Defended / Smashed below); narrow ones pick one with the tabs.
 
 import { useState } from "react";
 import { keyOf, type boards, type Ranked } from "@/lib/hub";
@@ -9,8 +9,8 @@ type Boards = ReturnType<typeof boards>;
 type Name = keyof Boards;
 
 const TITLE: Record<Name, string> = { coins: "Most Geocoins won", scores: "Best scores", defended: "Defended", smashed: "Smashed" };
-const UNIT: Record<Name, string> = { coins: "Geocoins won", scores: "Score", defended: "Records defended", smashed: "Records smashed" };
-const EMPTY: Record<Name, string> = { coins: "No wins yet.", scores: "No scores yet.", defended: "No records yet.", smashed: "No records yet." };
+const UNIT: Record<Name, string> = { coins: "Geocoins won", scores: "Score", defended: "Rivals beaten", smashed: "Records smashed" };
+const EMPTY: Record<Name, string> = { coins: "No wins yet.", scores: "No scores yet.", defended: "No rivals beaten yet.", smashed: "No records yet." };
 const COLOR: Record<Name, string> = { coins: "yellow", scores: "pink", defended: "mint", smashed: "mint" };
 
 function Tabs<T extends string>({ items, value, onPick, className }: { items: [T, string][]; value: T; onPick: (v: T) => void; className: string }) {

@@ -151,8 +151,8 @@ function rank(rows: Omit<Ranked, "rank">[], me: AccountFelts | null): Board {
 
 /**
  * The four boards. Geocoins won: lost shots a champion took, plus prizes (a winner's own Geocoin
- * coming back is not a win). Best scores: every record posted. Defended: expired records with at
- * least one lost shot. Smashed: records a rival took.
+ * coming back is not a win). Best scores: every record posted. Defended: every rival who lost at
+ * one of the champion's records, open or not. Smashed: records a rival took.
  */
 export function boards(notes: ChallengeNote[], height: number, me: AccountFelts | null) {
   const gc = (v: bigint) => Number(v) / 10 ** GC_DECIMALS;
@@ -161,7 +161,9 @@ export function boards(notes: ChallengeNote[], height: number, me: AccountFelts 
   const smashed: Event[] = [];
   for (const n of notes) {
     if (n.kind === "shot") {
-      if (n.consumedAt !== undefined && shotOutcome(n, height, recordOf(n, notes)) === "lost") coins.push({ who: n.storage.champion, value: gc(n.amount), at: n.consumedAt });
+      if (shotOutcome(n, height, recordOf(n, notes)) !== "lost") continue;
+      defended.push({ who: n.storage.champion, value: 1, at: shotDeadline(n.storage) });
+      if (n.consumedAt !== undefined) coins.push({ who: n.storage.champion, value: gc(n.amount), at: n.consumedAt });
       continue;
     }
     const outcome = recordOutcome(n, height);
@@ -170,7 +172,6 @@ export function boards(notes: ChallengeNote[], height: number, me: AccountFelts 
       coins.push({ who: w, value: gc(n.amount), at: n.consumedAt! });
       smashed.push({ who: w, value: 1, at: n.consumedAt! });
     }
-    if (outcome === "closed" && (triesLost(n, notes, height) ?? 0) > 0) defended.push({ who: n.storage.champion, value: 1, at: n.storage.expiryBlock });
   }
   const scores = notes.filter((n) => n.kind === "record").map((n) => ({ key: n.id, who: n.storage.champion, value: n.storage.target, at: n.createdAt ?? Infinity }));
   return { coins: rank(tally(coins), me), scores: rank(scores, me), defended: rank(tally(defended), me), smashed: rank(tally(smashed), me) };

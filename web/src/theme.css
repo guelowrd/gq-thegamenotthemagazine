@@ -259,8 +259,9 @@ table.report td:nth-child(2) { text-align: right; color: var(--muted); }
 .loading-history { min-height: 110px; margin-bottom: 16px; padding: 18px; background: var(--panel); }
 .empty-copy { padding: 20px; font-size: 14px; }
 
-/* leaderboards: arcade high-score tables, three across, two + one, or one picked on narrow screens */
-.boards-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; align-items: start; }
+/* leaderboards: arcade high-score tables, two across with Defended / Smashed below, or one picked on narrow screens */
+.boards-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; align-items: start; }
+.records-module { grid-column: 1 / -1; }
 .records-module > h3 { margin-bottom: 14px; color: var(--yellow); }
 .records-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
 .arcade { padding: 8px; }
@@ -279,10 +280,6 @@ table.report td:nth-child(2) { text-align: right; color: var(--muted); }
 .loading-board { display: flex; justify-content: space-between; gap: 36px; padding: 12px 8px; }
 .loading-board .skeleton { width: 24%; }
 .board-tabs, .record-tabs { display: none; }
-@media (max-width: 1100px) and (min-width: 961px) {
-  .boards-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .records-module { grid-column: 1 / -1; }
-}
 @media (max-width: 960px) {
   .boards-grid, .records-pair { display: block; }
   .board-tabs, .record-tabs { display: flex; gap: 8px; margin-bottom: 20px; }

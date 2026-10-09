@@ -43,7 +43,8 @@ describe("Leaderboards", () => {
     render(<Leaderboards data={data} me={ME} name={name} />);
     const mine = screen.getAllByLabelText("Your row");
     expect(mine.map((r) => r.textContent)).toEqual(["02JHT10", "18JHT6,800"]);
-    expect(screen.getAllByText("No records yet.")).toHaveLength(2);
+    expect(screen.getByText("No rivals beaten yet.")).toBeInTheDocument();
+    expect(screen.getByText("No records yet.")).toBeInTheDocument();
   });
 
   it("marks nothing as mine without a wallet, says LOADING before the first read, and picks a board on narrow screens", () => {
