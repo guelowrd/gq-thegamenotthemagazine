@@ -40,9 +40,6 @@ export function Shell({
           }}
         >
           <img src="/brand/geoquizz-wordmark.svg" alt="GeoQuizz" width={840} height={205} />
-          <span className="testnet" title="Miden testnet: Geocoins are play money.">
-            Testnet
-          </span>
         </a>
         <nav aria-label="Sections">
           {(Object.keys(TAB_LABEL) as Tab[]).map((t) => (
@@ -62,6 +59,9 @@ export function Shell({
         <button className="btn wallet" onClick={onWallet}>
           {walletLabel ?? "Connect wallet"}
         </button>
+        <span className="testnet" title="Miden testnet: Geocoins are play money.">
+          Testnet
+        </span>
       </header>
       <main>
         <p className="rotate-hint">Turn your phone sideways: the map is much easier to play.</p>
