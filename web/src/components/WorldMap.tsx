@@ -17,7 +17,9 @@ export const latLonToPixel = (p: LatLon) => ({
   y: ((90 - p.lat) / 180) * MAP_H,
 });
 
-const GRID = Array.from({ length: 11 }, (_, i) => (i * MAP_W) / 12);
+// a graticule every 30°: meridians from 150°W to 150°E, parallels from 60°N to 60°S
+const MERIDIANS = Array.from({ length: 11 }, (_, i) => latLonToPixel({ lat: 0, lon: -150 + 30 * i }).x);
+const PARALLELS = Array.from({ length: 5 }, (_, i) => latLonToPixel({ lat: 60 - 30 * i, lon: 0 }).y);
 
 export function WorldMap({
   onPick,
@@ -46,11 +48,11 @@ export function WorldMap({
       style={{ cursor: disabled || !onPick ? "default" : "crosshair" }}
     >
       <image href="/brand/pixel-world.svg" width={MAP_W} height={MAP_H} />
-      {GRID.map((x) => (
+      {MERIDIANS.map((x) => (
         <line key={`v${x}`} className="grid" x1={x} y1={0} x2={x} y2={MAP_H} />
       ))}
-      {GRID.slice(0, 6).map((y) => (
-        <line key={`h${y}`} className="grid" x1={0} y1={y / 2} x2={MAP_W} y2={y / 2} />
+      {PARALLELS.map((y) => (
+        <line key={`h${y}`} className="grid" x1={0} y1={y} x2={MAP_W} y2={y} />
       ))}
       {marks.map((m, i) => {
         const { x, y } = latLonToPixel(m.at);
