@@ -43,6 +43,27 @@ export function ErrorBox({
   );
 }
 
+/** The claim after a won shot: a live countdown to the shot's end, and the claim button until then. */
+export function ClaimButton({ until, label, onClaim }: { until: number; label: string; onClaim: () => void }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
+  const left = Math.max(0, Math.floor((until - now) / 1000));
+  if (left === 0) return <p className="error-note">Too late: your shot has ended. The champion can take your Geocoin.</p>;
+  return (
+    <>
+      <p className="deadline">
+        Claim before your shot ends: {Math.floor(left / 60)}:{String(left % 60).padStart(2, "0")}
+      </p>
+      <button className="btn primary" onClick={onClaim}>
+        {label}
+      </button>
+    </>
+  );
+}
+
 export type Stage = "prepare" | "wallet" | "network";
 
 /** Seconds a slow network gets before we say so. */

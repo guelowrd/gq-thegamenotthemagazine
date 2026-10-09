@@ -3,6 +3,8 @@ import { describe, expect, it, vi } from "vitest";
 import type { GqNote } from "../chain";
 import type { ChallengeStorage } from "../notes";
 import {
+  blocksToClock,
+  claimVerdict,
   explain,
   NOT_FINISHED,
   withTimeout,
@@ -227,6 +229,7 @@ describe("errors in plain words", () => {
     [new Error("failed to execute transaction kernel program: assertion failed with error code: 14434107113890732517"), "refused"],
     [new Error("challenge: the deadline has passed"), "too-late"],
     [new Error("This record's quiz does not match the dataset."), "other-cities"],
+    [new Error("failed to execute transaction: invalid transaction request: note with details commitment 0x1238 has already been consumed"), "already-done"],
     [new Error("something odd"), "unknown"],
   ];
   it.each(cases)("%s", (e, kind) => {
@@ -254,5 +257,18 @@ describe("leaving a record behind", () => {
     expect(withoutRecord("http://localhost:5173/?record=0xabc")).toBe("http://localhost:5173/");
     expect(withoutRecord("http://localhost:5173/?local=2&record=0xabc")).toBe("http://localhost:5173/?local=2");
     expect(withoutRecord("http://localhost:5173/?prize=0xabc")).toBe("http://localhost:5173/");
+  });
+});
+
+describe("before sending a claim", () => {
+  it("knows a shot used before its deadline was claimed by its rival, and one used later was taken", () => {
+    expect(claimVerdict([{ deadline: 100 }])).toBe("open");
+    expect(claimVerdict([{ consumedAt: 99, deadline: 100 }])).toBe("claimed");
+    expect(claimVerdict([{ consumedAt: 100, deadline: 100 }])).toBe("lost");
+    expect(claimVerdict([{ consumedAt: 90, deadline: 100 }, { deadline: 100 }])).toBe("open");
+  });
+  it("shows block counts as a clock", () => {
+    expect(blocksToClock(81)).toBe("4:03");
+    expect(blocksToClock(-5)).toBe("0:00");
   });
 });

@@ -4,18 +4,13 @@ import { useEffect, useRef, useState } from "react";
 import { WorldMap, type LatLon } from "./WorldMap";
 import { latToCd, lonToCd, quizScore, roundScore, TIME_CAP, type Answer, type City } from "@/lib/rules";
 import type { Place } from "@/lib/quiz";
-import { BLOCK_SECONDS } from "@/config";
+import { blocksToClock } from "@/lib/flow";
 
 export type PlayResult = { answers: Answer[]; score: number };
 
 const cdToLatLon = (c: { lat: number; lon: number }): LatLon => ({ lat: c.lat / 100 - 90, lon: c.lon / 100 - 180 });
 const BARS = 15;
 
-/** A block count as m:ss at ~3 s per block. */
-const blocksToClock = (blocks: number) => {
-  const s = Math.max(0, blocks) * BLOCK_SECONDS;
-  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
-};
 
 export function Play({
   cities,

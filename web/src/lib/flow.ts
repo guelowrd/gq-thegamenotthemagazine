@@ -4,7 +4,7 @@
 import type { GqNote } from "./chain";
 import { shotDeadline, type AccountFelts } from "./notes";
 import type { Place } from "./quiz";
-import { GC_DECIMALS } from "@/config";
+import { BLOCK_SECONDS, GC_DECIMALS } from "@/config";
 import { roundScore, type Answer, type City } from "./rules";
 
 export const sameAccount = (a: AccountFelts | null | undefined, b: AccountFelts | null | undefined) =>
@@ -105,7 +105,25 @@ export const nextDelayIndex = (index: number, landed: boolean) => (landed ? inde
  * The wallet took the request but the chain never showed its effect. Bread answers a dApp as soon
  * as the user approves and can still fail afterwards in its own queue, without telling the dApp.
  */
-export const NOT_FINISHED = "Your wallet did not finish. Open it to see why, then try again.";
+export const NOT_FINISHED = "It did not go through yet. Nothing is spent until it does, so try again.";
+
+/** A block count as m:ss, at testnet's ~3 s per block. */
+export const blocksToClock = (blocks: number) => {
+  const s = Math.max(0, blocks) * BLOCK_SECONDS;
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+};
+
+/**
+ * Before sending a claim: what the chain already says about the shot(s). Before its deadline only
+ * the rival can use a shot, and only with a winning answer; from the deadline on only the champion.
+ * So a shot used before its deadline was claimed by its rival, one used later was taken.
+ */
+export function claimVerdict(shots: { consumedAt?: number; deadline: number }[]): "open" | "claimed" | "lost" {
+  if (shots.some((s) => s.consumedAt !== undefined && s.consumedAt >= s.deadline)) return "lost";
+  if (shots.length > 0 && shots.every((s) => s.consumedAt !== undefined)) return "claimed";
+  return "open";
+}
+export const SHOT_LOST = "Too late: your shot ended before the claim. The champion can take your Geocoin.";
 
 export type TroubleKind =
   | "said-no"
@@ -115,6 +133,7 @@ export type TroubleKind =
   | "not-finished"
   | "network"
   | "not-found"
+  | "already-done"
   | "too-late"
   | "other-cities"
   | "refused"
@@ -135,6 +154,8 @@ export function explain(e: unknown): Trouble {
   if (/^(\w+: )?You need .*Geocoin/.test(raw)) return t("funds", raw.replace(/^\w+: /, ""), false);
   if (/SummaryAnchorMismatch|chain anchor|ChainBehindBoundBlock|block header for block \d+ not found/i.test(raw))
     return t("out-of-step", "Your wallet was out of step with the network. Try again.");
+  if (/^Too late: /.test(raw)) return t("too-late", raw, false);
+  if (/already been consumed|already consumed/i.test(raw)) return t("already-done", "This was already done.");
   if (/deadline has passed|too late|is over/i.test(raw)) return t("too-late", "Too late: this one is over.");
   if (/quiz does not match|dataset/i.test(raw)) return t("other-cities", "This record uses another city list. It can't be played here.");
   if (/not found on chain|is not public|not a GeoQuizz|Not found/i.test(raw)) return t("not-found", "We can't find that record. Check the link.");

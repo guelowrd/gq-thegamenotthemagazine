@@ -62,6 +62,8 @@ p { margin: 0 0 12px; }
 .error-box .actions { display: flex; flex-wrap: wrap; }
 .masthead .net { font: 11px/1.6 var(--display); text-transform: uppercase; color: var(--void); background: var(--pink); padding: 2px 8px; white-space: nowrap; }
 .waiting h2 { margin-bottom: 8px; }
+.panel .deadline { font: 14px/1.6 var(--display); color: var(--pink); }
+.error-note { color: var(--pink); font-weight: bold; }
 
 /* buttons: one yellow primary action per decision */
 .btn, button.btn, a.btn {

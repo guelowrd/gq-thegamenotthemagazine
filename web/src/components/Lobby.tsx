@@ -1,7 +1,7 @@
 // The Player Hub: my records to take back, my shots to play, lost shots at my records to collect.
 
 import type { GqNote } from "@/lib/chain";
-import { fmtGeocoin } from "@/lib/flow";
+import { blocksToClock, fmtGeocoin } from "@/lib/flow";
 import { shotDeadline, type AccountFelts } from "@/lib/notes";
 import { ShareButtons } from "./ShareButtons";
 const sameAccount = (a: AccountFelts | null, b: AccountFelts | null) => !!a && !!b && a.suffix === b.suffix && a.prefix === b.prefix;
@@ -53,7 +53,7 @@ export function Lobby({ me, notes, height, onSettle, onCollect }: LobbyProps) {
           const record = recordById(c.storage.recordId);
           return (
             <section key={c.id} className="panel card pink">
-              <div className="eyebrow">{expired(c) ? "My shot / too late" : "My shot / ready to play"}</div>
+              <div className="eyebrow">{expired(c) ? "My shot / too late" : `My shot / ends in ${blocksToClock(deadline(c) - height)}`}</div>
               <div className="score">beat {c.storage.target.toLocaleString()}</div>
               <p className="muted">{fmtGeocoin(c.amount)} on the table</p>
               {expired(c) ? (

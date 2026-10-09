@@ -8,18 +8,18 @@ import { useMidenFiWallet } from "@miden-sdk/miden-wallet-adapter-react";
 import { LOCAL_WALLET, useLocalWallet } from "@/lib/localWallet";
 import { GEOCOIN_GRANT, useGeocoin } from "@/lib/geocoin";
 import { useSound, type Track } from "@/lib/useSound";
-import { CITIES_URL, MIN_SHOT_WINDOW_BLOCKS, RECORD_LIFETIME_BLOCKS, STAKE } from "@/config";
+import { BLOCK_SECONDS, CITIES_URL, MIN_SHOT_WINDOW_BLOCKS, RECORD_LIFETIME_BLOCKS, STAKE } from "@/config";
 import { accountFelts, fetchGqNote, knownNote, listGqNotes, loadScripts, parseAccountId, syncGq, wordFromHex, type GqNote } from "@/lib/chain";
 import { postShot, postRecord, settle, collect, reportBreadOutcome, selfCheckAuthArgs, setSubmitAttemptListener, setSubmitStageListener, waitFor, type Submitted } from "@/lib/bread";
 import { shotDeadline, type ChallengeStorage } from "@/lib/notes";
-import { explain, fmtGeocoin, NOT_FINISHED, shotRefusal, withoutRecord, withTimeout, type Trouble, myOpenShotsOn as openShotsOn, outcomeText, parseCode, reportRows, settlePlan, sharedRecordState, type ReportRow } from "@/lib/flow";
+import { claimVerdict, explain, fmtGeocoin, NOT_FINISHED, SHOT_LOST, shotRefusal, withoutRecord, withTimeout, type Trouble, myOpenShotsOn as openShotsOn, outcomeText, parseCode, reportRows, settlePlan, sharedRecordState, type ReportRow } from "@/lib/flow";
 import { datasetWord, quizCities, randomSeed, type Place, type Word4 } from "@/lib/quiz";
 import { type City } from "@/lib/rules";
 import { Lobby } from "./Lobby";
 import { ShareButtons } from "./ShareButtons";
 import { Play, type PlayResult } from "./Play";
 import { Shell } from "./Shell";
-import { ErrorBox, Waiting, type Stage } from "./Status";
+import { ClaimButton, ErrorBox, Waiting, type Stage } from "./Status";
 import { type Tab } from "@/lib/tabs";
 import { Welcome } from "./Welcome";
 import { WorldMap } from "./WorldMap";
@@ -33,7 +33,9 @@ type Mode =
   /** `track`: the music of the screen it came from, which keeps playing while it waits */
   | { kind: "busy"; text: string; back: Mode; stage: Stage; since: number; track: Track }
   /** `home`: OK leaves the record behind and goes back to the 1P World Tour (after a win) */
-  | { kind: "done"; title?: string; text: string; rows?: ReportRow[]; txId?: string; share?: { recordId: string; score: number }; retry?: () => void; retryLabel?: string; home?: boolean };
+  | { kind: "done"; title?: string; text: string; rows?: ReportRow[]; txId?: string; share?: { recordId: string; score: number }; retry?: () => void; retryLabel?: string; home?: boolean;
+      /** when a retried claim stops making sense: the shot's end, as a clock time (ms) */
+      claimUntil?: number };
 
 /**
  * The music each screen plays: the solo song during a 1P run, the result song from "Post your
@@ -216,7 +218,8 @@ function GqApp() {
     const fallBack = (e: unknown, retry: () => void) => {
       if (back.kind === "done" && back.retry) {
         oops(e);
-        setMode({ ...back, retry });
+        // too late is final: no claim button to press any more
+        setMode({ ...back, retry: explain(e).kind === "too-late" ? undefined : retry });
       } else {
         oops(e, retry);
         setMode(back);
@@ -338,13 +341,21 @@ function GqApp() {
       setMode({ kind: "done", title: "The record stands.", text: plan.text, rows });
       return;
     }
+    const claimUntil = Date.now() + (shotDeadline(shots[0].storage) - height) * BLOCK_SECONDS * 1000;
     const claim = (): void =>
       void run(
         plan.text,
         false,
-        () => settle(client, wallet, shots, plan.claimPrize ? record : undefined, r.answers),
-        // the win stands on failure: the report stays and the claim can be sent again
-        { kind: "done", title: "Record smashed!", text: plan.text, rows, retry: claim, retryLabel: plan.claimPrize ? "Claim my prize" : "Get my Geocoin back" },
+        async () => {
+          // ask the chain first: a claim that already landed (or a shot already taken) needs no wallet
+          const now = await Promise.all(shots.map((s) => withTimeout(fetchGqNote(s.id), 30_000, "Checking your shot")));
+          const verdict = claimVerdict(now.map((s) => ({ consumedAt: s.consumedAt, deadline: shotDeadline(s.storage) })));
+          if (verdict === "claimed") return { txId: "", noteIds: shots.map((s) => s.id) };
+          if (verdict === "lost") throw new Error(SHOT_LOST);
+          return settle(client, wallet, shots, plan.claimPrize ? record : undefined, r.answers);
+        },
+        // the win stands on failure: the report stays and the claim can be sent again until the shot ends
+        { kind: "done", title: "Record smashed!", text: plan.text, rows, retry: claim, retryLabel: plan.claimPrize ? "Claim my prize" : "Get my Geocoin back", claimUntil },
         () => {
           // the prize is ours: the record card must not offer it again
           if (plan.claimPrize && record) setSharedRecord((r) => (r && r.id === record.id ? { ...r, consumed: true } : r));
@@ -596,11 +607,14 @@ function GqApp() {
           <p>{mode.text}</p>
           {mode.rows && <Report rows={mode.rows} />}
           {mode.share && <ShareButtons recordId={mode.share.recordId} score={mode.share.score} />}
-          {mode.retry && (
-            <button className="btn primary" onClick={mode.retry}>
-              {mode.retryLabel ?? "Try again"}
-            </button>
-          )}
+          {mode.retry &&
+            (mode.claimUntil ? (
+              <ClaimButton until={mode.claimUntil} label={mode.retryLabel ?? "Try again"} onClaim={mode.retry} />
+            ) : (
+              <button className="btn primary" onClick={mode.retry}>
+                {mode.retryLabel ?? "Try again"}
+              </button>
+            ))}
           <button
             className={mode.retry ? "btn" : "btn primary"}
             onClick={() => {

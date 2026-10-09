@@ -78,6 +78,8 @@ export type GqNote = {
   storage: ChallengeStorage;
   amount: bigint;
   consumed: boolean;
+  /** the block it was consumed in, when read from the node (fetchGqNote) */
+  consumedAt?: number;
 };
 
 /** What a note script root means to this app, or null for a foreign note. */
@@ -202,12 +204,12 @@ export async function fetchGqNote(id: string): Promise<GqNote> {
   const storage = decodeStorage(note.recipient().storage().items().map((f) => f.asInt()));
   const gq = note.assets().fungibleAssets().find((a) => a.faucetId().toString() === GC_FAUCET);
   const rpc = new RpcClient(endpoint());
-  let consumed = false;
+  let consumedAt: number | undefined;
   try {
     const creationBlock = inputs[0].location()?.blockNum() ?? 0;
-    consumed = (await rpc.getNullifierCommitHeight(note.nullifier(), creationBlock)) != null;
+    consumedAt = (await rpc.getNullifierCommitHeight(note.nullifier(), creationBlock)) ?? undefined;
   } finally {
     rpc.free();
   }
-  return { id, idWord: wordFromHex(id), ...kind, storage, amount: gq?.amount() ?? 0n, consumed };
+  return { id, idWord: wordFromHex(id), ...kind, storage, amount: gq?.amount() ?? 0n, consumed: consumedAt !== undefined, consumedAt };
 }

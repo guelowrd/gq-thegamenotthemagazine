@@ -130,7 +130,7 @@ describe("shared record link, connected as a stranger", () => {
     vi.mocked(waitForMock).mockResolvedValueOnce(false);
     render(<AppContent />);
     fireEvent.click(await screen.findByRole("button", { name: /insert geocoin/i }));
-    await screen.findByText(/your wallet did not finish/i);
+    await screen.findByText(/did not go through yet/i);
     expect(screen.getByRole("button", { name: /insert geocoin/i })).toBeInTheDocument();
   });
 
@@ -160,7 +160,7 @@ describe("shared record link, connected as a stranger", () => {
     vi.mocked(waitForMock).mockResolvedValueOnce(false);
     render(<AppContent />);
     fireEvent.click(await screen.findByRole("button", { name: /insert geocoin/i }));
-    await screen.findByText(/your wallet did not finish/i);
+    await screen.findByText(/did not go through yet/i);
     // the shot landed late, while the player read the message
     vi.mocked(knownNote).mockResolvedValue({ consumed: false });
     fireEvent.click(screen.getByRole("button", { name: /try again/i }));
