@@ -56,12 +56,14 @@ export function Shell({
         <button className="sound" onClick={onSound} aria-pressed={soundOn}>
           Sound {soundOn ? "on" : "off"}
         </button>
-        <button className="btn wallet" onClick={onWallet}>
-          {walletLabel ?? "Connect wallet"}
-        </button>
-        <span className="testnet" title="Miden testnet: Geocoins are play money.">
-          Testnet
-        </span>
+        <div className="account">
+          <button className="btn wallet" onClick={onWallet}>
+            {walletLabel ?? "Connect wallet"}
+          </button>
+          <span className="testnet" title="Miden testnet: Geocoins are play money.">
+            Testnet
+          </span>
+        </div>
       </header>
       <main>
         <p className="rotate-hint">Turn your phone sideways: the map is much easier to play.</p>
