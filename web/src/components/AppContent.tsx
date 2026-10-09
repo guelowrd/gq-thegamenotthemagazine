@@ -8,8 +8,8 @@ import { useMidenFiWallet } from "@miden-sdk/miden-wallet-adapter-react";
 import { LOCAL_WALLET, useLocalWallet } from "@/lib/localWallet";
 import { GEOCOIN_GRANT, geocoinRefusal, GRANT_PENDING_MS, useGeocoin } from "@/lib/geocoin";
 import { useSound, type Track } from "@/lib/useSound";
-import { BLOCK_SECONDS, CITIES_URL, MIN_SHOT_WINDOW_BLOCKS, RECORD_LIFETIME_BLOCKS, STAKE } from "@/config";
-import { accountFelts, bech32Of, fetchChallengeNote, knownNote, listChallengeNotes, loadScripts, parseAccountId, syncNotes, wordFromHex, type ChallengeNote } from "@/lib/chain";
+import { BLOCK_SECONDS, CITIES_URL, MIN_SHOT_WINDOW_BLOCKS, RECORD_LIFETIME_BLOCKS, STAKE, TEST_ACCOUNTS } from "@/config";
+import { accountFelts, bech32Of, fetchChallengeNote, hexOf, knownNote, listChallengeNotes, loadScripts, parseAccountId, syncNotes, wordFromHex, type ChallengeNote } from "@/lib/chain";
 import { boards, history as pastGames, keyOf, lettersBackward, nicknames, playersInOrder } from "@/lib/hub";
 import { gcBalance, postShot, postRecord, settle, collect, reportBreadOutcome, setSubmitAttemptListener, setSubmitStageListener, waitFor, type Submitted } from "@/lib/bread";
 import { shotDeadline, type ChallengeStorage } from "@/lib/notes";
@@ -125,13 +125,18 @@ function GqApp() {
 
   const me = wallet.connected && wallet.address ? accountFelts(parseAccountId(wallet.address)) : null;
   const meKey = me && keyOf(me);
+  // the boards and the nickname order leave the development wallets' test rounds out
+  const publicNotes = useMemo(() => {
+    const test = (a: ChallengeStorage["rival"]) => !!a && TEST_ACCOUNTS.includes(hexOf(a));
+    return notes.filter((n) => !test(n.storage.champion) && !test(n.storage.rival));
+  }, [notes]);
   // arcade names for everyone who played, in the order they first did; a newcomer comes last
   const names = useMemo(() => {
-    const players = playersInOrder(notes);
+    const players = playersInOrder(publicNotes);
     if (me && !players.some((p) => keyOf(p) === meKey)) players.push(me);
     return nicknames(players.map((p) => ({ key: keyOf(p), address: bech32Of(p) })));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [notes, meKey]);
+  }, [publicNotes, meKey]);
   const nameOf = (a: Parameters<typeof keyOf>[0]) => names.get(keyOf(a)) ?? lettersBackward(bech32Of(a)).slice(0, 3);
 
   /** A failure in plain words, with a way to try again when there is one. */
@@ -163,24 +168,37 @@ function GqApp() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // a failed background sync is not the player's problem: a tag in the ribbon until the next good one
-  const refresh = useCallback(async () => {
-    if (!isReady || !client) return;
-    try {
-      const h = await withTimeout(runExclusive(() => syncNotes(client)), 30_000, "Syncing");
-      setHeight(h);
-      setNotes(await listChallengeNotes(h));
-      setNotesRead(true);
-      setNetSlow(false);
-    } catch (e) {
-      console.warn("[gq] background sync failed", e);
-      setNetSlow(true);
-    }
-  }, [client, isReady, runExclusive]);
+  // a failed background sync is not the player's problem: a tag in the ribbon until the next good one.
+  // The chain height every 15 s (the countdowns need it). The game's notes cost the node a request per
+  // open note: read on a timer only until the first read works, then after my own moves and on Refresh.
+  const [refreshing, setRefreshing] = useState(false);
+  const notesReadRef = useRef(false);
+  const refresh = useCallback(
+    async (withNotes = true) => {
+      if (!isReady || !client) return;
+      if (withNotes) setRefreshing(true);
+      try {
+        const h = await withTimeout(runExclusive(() => syncNotes(client)), 30_000, "Syncing");
+        setHeight(h);
+        if (withNotes) {
+          setNotes(await listChallengeNotes(h));
+          notesReadRef.current = true;
+          setNotesRead(true);
+        }
+        setNetSlow(false);
+      } catch (e) {
+        console.warn("[gq] background sync failed", e);
+        setNetSlow(true);
+      } finally {
+        if (withNotes) setRefreshing(false);
+      }
+    },
+    [client, isReady, runExclusive],
+  );
 
   useEffect(() => {
     void refresh();
-    const t = setInterval(() => void refresh(), 15_000);
+    const t = setInterval(() => void refresh(!notesReadRef.current), 15_000);
     return () => clearInterval(t);
   }, [refresh]);
 
@@ -412,6 +430,11 @@ function GqApp() {
     void loadRecord(parsed.id);
   };
 
+  const refreshButton = (
+    <button className="btn" onClick={() => void refresh()} disabled={refreshing}>
+      {refreshing ? "Refreshing…" : "Refresh"}
+    </button>
+  );
   const geocoinButton = (
     <button className="btn" onClick={() => withWallet({ kind: "geocoins" })}>
       Empty pockets? Get Geocoins now!
@@ -554,7 +577,10 @@ function GqApp() {
 
       {mode.kind === "lobby" && tab === "hub" && (
         <>
-          <h1>Player Hub</h1>
+          <div className="page-head">
+            <h1>Player Hub</h1>
+            {refreshButton}
+          </div>
           {wallet.connected ? (
             <>
               <Lobby
@@ -587,7 +613,7 @@ function GqApp() {
         </>
       )}
 
-      {mode.kind === "lobby" && tab === "boards" && <Leaderboards data={notesRead ? boards(notes, height, me) : null} me={me} name={nameOf} />}
+      {mode.kind === "lobby" && tab === "boards" && <Leaderboards data={notesRead ? boards(publicNotes, height, me) : null} me={me} name={nameOf} action={refreshButton} />}
 
       {mode.kind === "play-champion" && <Play cities={mode.cities} places={places} onDone={(result) => setMode({ kind: "post-record", seed: mode.seed, cities: mode.cities, result })} />}
 

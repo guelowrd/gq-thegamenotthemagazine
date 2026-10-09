@@ -19,6 +19,10 @@ export const SHOT_WINDOW_BLOCKS = Math.round((6 * 60) / BLOCK_SECONDS); // 120
 // Refuse a shot at a record that will expire before the shot window ends.
 export const MIN_SHOT_WINDOW_BLOCKS = SHOT_WINDOW_BLOCKS + 20;
 
+// The two development wallets (?local=1 and ?local=2, 2026-10-09): their test rounds stay off the
+// leaderboards and out of the nickname order.
+export const TEST_ACCOUNTS = ["0x071d3da3ad56d88175b628f76073cb", "0x35b6665ae257d50144a45872cf5b50"];
+
 // Where the assembled note scripts live (written by `cargo run --bin build_scripts`).
 export const RECORD_SCRIPT_URL = "/scripts/record.bin";
 export const SHOT_SCRIPT_URL = "/scripts/shot.bin";

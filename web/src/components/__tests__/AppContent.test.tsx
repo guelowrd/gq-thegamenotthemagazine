@@ -61,6 +61,7 @@ vi.mock("@/lib/chain", () => ({
   blockTime: vi.fn(async () => Date.now()),
   // every test account reads …thj9 backward: JHT, then JHN, JHL… in the order they played
   bech32Of: () => "mtst1aryq2znjyt4wqq29lxwta3sjnqlnthj9",
+  hexOf: vi.fn(() => "0xreal"),
 }));
 
 vi.mock("@/lib/bread", () => ({
@@ -80,7 +81,7 @@ vi.mock("@/lib/quiz", async (orig) => ({
 
 import { useMidenClient, useMint } from "@miden-sdk/react";
 import { waitFor as waitForMock } from "@/lib/bread";
-import { fetchChallengeNote, knownNote, syncNotes } from "@/lib/chain";
+import { fetchChallengeNote, hexOf, knownNote, listChallengeNotes, syncNotes } from "@/lib/chain";
 import { encodeGame } from "@/lib/quiz";
 import { AppContent } from "../AppContent";
 
@@ -242,6 +243,7 @@ describe("welcome and 1P World Tour", () => {
       chain.notes = [prize, myChallenge];
       fireEvent.click(screen.getByRole("button", { name: /click to start/i }));
       fireEvent.click(screen.getByRole("button", { name: /player hub/i }));
+      fireEvent.click(screen.getByRole("button", { name: /^refresh$/i }));
       fireEvent.click(await screen.findByRole("button", { name: /^play$/i }));
       await playRound();
       await screen.findByText(/the record stands/i);
@@ -264,6 +266,32 @@ describe("welcome and 1P World Tour", () => {
     } finally {
       wallet.connected = true;
     }
+  });
+
+  it("reads the game's notes once, then only on Refresh: the height still ticks every 15 s", async () => {
+    window.history.replaceState({}, "", "/");
+    vi.useFakeTimers({ shouldAdvanceTime: true, toFake: ["setInterval", "clearInterval"] });
+    try {
+      await start(/leaderboards/i);
+      await waitFor(() => expect(listChallengeNotes).toHaveBeenCalledTimes(1));
+      const syncs = vi.mocked(syncNotes).mock.calls.length;
+      await act(async () => void vi.advanceTimersByTime(31_000));
+      expect(vi.mocked(syncNotes).mock.calls.length).toBeGreaterThan(syncs);
+      expect(listChallengeNotes).toHaveBeenCalledTimes(1);
+      fireEvent.click(screen.getByRole("button", { name: /^refresh$/i }));
+      await waitFor(() => expect(listChallengeNotes).toHaveBeenCalledTimes(2));
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("keeps the development wallets' test rounds off the boards", async () => {
+    window.history.replaceState({}, "", "/");
+    chain.notes = [{ ...prize, createdAt: 5 }, { ...prize, id: "0xt", createdAt: 6, storage: { ...prize.storage, champion: me, target: 9690 } }];
+    vi.mocked(hexOf).mockImplementation((a) => (a === me ? "0x071d3da3ad56d88175b628f76073cb" : "0xreal"));
+    await start(/leaderboards/i);
+    expect(await screen.findByText("2,000")).toBeInTheDocument();
+    expect(screen.queryByText("9,690")).toBeNull();
   });
 
   it("the wallet button shows my arcade name", async () => {

@@ -1,7 +1,7 @@
 // The public boards, arcade style: rank, nickname, number. Read from the chain, no wallet needed.
 // Wide screens show them all (Defended / Smashed below); narrow ones pick one with the tabs.
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { keyOf, type boards, type Ranked } from "@/lib/hub";
 import type { AccountFelts } from "@/lib/notes";
 
@@ -25,8 +25,8 @@ function Tabs<T extends string>({ items, value, onPick, className }: { items: [T
   );
 }
 
-/** `data`: null while the chain is still being read. */
-export function Leaderboards({ data, me, name }: { data: Boards | null; me: AccountFelts | null; name: (a: AccountFelts) => string }) {
+/** `data`: null while the chain is still being read. `action`: beside the title (Refresh). */
+export function Leaderboards({ data, me, name, action }: { data: Boards | null; me: AccountFelts | null; name: (a: AccountFelts) => string; action?: ReactNode }) {
   const [pick, setPick] = useState<"coins" | "scores" | "records">("coins");
   const [side, setSide] = useState<"defended" | "smashed">("defended");
   const mine = (r: Ranked) => !!me && keyOf(r.who) === keyOf(me);
@@ -75,7 +75,10 @@ export function Leaderboards({ data, me, name }: { data: Boards | null; me: Acco
 
   return (
     <>
-      <h1>Leaderboards</h1>
+      <div className="page-head">
+        <h1>Leaderboards</h1>
+        {action}
+      </div>
       <section className="high-scores" data-pick={pick}>
         <Tabs items={[["coins", "Geocoins"], ["scores", "Scores"], ["records", "Records"]]} value={pick} onPick={setPick} className="board-tabs" />
         <div className="boards-grid">

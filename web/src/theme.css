@@ -235,6 +235,10 @@ table.report td:nth-child(2) { text-align: right; color: var(--muted); }
   .hud .deadline { font-size: 11px; }
 }
 
+/* a page title with its action on the right (Refresh) */
+.page-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; margin-bottom: 16px; }
+.page-head h1 { margin: 0; }
+
 /* player hub: past games (GQ-Hub-and-Leaderboards design) */
 .history { margin-top: 32px; }
 .history > h2 { font-size: 24px; }

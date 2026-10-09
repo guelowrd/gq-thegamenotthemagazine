@@ -177,7 +177,8 @@ export const useSessionAccount = vi.fn(() => ({
 // Provider hooks
 // ---------------------------------------------------------------------------
 
-export const useMiden = vi.fn(() => ({
+// one value across renders, as the real provider memoises them: effects keyed on them run once
+const miden = {
   client: null,
   isReady: true,
   isInitializing: false,
@@ -187,9 +188,11 @@ export const useMiden = vi.fn(() => ({
   prover: null,
   signerAccountId: null,
   signerConnected: null,
-}));
+};
+export const useMiden = vi.fn(() => miden);
 
-export const useMidenClient = vi.fn(() => ({}));
+const client = {};
+export const useMidenClient = vi.fn(() => client);
 
 export const useSigner = vi.fn(() => null);
 

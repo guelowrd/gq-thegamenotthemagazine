@@ -172,6 +172,9 @@ export async function blockTime(n: number): Promise<number> {
   }
 }
 
+/** An account id's canonical hex. */
+export const hexOf = (a: AccountFelts) => AccountId.fromPrefixSuffix(new Felt(a.prefix), new Felt(a.suffix)).toString();
+
 /** An account's address as wallets show it (Bread adds a `_…` routing part after it). */
 export const bech32Of = (a: AccountFelts) =>
   AccountId.fromPrefixSuffix(new Felt(a.prefix), new Felt(a.suffix)).toBech32(MIDEN_RPC_URL === "devnet" ? NetworkId.devnet() : NetworkId.testnet(), AccountInterface.BasicWallet);
