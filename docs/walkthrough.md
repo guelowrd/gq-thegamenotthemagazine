@@ -39,8 +39,8 @@ Explorer: `https://testnet.midenscan.com/tx/<id>`.
 ## Web app (Bread wallet)
 
 First record posted from Bread (2026-10-08, rules v1): note `0x649864af…`, 1 GQ, target 2850,
-expiry block 60634, tx `0x3d45e4bd3eb06055831646954503d8db75ebf8cdc12c8dff820a08baa290bc01`, from
-a Bread account. Notes posted under rules v1 (prize script root `0x320f3695…`
+expiry block 60634, tx `0x3d45e4bd3eb06055831646954503d8db75ebf8cdc12c8dff820a08baa290bc01`.
+Notes posted under rules v1 (prize script root `0x320f3695…`
 and earlier) are not recognised by the app any more.
 
 ```sh

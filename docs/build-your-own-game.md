@@ -101,8 +101,7 @@ know how the answers were produced. See the trust list in [design.md](design.md)
 - **Bread (Guardian multisig) accounts** need the multisig auth args in every request
   (`multisigAuthArgs` in `bread.ts`), and Bread 1.17.1 checks the request's bound block against
   its own sync height after approval, without telling the dApp when it fails. The app's timing
-  workaround is in `bread.ts`; the root cause and repro are in
-  [bread-anchor-mismatch.md](bread-anchor-mismatch.md).
+  workaround is in `bread.ts`.
 
 ## 6. Test it
 

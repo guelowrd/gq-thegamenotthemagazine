@@ -1,5 +1,7 @@
 # GQ · GeoQuizz on Miden
 
+**Play:** https://gq-thegamenotthemagazine.vercel.app
+
 A small, complete reference for a **challenge mechanic** on Miden testnet v0.17: a champion posts a
 **record note** with a score to beat; rivals take a **shot** (a shot note holding one Geocoin), play
 the same quiz, and the chain recomputes the score from their answers. Beat the record and you take
@@ -20,7 +22,6 @@ transactions, the pitfalls, and a six-line example game that runs through the sa
   or code) → Player Hub (my records, my shots, what rivals left me).
 - Design, verified capabilities, blockers and trust assumptions: [`docs/design.md`](docs/design.md)
 - How to run it end to end: [`docs/walkthrough.md`](docs/walkthrough.md)
-- Plan and progress: [`tasks/todo.md`](tasks/todo.md)
 
 ## Vocabulary
 
@@ -105,3 +106,7 @@ Keep `masm/challenge/*` as is and write one procedure, `beats_target(ANSWER, dat
 
 The note scripts are MASM today because the released Rust compiler (0.11.0) cannot yet call the
 standards wallet from a note script; see `docs/design.md` §3 for the port plan.
+
+## License
+
+MIT, see [LICENSE](LICENSE). It covers everything in this repository: code, art and music.

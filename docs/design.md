@@ -271,8 +271,7 @@ Bread specifics (found 2026-10-08, see `web/src/lib/bread.ts`):
   approving makes that rare. Bread has already answered the dApp at approval, so the dApp cannot see
   the failure or retry. The app's answer: it waits for the effect on chain, returns to the screen
   you came from with "Your wallet did not finish" when it never shows, and keeps a Back button on
-  the waiting screen. Root cause and repro for the wallet team: `docs/bread-anchor-mismatch.md`
-  (corrected 2026-10-09 evening: the dry run's own mismatch is swallowed, it is not the one users see).
+  the waiting screen. The dry run's own mismatch is swallowed; it is not the one users see.
 
 ## 5. Repository layout (one repo, no submodules)
 
@@ -283,7 +282,6 @@ gq/
   integration/           Rust: assemble scripts, rules reference + vectors, MockChain tests,
                          bins: build_scripts, geocoin (deploy/mint), testnet_flow
   web/                   React app from frontend-template PR #31 (SDK 0.17) + Bread adapter
-  docs/design.md, docs/walkthrough.md
-  tasks/todo.md, tasks/lessons.md
+  docs/                  design.md, walkthrough.md, build-your-own-game.md
   upstream/              gitignored clones used for verification + the spike
 ```

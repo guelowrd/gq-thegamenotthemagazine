@@ -162,7 +162,7 @@ export const setSubmitStageListener = (fn: typeof onSubmitStage) => (onSubmitSta
  *
  * Bread 1.17.1 anchors the request at its own sync height when its queue turns it into a Guardian
  * proposal, after the user approves, and fails it unless that is the bound block. It answers the
- * dApp at approval, so that failure never reaches us (see docs/bread-anchor-mismatch.md): the retry
+ * dApp at approval, so that failure never reaches us: the retry
  * below only covers a mismatch reported before approval. The fix belongs in the wallet.
  */
 async function submit(

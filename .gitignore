@@ -4,3 +4,6 @@ node_modules/
 store.sqlite3*
 keystore/
 gq-design-assets-retro3/
+# working notes, kept local
+tasks/
+docs/bread-anchor-mismatch.md
