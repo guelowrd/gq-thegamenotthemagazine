@@ -30,6 +30,9 @@ type Mode =
   | { kind: "busy"; text: string }
   | { kind: "done"; title?: string; text: string; rows?: ReportRow[]; txId?: string; share?: { url: string; x: string } };
 
+/** Something that needs a connected wallet; it runs once the wallet is there. */
+type Intent = { kind: "post"; m: Extract<Mode, { kind: "post-record" }> } | { kind: "shot"; record: GqNote } | { kind: "geocoins" };
+
 export function AppContent() {
   // `useMidenClient()` throws until the provider has created the client, so gate on readiness first.
   const { isReady } = useMiden();
@@ -65,6 +68,7 @@ function GqApp() {
   const [authCheck, setAuthCheck] = useState<boolean | null>(null);
   const [sharedRecord, setSharedRecord] = useState<GqNote | null>(null);
   const [code, setCode] = useState("");
+  const [pending, setPending] = useState<Intent | null>(null);
   const sound = useSound(mode.kind === "play-champion" || mode.kind === "play-rival" ? "play" : "home");
 
   const me = wallet.connected && wallet.address ? accountFelts(parseAccountId(wallet.address)) : null;
@@ -102,16 +106,29 @@ function GqApp() {
 
   const fail = (e: unknown) => setError(e instanceof Error ? e.message : String(e));
   const connect = () => wallet.connect().catch(fail);
-  /** Connects first when needed; Bread opens its popup, the test wallet creates itself. */
-  async function ensureWallet(): Promise<boolean> {
-    if (wallet.connected && wallet.address) return true;
-    try {
-      await wallet.connect();
-      return true;
-    } catch (e) {
+  const connected = wallet.connected && !!wallet.address;
+
+  /** Runs `intent` now, or connects first (Bread opens its popup, the test wallet creates itself) and runs it then. */
+  function withWallet(intent: Intent) {
+    if (connected) return void perform(intent);
+    setPending(intent);
+    void wallet.connect().catch((e) => {
+      setPending(null);
       fail(e);
-      return false;
-    }
+    });
+  }
+  useEffect(() => {
+    if (!pending || !connected) return;
+    const intent = pending;
+    setPending(null);
+    void perform(intent);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pending, connected]);
+
+  function perform(intent: Intent) {
+    if (intent.kind === "post") return postMyRecord(intent.m);
+    if (intent.kind === "shot") return takeShot(intent.record);
+    return getGeocoins();
   }
 
   /**
@@ -149,7 +166,7 @@ function GqApp() {
   }
 
   async function postMyRecord(m: Extract<Mode, { kind: "post-record" }>) {
-    if (!(await ensureWallet()) || !dataset) return;
+    if (!dataset) return;
     const champion = accountFelts(parseAccountId(wallet.address!));
     await run(
       "Posting your record",
@@ -178,7 +195,7 @@ function GqApp() {
 
   /** Posts the shot note and, once it is on chain, starts the quiz right away. */
   async function takeShot(record: GqNote) {
-    if (!(await ensureWallet()) || !dataset) return;
+    if (!dataset) return;
     const rival = accountFelts(parseAccountId(wallet.address!));
     const refusal = shotRefusal(record, height, MIN_SHOT_WINDOW_BLOCKS);
     if (refusal) return setError(refusal);
@@ -233,7 +250,6 @@ function GqApp() {
 
   /** Mints the grant to the connected wallet; the local wallet then claims it, Bread claims by itself. */
   async function getGeocoins() {
-    if (!(await ensureWallet())) return;
     setError(null);
     setMode({ kind: "busy", text: "Getting Geocoins" });
     try {
@@ -255,7 +271,7 @@ function GqApp() {
   };
 
   const geocoinButton = (
-    <button className="btn" onClick={() => void getGeocoins()}>
+    <button className="btn" onClick={() => withWallet({ kind: "geocoins" })}>
       Empty pockets? Get Geocoins now!
     </button>
   );
@@ -285,12 +301,12 @@ function GqApp() {
         </div>
         {state === "mine" && <p className="muted">This is yours.</p>}
         {state === "already-challenged" && (
-          <button className="btn primary wide" onClick={() => void takeShot(sharedRecord)}>
+          <button className="btn primary wide" onClick={() => withWallet({ kind: "shot", record: sharedRecord })}>
             Play
           </button>
         )}
         {state === "open" && (
-          <button className="btn primary wide" onClick={() => void takeShot(sharedRecord)}>
+          <button className="btn primary wide" onClick={() => withWallet({ kind: "shot", record: sharedRecord })}>
             Insert Geocoin
           </button>
         )}
@@ -405,7 +421,7 @@ function GqApp() {
           <aside className="panel yellow">
             <div className="panel-title">Put {fmtGc(STAKE)} on it?</div>
             <p>Whoever beats you takes it. Whoever fails pays you {fmtGc(STAKE)}.</p>
-            <button className="btn primary wide" onClick={() => void postMyRecord(mode)}>
+            <button className="btn primary wide" onClick={() => withWallet({ kind: "post", m: mode })}>
               Yes
             </button>
             <button className="btn wide" onClick={() => setMode({ kind: "lobby" })}>
