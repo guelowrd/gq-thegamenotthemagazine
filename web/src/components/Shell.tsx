@@ -6,6 +6,7 @@ import { TAB_LABEL, type Tab } from "@/lib/tabs";
 export function Shell({
   tab,
   onTab,
+  onHome,
   walletLabel,
   netSlow,
   onWallet,
@@ -15,6 +16,8 @@ export function Shell({
 }: {
   tab: Tab;
   onTab: (t: Tab) => void;
+  /** the wordmark: back to the splash screen, inside the app (sound and wallet stay as they are) */
+  onHome: () => void;
   /** null when no wallet is connected */
   walletLabel: string | null;
   /** the last background sync failed */
@@ -27,7 +30,15 @@ export function Shell({
   return (
     <>
       <header className="masthead">
-        <a className="brand" href="/" aria-label="GeoQuizz home">
+        <a
+          className="brand"
+          href="/"
+          aria-label="GeoQuizz home"
+          onClick={(e) => {
+            e.preventDefault();
+            onHome();
+          }}
+        >
           <img src="/brand/geoquizz-wordmark.svg" alt="GeoQuizz" width={840} height={205} />
         </a>
         <nav aria-label="Sections">

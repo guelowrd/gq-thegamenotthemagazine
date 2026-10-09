@@ -465,6 +465,13 @@ function GqApp() {
         setTrouble(null);
         setMode({ kind: "lobby" });
       }}
+      onHome={() => {
+        runToken.current++;
+        setTrouble(null);
+        setMode({ kind: "lobby" });
+        setTab("1p");
+        setStarted(false);
+      }}
       walletLabel={walletLabel}
       netSlow={netSlow}
       onWallet={() => (wallet.connected ? void wallet.disconnect() : connect())}

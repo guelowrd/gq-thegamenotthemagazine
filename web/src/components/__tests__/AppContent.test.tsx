@@ -205,6 +205,16 @@ describe("shared record link, connected as a stranger", () => {
 });
 
 describe("welcome and 1P World Tour", () => {
+  it("the GeoQuizz wordmark goes back to the splash screen without reloading, sound choice kept", async () => {
+    window.history.replaceState({}, "", "/");
+    await start();
+    fireEvent.click(await screen.findByRole("button", { name: /sound on/i }));
+    fireEvent.click(screen.getByRole("link", { name: /geoquizz home/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /click to start/i }));
+    expect(await screen.findByRole("button", { name: /sound off/i })).toBeInTheDocument();
+    sessionStorage.clear();
+  });
+
   it("plays before any wallet is connected; the rival sprite stays out of a solo run", async () => {
     window.history.replaceState({}, "", "/");
     wallet.connected = false;
