@@ -58,6 +58,7 @@ vi.mock("@/lib/chain", () => ({
   listGqNotes: vi.fn(async () => chain.notes),
   loadScripts: vi.fn(async () => ({})),
   syncGq: vi.fn(async () => 100),
+  knownNote: vi.fn(async () => undefined),
   wordFromHex: () => [0n, 0n, 0n, 0n],
 }));
 
@@ -66,6 +67,7 @@ vi.mock("@/lib/bread", () => ({
   selfCheckAuthArgs: () => true,
   reportBreadOutcome: () => undefined,
   setSubmitAttemptListener: () => undefined,
+  setSubmitStageListener: () => undefined,
   waitFor: vi.fn(async () => true),
 }));
 
@@ -78,6 +80,7 @@ vi.mock("@/lib/quiz", async (orig) => ({
 
 import { useMidenClient, useMint } from "@miden-sdk/react";
 import { waitFor as waitForMock } from "@/lib/bread";
+import { fetchGqNote, knownNote, syncGq } from "@/lib/chain";
 import { AppContent } from "../AppContent";
 
 beforeEach(() => {
@@ -137,6 +140,53 @@ describe("shared record link, connected as a stranger", () => {
     fireEvent.click(await screen.findByRole("button", { name: /insert geocoin/i }));
     fireEvent.click(await screen.findByRole("button", { name: /^back$/i }));
     expect(await screen.findByRole("button", { name: /insert geocoin/i })).toBeInTheDocument();
+  });
+
+  it("saying no in the wallet keeps the record on screen, says so plainly, and Try again asks again", async () => {
+    bread.postShot.mockRejectedValueOnce(Object.assign(new Error("NOT_GRANTED"), { name: "WalletTransactionError" }));
+    bread.postShot.mockResolvedValueOnce({ txId: "tx", noteIds: ["0xnew"], deadline: 220 });
+    render(<AppContent />);
+    fireEvent.click(await screen.findByRole("button", { name: /insert geocoin/i }));
+    await screen.findByText(/you said no in your wallet/i);
+    expect(screen.getByRole("button", { name: /insert geocoin/i })).toBeInTheDocument();
+    expect(screen.queryByText(/NOT_GRANTED/)).not.toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: /try again/i }));
+    await screen.findByText(/find c0!/i);
+    expect(bread.postShot).toHaveBeenCalledTimes(2);
+  });
+
+  it("Try again after a wallet that did not finish first checks the chain: no second Geocoin", async () => {
+    bread.postShot.mockResolvedValue({ txId: "tx", noteIds: ["0xnew"], deadline: 220 });
+    vi.mocked(waitForMock).mockResolvedValueOnce(false);
+    render(<AppContent />);
+    fireEvent.click(await screen.findByRole("button", { name: /insert geocoin/i }));
+    await screen.findByText(/your wallet did not finish/i);
+    // the shot landed late, while the player read the message
+    vi.mocked(knownNote).mockResolvedValue({ consumed: false });
+    fireEvent.click(screen.getByRole("button", { name: /try again/i }));
+    await screen.findByText(/find c0!/i);
+    expect(bread.postShot).toHaveBeenCalledTimes(1);
+    vi.mocked(knownNote).mockResolvedValue(undefined);
+  });
+
+  it("a record that fails to load says why and loads on Try again", async () => {
+    vi.mocked(fetchGqNote).mockRejectedValueOnce(new TypeError("Failed to fetch"));
+    render(<AppContent />);
+    await screen.findByText(/network is slow or busy/i);
+    fireEvent.click(screen.getByRole("button", { name: /try again/i }));
+    expect(await screen.findByRole("button", { name: /insert geocoin/i })).toBeInTheDocument();
+    expect(screen.queryByText(/network is slow or busy/i)).toBeNull();
+  });
+
+  it("a failing background sync only shows a NETWORK SLOW tag, never an error box", async () => {
+    vi.mocked(syncGq).mockRejectedValue(new TypeError("Failed to fetch"));
+    try {
+      render(<AppContent />);
+      await screen.findByText(/network slow/i);
+      expect(screen.queryByRole("alert")).toBeNull();
+    } finally {
+      vi.mocked(syncGq).mockResolvedValue(100);
+    }
   });
 
   it("shows a claimed record as gone, with no button", async () => {

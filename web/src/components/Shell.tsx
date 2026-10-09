@@ -7,6 +7,7 @@ export function Shell({
   tab,
   onTab,
   walletLabel,
+  netSlow,
   onWallet,
   soundOn,
   onSound,
@@ -16,6 +17,8 @@ export function Shell({
   onTab: (t: Tab) => void;
   /** null when no wallet is connected */
   walletLabel: string | null;
+  /** the last background sync failed */
+  netSlow?: boolean;
   onWallet: () => void;
   soundOn: boolean;
   onSound: () => void;
@@ -34,6 +37,11 @@ export function Shell({
             </button>
           ))}
         </nav>
+        {netSlow && (
+          <span className="net" title="The last sync with the Miden network failed; it retries by itself.">
+            Network slow
+          </span>
+        )}
         <button className="sound" onClick={onSound} aria-pressed={soundOn}>
           Sound {soundOn ? "on" : "off"}
         </button>

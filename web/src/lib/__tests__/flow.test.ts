@@ -3,6 +3,9 @@ import { describe, expect, it, vi } from "vitest";
 import type { GqNote } from "../chain";
 import type { ChallengeStorage } from "../notes";
 import {
+  explain,
+  NOT_FINISHED,
+  withTimeout,
   shotRefusal,
   isAnchorMismatch,
   learnBreadOffset,
@@ -200,5 +203,47 @@ describe("Geocoin in words", () => {
     const { url, x } = recordLinks("0xabc", 9690);
     expect(url).toMatch(/\?record=0xabc$/);
     expect(decodeURIComponent(x)).toContain(url);
+  });
+});
+
+describe("errors in plain words", () => {
+  const cases: [unknown, string][] = [
+    [new Error("NOT_GRANTED"), "said-no"],
+    [Object.assign(new Error("User rejected the request"), { name: "WalletTransactionError" }), "said-no"],
+    [Object.assign(new Error(""), { name: "WalletNotReadyError" }), "no-wallet"],
+    [Object.assign(new Error(""), { name: "WalletNotConnectedError" }), "no-wallet"],
+    [new Error("Bread is not connected"), "no-wallet"],
+    [new Error("You need 1 Geocoin and your wallet holds 0 Geocoins. Get Geocoins first."), "funds"],
+    [new Error("SummaryAnchorMismatchError: the transaction summary binds block commitment 0x1 but the captured chain anchor is 0x2"), "out-of-step"],
+    [new Error("failed to capture chain anchor: storage error: block header for block 85053 not found"), "out-of-step"],
+    [new Error(NOT_FINISHED), "not-finished"],
+    [new TypeError("Failed to fetch"), "network"],
+    [new Error("rpc error: status: Unavailable, transport error"), "network"],
+    [new Error("Loading the record timed out after 30 s"), "network"],
+    [new Error("The faucet note never arrived."), "network"],
+    [new Error("some notes were not found on chain"), "not-found"],
+    [new Error("This note is not a GeoQuizz record or shot."), "not-found"],
+    [new Error("failed to execute transaction kernel program: assertion failed with error code: 14434107113890732517"), "refused"],
+    [new Error("challenge: the deadline has passed"), "too-late"],
+    [new Error("This record's quiz does not match the dataset."), "other-cities"],
+    [new Error("something odd"), "unknown"],
+  ];
+  it.each(cases)("%s", (e, kind) => {
+    const t = explain(e);
+    expect(t.kind).toBe(kind);
+    expect(t.title).not.toMatch(/0x|Error:|NOT_GRANTED/);
+  });
+  it("keeps the raw text for 'What happened?', but not when the sentence is already the message", () => {
+    expect(explain(new TypeError("Failed to fetch")).detail).toBe("TypeError: Failed to fetch");
+    expect(explain(new Error("You need 1 Geocoin and your wallet holds 0 Geocoins.")).detail).toBeUndefined();
+  });
+  it("times out a read that hangs, as a network trouble", async () => {
+    vi.useFakeTimers();
+    const late = withTimeout(new Promise(() => undefined), 30_000, "Loading the record");
+    vi.advanceTimersByTime(30_000);
+    await expect(late).rejects.toThrow(/timed out/);
+    vi.useRealTimers();
+    expect(explain(await late.catch((e) => e)).kind).toBe("network");
+    await expect(withTimeout(Promise.resolve(7), 1000, "x")).resolves.toBe(7);
   });
 });

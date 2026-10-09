@@ -106,6 +106,52 @@ export const nextDelayIndex = (index: number, landed: boolean) => (landed ? inde
  */
 export const NOT_FINISHED = "Your wallet did not finish. Open it to see why, then try again.";
 
+export type TroubleKind =
+  | "said-no"
+  | "no-wallet"
+  | "funds"
+  | "out-of-step"
+  | "not-finished"
+  | "network"
+  | "not-found"
+  | "too-late"
+  | "other-cities"
+  | "refused"
+  | "unknown";
+/** What went wrong, in one plain sentence, plus the raw text for "What happened?". */
+export type Trouble = { kind: TroubleKind; title: string; detail?: string };
+
+const message = (e: unknown) => (e instanceof Error ? `${e.name !== "Error" ? `${e.name}: ` : ""}${e.message}` : String(e));
+
+/** Turns any failure into words a player understands. The raw text stays in `detail`. */
+export function explain(e: unknown): Trouble {
+  const raw = message(e);
+  const t = (kind: TroubleKind, title: string, withDetail = true): Trouble => (withDetail && raw && raw !== title ? { kind, title, detail: raw } : { kind, title });
+  if (raw.includes(NOT_FINISHED)) return t("not-finished", NOT_FINISHED, false);
+  if (/NOT_GRANTED|reject|declin|denied|cancel/i.test(raw)) return t("said-no", "You said no in your wallet. Nothing was sent.");
+  if (/WalletNotReady|not installed/i.test(raw)) return t("no-wallet", "We can't find the Bread wallet. Install it, then try again.");
+  if (/WalletNotConnected|not connected|WalletDisconnected/i.test(raw)) return t("no-wallet", "Connect your wallet first.");
+  if (/^(\w+: )?You need .*Geocoin/.test(raw)) return t("funds", raw.replace(/^\w+: /, ""), false);
+  if (/SummaryAnchorMismatch|chain anchor|ChainBehindBoundBlock|block header for block \d+ not found/i.test(raw))
+    return t("out-of-step", "Your wallet was out of step with the network. Try again.");
+  if (/deadline has passed|too late|is over/i.test(raw)) return t("too-late", "Too late: this one is over.");
+  if (/quiz does not match|dataset/i.test(raw)) return t("other-cities", "This record uses another city list. It can't be played here.");
+  if (/not found on chain|is not public|not a GeoQuizz|Not found/i.test(raw)) return t("not-found", "We can't find that record. Check the link.");
+  if (/assertion failed|error code/i.test(raw)) return t("refused", "The game said no to this move.");
+  if (/fetch|network|timed out|timeout|deadline exceeded|unavailable|transport|ECONN|50[234]|load failed|faucet/i.test(raw))
+    return t("network", "The Miden network is slow or busy right now. Try again in a moment.");
+  return t("unknown", "Something went wrong.");
+}
+
+/** Rejects with "<what> timed out" (a network trouble) when `p` takes longer than `ms`. */
+export function withTimeout<T>(p: Promise<T>, ms: number, what: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`${what} timed out after ${Math.round(ms / 1000)} s`)), ms);
+  });
+  return Promise.race([p, timeout]).finally(() => clearTimeout(timer));
+}
+
 /** The outcome line after Bread accepted a request: only a chain-confirmed effect is "confirmed". */
 export function outcomeText(action: string, seenOnChain: boolean): string {
   const sentence = /[.!?]$/.test(action) ? action : `${action}.`;

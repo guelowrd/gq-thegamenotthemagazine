@@ -25,7 +25,7 @@ import { shotStorage, encodeStorage, type AccountFelts, type ChallengeStorage } 
 import { SHOT_DEADLINE_INDEX } from "./notes";
 import { randomSeed, type Word4 } from "./quiz";
 import { packAnswers, type Answer } from "./rules";
-import { fmtGeocoin, learnBreadOffset, nextDelayIndex, parseAnchorMismatch, SEND_DELAYS_MS, submitWithRetry } from "./flow";
+import { fmtGeocoin, learnBreadOffset, nextDelayIndex, parseAnchorMismatch, SEND_DELAYS_MS, submitWithRetry, withTimeout } from "./flow";
 import authVectors from "../../../rules/auth_vectors.json";
 
 /** What the app needs from a signer: Bread's adapter hook, or the local test wallet. */
@@ -85,7 +85,7 @@ async function blockCommitment(n: number): Promise<string | null> {
 /** Bread's view of the Geocoin balance; throws a readable error when it is below `needed`. */
 export async function requireGc(wallet: Wallet, needed: bigint): Promise<void> {
   if (!wallet.requestAssets) throw new Error("Bread is not connected");
-  const assets = await wallet.requestAssets();
+  const assets = await withTimeout(wallet.requestAssets(), 30_000, "Reading your wallet's balance");
   const faucet = AccountId.fromHex(GC_FAUCET).toString();
   const balance = assets
     .filter((a) => parseAccountId(a.faucetId).toString() === faucet)
@@ -98,11 +98,19 @@ export async function requireGc(wallet: Wallet, needed: bigint): Promise<void> {
 }
 
 /** Polls the local client until `check` holds or the network timeout passes. */
+/**
+ * Polls the local client until `check` holds or the network timeout passes. A sync that fails on a
+ * slow or busy network is just a missed look: the next one tries again.
+ */
 export async function waitFor(client: Client, runExclusive: <T>(fn: () => Promise<T>) => Promise<T>, check: () => Promise<boolean>): Promise<boolean> {
   const deadline = Date.now() + NETWORK_POLL_TIMEOUT_MS;
   while (Date.now() < deadline) {
-    await runExclusive(() => syncGq(client));
-    if (await runExclusive(check)) return true;
+    try {
+      await runExclusive(() => syncGq(client));
+      if (await runExclusive(check)) return true;
+    } catch (e) {
+      console.warn("[gq] sync failed while waiting, trying again", e);
+    }
     await new Promise((r) => setTimeout(r, NETWORK_POLL_INTERVAL_MS));
   }
   return false;
@@ -159,6 +167,9 @@ export function reportBreadOutcome(landed: boolean) {
 /** Progress callback for the UI: which attempt is running. */
 export let onSubmitAttempt: (attempt: number, total: number) => void = () => {};
 export const setSubmitAttemptListener = (fn: typeof onSubmitAttempt) => (onSubmitAttempt = fn);
+/** Progress callback for the UI: "prepare" while the request is timed, "wallet" once the wallet has it. */
+export let onSubmitStage: (stage: "prepare" | "wallet") => void = () => {};
+export const setSubmitStageListener = (fn: typeof onSubmitStage) => (onSubmitStage = fn);
 
 /**
  * Builds the request from a fresh builder and submits it to Bread, retrying on an anchor mismatch.
@@ -181,7 +192,9 @@ async function submit(
   if (wallet.local) {
     // single-signature account in our own store: the SDK's builder does the fee work, no anchor dance
     const builder = await client.feeAwareTransactionRequestBuilder(AccountId.fromHex(address));
-    return requestTransaction(Transaction.createCustomTransaction(address, address, await build(builder), inputNoteIds, importNotes));
+    const tx = Transaction.createCustomTransaction(address, address, await build(builder), inputNoteIds, importNotes);
+    onSubmitStage("wallet");
+    return requestTransaction(tx);
   }
   let lastBound = 0;
   const feeFaucet = await client.feeFaucetId();
@@ -190,11 +203,13 @@ async function submit(
   const txId = await submitWithRetry(
     async (offset, attempt) => {
       onSubmitAttempt(attempt, ANCHOR_RETRIES);
+      onSubmitStage("prepare");
       const { block, seenAt } = await nextBlock();
       const boundBlock = block + offset;
       lastBound = boundBlock;
       const tx = Transaction.createCustomTransaction(address, address, await build(breadBuilder(boundBlock, feeFaucet)), inputNoteIds, importNotes);
       await sleep(seenAt + delay - Date.now());
+      onSubmitStage("wallet");
       return requestTransaction(tx);
     },
     1,

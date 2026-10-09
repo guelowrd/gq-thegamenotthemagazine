@@ -96,6 +96,13 @@ Driving these tabs from Claude in Chrome: keep a tab under five minutes old (Chr
 a hidden tab's timers to once a minute and the quiz stalls), click the map with a dispatched
 `MouseEvent` from `cities.json` coordinates, and read the note ids with `list_gq`.
 
+Errors in the app (since 2026-10-09): every failure shows one sentence in plain words, the raw
+text under "What happened?", and Try again when it makes sense (after "Your wallet did not finish",
+Try again first checks whether the first attempt landed, so nobody posts or pays twice). The
+waiting panel says which step it is at (getting ready, approve in your wallet, sending to the
+network with a seconds counter) and always has Back. A failed background sync only shows a
+NETWORK SLOW tag in the ribbon.
+
 Troubleshooting: `SummaryAnchorMismatchError: the transaction summary binds block commitment …
 but the captured chain anchor is …` comes from Bread anchoring at its own sync height; the app
 retries with a fresh block automatically (see design.md, Bread specifics). A `You need N GC`

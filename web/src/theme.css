@@ -54,7 +54,14 @@ p { margin: 0 0 12px; }
 .eyebrow { font: 13px/1.6 var(--display); text-transform: uppercase; color: var(--cyan); margin-bottom: 12px; }
 .muted { color: var(--muted); }
 .small { font-size: 13px; }
-.error { color: var(--white); background: #4a1026; border: 3px solid var(--red); padding: 10px 14px; margin: 12px 0; }
+.error-box { margin: 0 0 20px; }
+.error-box .title { font: bold 16px/1.5 var(--body); color: var(--white); margin-bottom: 8px; }
+.error-box details { margin-bottom: 8px; color: var(--muted); font-size: 13px; }
+.error-box summary { cursor: pointer; }
+.error-box code { display: block; margin-top: 6px; white-space: pre-wrap; word-break: break-word; font-size: 12px; }
+.error-box .actions { display: flex; flex-wrap: wrap; }
+.masthead .net { font: 11px/1.6 var(--display); text-transform: uppercase; color: var(--void); background: var(--pink); padding: 2px 8px; white-space: nowrap; }
+.waiting h2 { margin-bottom: 8px; }
 
 /* buttons: one yellow primary action per decision */
 .btn, button.btn, a.btn {

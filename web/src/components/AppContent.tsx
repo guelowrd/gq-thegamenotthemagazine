@@ -10,15 +10,16 @@ import { GEOCOIN_GRANT, useGeocoin } from "@/lib/geocoin";
 import { useSound } from "@/lib/useSound";
 import { CITIES_URL, MIN_SHOT_WINDOW_BLOCKS, RECORD_LIFETIME_BLOCKS, STAKE } from "@/config";
 import { accountFelts, fetchGqNote, knownNote, listGqNotes, loadScripts, parseAccountId, syncGq, wordFromHex, type GqNote } from "@/lib/chain";
-import { postShot, postRecord, settle, collect, reportBreadOutcome, selfCheckAuthArgs, setSubmitAttemptListener, waitFor, type Submitted } from "@/lib/bread";
+import { postShot, postRecord, settle, collect, reportBreadOutcome, selfCheckAuthArgs, setSubmitAttemptListener, setSubmitStageListener, waitFor, type Submitted } from "@/lib/bread";
 import { shotDeadline, type ChallengeStorage } from "@/lib/notes";
-import { fmtGeocoin, NOT_FINISHED, shotRefusal, myOpenShotsOn as openShotsOn, outcomeText, parseCode, reportRows, settlePlan, sharedRecordState, type ReportRow } from "@/lib/flow";
+import { explain, fmtGeocoin, NOT_FINISHED, shotRefusal, withTimeout, type Trouble, myOpenShotsOn as openShotsOn, outcomeText, parseCode, reportRows, settlePlan, sharedRecordState, type ReportRow } from "@/lib/flow";
 import { datasetWord, quizCities, randomSeed, type Place, type Word4 } from "@/lib/quiz";
 import { type City } from "@/lib/rules";
 import { Lobby } from "./Lobby";
 import { ShareButtons } from "./ShareButtons";
 import { Play, type PlayResult } from "./Play";
 import { Shell } from "./Shell";
+import { ErrorBox, Waiting, type Stage } from "./Status";
 import { type Tab } from "@/lib/tabs";
 import { Welcome } from "./Welcome";
 import { WorldMap } from "./WorldMap";
@@ -29,7 +30,7 @@ type Mode =
   | { kind: "post-record"; seed: Word4; cities: City[]; result: PlayResult }
   | { kind: "play-rival"; shots: GqNote[]; record?: GqNote }
   /** `back`: where the Back button, a failure or a wallet that never finishes returns to */
-  | { kind: "busy"; text: string; back: Mode }
+  | { kind: "busy"; text: string; back: Mode; stage: Stage; since: number }
   | { kind: "done"; title?: string; text: string; rows?: ReportRow[]; txId?: string; share?: { recordId: string; score: number }; retry?: () => void };
 
 /** Something that needs a connected wallet; it runs once the wallet is there. */
@@ -37,11 +38,30 @@ type Intent = { kind: "post"; m: Extract<Mode, { kind: "post-record" }> } | { ki
 
 export function AppContent() {
   // `useMidenClient()` throws until the provider has created the client, so gate on readiness first.
-  const { isReady } = useMiden();
+  const { isReady, error } = useMiden();
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setSlow(true), 20_000);
+    return () => clearTimeout(t);
+  }, []);
   if (!isReady) {
     return (
       <main>
-        <p className="muted">Loading…</p>
+        {error ? (
+          <ErrorBox trouble={{ ...explain(error), title: "The game could not start." }} onRetry={() => location.reload()} onClose={() => location.reload()} />
+        ) : (
+          <>
+            <p className="muted">Loading…</p>
+            {slow && (
+              <p className="muted">
+                This is taking long. Check your connection, or{" "}
+                <button className="btn" onClick={() => location.reload()}>
+                  Reload
+                </button>
+              </p>
+            )}
+          </>
+        )}
       </main>
     );
   }
@@ -66,7 +86,8 @@ function GqApp() {
   const [notes, setNotes] = useState<GqNote[]>([]);
   const [height, setHeight] = useState(0);
   const [mode, setMode] = useState<Mode>({ kind: "lobby" });
-  const [error, setError] = useState<string | null>(null);
+  const [trouble, setTrouble] = useState<{ t: Trouble; retry?: () => void } | null>(null);
+  const [netSlow, setNetSlow] = useState(false);
   const [authCheck, setAuthCheck] = useState<boolean | null>(null);
   const [sharedRecord, setSharedRecord] = useState<GqNote | null>(null);
   const [code, setCode] = useState("");
@@ -79,28 +100,47 @@ function GqApp() {
 
   const me = wallet.connected && wallet.address ? accountFelts(parseAccountId(wallet.address)) : null;
 
+  /** A failure in plain words, with a way to try again when there is one. */
+  const oops = (e: unknown, retry?: () => void) => setTrouble({ t: explain(e), retry });
+  /** A message that is already in plain words. */
+  const say = (title: string) => setTrouble({ t: { kind: "unknown", title } });
+  const reload = () => location.reload();
+
+  /** A record opened by link or code; a slow network gets "Try again". */
+  const loadRecord = (id: string) =>
+    withTimeout(fetchGqNote(id), 30_000, "Loading the record")
+      .then((r) => {
+        setSharedRecord(r);
+        setTrouble(null);
+      })
+      .catch((e) => oops(e, () => void loadRecord(id)));
+
   useEffect(() => {
-    fetch(CITIES_URL)
+    withTimeout(fetch(CITIES_URL), 30_000, "Loading the cities")
       .then(async (r) => {
+        if (!r.ok) throw new Error(`Loading the cities: HTTP ${r.status}`);
         const bytes = new Uint8Array(await r.arrayBuffer());
         setDataset(await datasetWord(bytes));
         setPlaces(JSON.parse(new TextDecoder().decode(bytes)));
       })
-      .catch((e) => setError(String(e)));
-    loadScripts().catch((e) => setError(String(e)));
+      .catch((e) => oops(e, reload));
+    loadScripts().catch((e) => oops(e, reload));
     if (import.meta.env.DEV) setAuthCheck(selfCheckAuthArgs());
-    if (sharedRecordId) fetchGqNote(sharedRecordId).then(setSharedRecord).catch((e) => setError(`Shared record: ${e instanceof Error ? e.message : e}`));
+    if (sharedRecordId) void loadRecord(sharedRecordId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // a failed background sync is not the player's problem: a tag in the ribbon until the next good one
   const refresh = useCallback(async () => {
     if (!isReady || !client) return;
     try {
-      const h = await runExclusive(() => syncGq(client));
+      const h = await withTimeout(runExclusive(() => syncGq(client)), 30_000, "Syncing");
       setHeight(h);
       setNotes(await runExclusive(() => listGqNotes(client)));
+      setNetSlow(false);
     } catch (e) {
-      setError(String(e));
+      console.warn("[gq] background sync failed", e);
+      setNetSlow(true);
     }
   }, [client, isReady, runExclusive]);
 
@@ -110,8 +150,7 @@ function GqApp() {
     return () => clearInterval(t);
   }, [refresh]);
 
-  const fail = (e: unknown) => setError(e instanceof Error ? e.message : String(e));
-  const connect = () => wallet.connect().catch(fail);
+  const connect = (): void => void wallet.connect().catch((e) => oops(e, connect));
   const connected = wallet.connected && !!wallet.address;
 
   /** Runs `intent` now, or connects first (Bread opens its popup, the test wallet creates itself) and runs it then. */
@@ -120,7 +159,7 @@ function GqApp() {
     setPending(intent);
     void wallet.connect().catch((e) => {
       setPending(null);
-      fail(e);
+      oops(e, () => withWallet(intent));
     });
   }
   useEffect(() => {
@@ -142,41 +181,56 @@ function GqApp() {
    * exists; otherwise: the consumed notes are gone). A wallet only acknowledges the request (Bread
    * answers as soon as you approve, and can still fail afterwards in its own queue), so nothing is
    * called done before the chain shows it. A failure, or a wallet that never finishes, returns to
-   * `back` with the error: the score or the record stays on screen, ready for another try.
+   * `back` with the error in plain words and Try again: the score or the record stays on screen.
+   * `previous`: the attempt that never showed. Try again first looks whether it landed after all,
+   * so a slow network never makes anyone post or pay twice.
    */
-  async function run(text: string, posted: boolean, fn: () => Promise<Submitted>, back: Mode, onConfirmed?: (s: Submitted) => Mode | void) {
+  async function run(text: string, posted: boolean, fn: () => Promise<Submitted>, back: Mode, onConfirmed?: (s: Submitted) => Mode | void, previous?: Submitted) {
     const token = ++runToken.current;
     const live = () => runToken.current === token;
-    setError(null);
-    setMode({ kind: "busy", text, back });
-    setSubmitAttemptListener((attempt) => live() && setMode({ kind: "busy", text: attempt > 1 ? `${text} (try ${attempt})` : text, back }));
+    const update = (patch: Partial<Extract<Mode, { kind: "busy" }>>) => setMode((m) => (live() && m.kind === "busy" ? { ...m, ...patch } : m));
+    const again = (attempt?: Submitted) => () => void run(text, posted, fn, back, onConfirmed, attempt);
+    const landed = async (ids: string[]) => {
+      const records = await Promise.all(ids.map((id) => knownNote(client, id)));
+      return posted ? records.every((r) => !!r) : records.every((r) => !!r?.consumed);
+    };
+    const finish = (s: Submitted) => {
+      void refresh();
+      setMode(onConfirmed?.(s) ?? { kind: "done", text: outcomeText(text, true), txId: s.txId });
+    };
+    setTrouble(null);
+    setMode({ kind: "busy", text, back, stage: previous ? "network" : "prepare", since: Date.now() });
+    setSubmitAttemptListener((attempt) => update({ text: attempt > 1 ? `${text} (try ${attempt})` : text }));
+    setSubmitStageListener((stage) => update({ stage, since: Date.now() }));
     try {
+      if (previous) {
+        await runExclusive(() => syncGq(client)).catch(() => undefined);
+        if (await runExclusive(() => landed(previous.noteIds))) return live() ? finish(previous) : undefined;
+        update({ stage: "prepare", since: Date.now() });
+      }
       const submitted = await fn();
-      const { txId, noteIds } = submitted;
-      const seen = await waitFor(client, runExclusive, async () => {
-        const records = await Promise.all(noteIds.map((id) => knownNote(client, id)));
-        return posted ? records.every((r) => !!r) : records.every((r) => !!r?.consumed);
-      });
+      update({ stage: "network", since: Date.now() });
+      const seen = await waitFor(client, runExclusive, () => landed(submitted.noteIds));
       reportBreadOutcome(seen);
       if (!live()) return;
+      if (seen) return finish(submitted);
       void refresh();
-      if (seen) return setMode(onConfirmed?.(submitted) ?? { kind: "done", text: outcomeText(text, true), txId });
-      setError(NOT_FINISHED);
+      oops(new Error(NOT_FINISHED), again(submitted));
       setMode(back);
     } catch (e) {
       if (!live()) return;
-      fail(e);
+      oops(e, again(previous));
       setMode(back);
     }
   }
 
   function startChampion() {
-    if (!dataset || places.length === 0) return setError("Still loading the cities, try again in a second.");
-    setError(null);
+    if (!dataset || places.length === 0) return say("Still loading the cities, try again in a second.");
+    setTrouble(null);
     const seed = randomSeed();
     quizCities(seed, places)
       .then((cities) => setMode({ kind: "play-champion", seed, cities }))
-      .catch((e) => setError(`Could not start: ${e instanceof Error ? e.message : e}`));
+      .catch((e) => oops(e, startChampion));
   }
 
   async function postMyRecord(m: Extract<Mode, { kind: "post-record" }>) {
@@ -213,7 +267,7 @@ function GqApp() {
     if (!dataset) return;
     const rival = accountFelts(parseAccountId(wallet.address!));
     const refusal = shotRefusal(record, height, MIN_SHOT_WINDOW_BLOCKS);
-    if (refusal) return setError(refusal);
+    if (refusal) return say(refusal);
     const open = openShotsOn(notes, rival, record, height);
     if (open.length > 0) {
       // one Geocoin per sitting: play the shot already on the table instead of paying again
@@ -270,14 +324,17 @@ function GqApp() {
 
   /** Mints the grant to the connected wallet; the local wallet then claims it, Bread claims by itself. */
   async function getGeocoins() {
-    setError(null);
-    setMode({ kind: "busy", text: "Getting Geocoins", back: { kind: "lobby" } });
+    const token = ++runToken.current;
+    setTrouble(null);
+    setMode({ kind: "busy", text: "Getting Geocoins", back: { kind: "lobby" }, stage: "network", since: Date.now() });
     try {
-      const txId = await mintGeocoins(wallet.address!);
+      const txId = await withTimeout(mintGeocoins(wallet.address!), 180_000, "Getting Geocoins");
       if (LOCAL_WALLET) await local.claim();
+      if (runToken.current !== token) return;
       setMode({ kind: "done", text: `${fmtGeocoin(GEOCOIN_GRANT)} for you! Open your wallet to take them.`, txId });
     } catch (e) {
-      fail(e);
+      if (runToken.current !== token) return;
+      oops(e, () => withWallet({ kind: "geocoins" }));
       setMode({ kind: "lobby" });
     }
   }
@@ -285,9 +342,9 @@ function GqApp() {
   /** A pasted link or id opens the record exactly like the link would. */
   const openCode = () => {
     const parsed = parseCode(code);
-    if ("hint" in parsed) return setError(parsed.hint);
-    setError(null);
-    fetchGqNote(parsed.id).then(setSharedRecord).catch((e) => setError(`Not found: ${e instanceof Error ? e.message : e}`));
+    if ("hint" in parsed) return say(parsed.hint);
+    setTrouble(null);
+    void loadRecord(parsed.id);
   };
 
   const geocoinButton = (
@@ -358,14 +415,33 @@ function GqApp() {
       tab={tab}
       onTab={(t) => {
         setTab(t);
+        setTrouble(null);
         setMode({ kind: "lobby" });
       }}
       walletLabel={walletLabel}
+      netSlow={netSlow}
       onWallet={() => (wallet.connected ? void wallet.disconnect() : connect())}
       soundOn={sound.on}
       onSound={sound.toggle}
     >
-      {error && <p className="error">{error}</p>}
+      {trouble && (
+        <ErrorBox
+          trouble={trouble.t}
+          onRetry={
+            trouble.retry &&
+            (() => {
+              const retry = trouble.retry!;
+              setTrouble(null);
+              retry();
+            })
+          }
+          onGeocoins={() => {
+            setTrouble(null);
+            withWallet({ kind: "geocoins" });
+          }}
+          onClose={() => setTrouble(null)}
+        />
+      )}
       {import.meta.env.DEV && authCheck === false && <p className="error">dev: auth-args self-check MISMATCH</p>}
 
       {mode.kind === "lobby" && tab === "1p" && (
@@ -466,19 +542,16 @@ function GqApp() {
       )}
 
       {mode.kind === "busy" && (
-        <section className="panel">
-          <h2>{mode.text}…</h2>
-          <p className="muted">Check your wallet.</p>
-          <button
-            className="btn"
-            onClick={() => {
-              runToken.current++;
-              setMode(mode.back);
-            }}
-          >
-            Back
-          </button>
-        </section>
+        <Waiting
+          text={mode.text}
+          stage={mode.stage}
+          since={mode.since}
+          local={LOCAL_WALLET}
+          onBack={() => {
+            runToken.current++;
+            setMode(mode.back);
+          }}
+        />
       )}
 
       {mode.kind === "done" && (
