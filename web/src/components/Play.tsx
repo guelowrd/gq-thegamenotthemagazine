@@ -11,6 +11,8 @@ export type PlayResult = { answers: Answer[]; score: number };
 
 const cdToLatLon = (c: { lat: number; lon: number }): LatLon => ({ lat: c.lat / 100 - 90, lon: c.lon / 100 - 180 });
 const BARS = 15;
+/** Phones held sideways, as in theme.css: the map and the city panel fill the screen, the ribbon waits above. */
+const SIDEWAYS = "(orientation: landscape) and (max-height: 500px)";
 
 
 export function Play({
@@ -30,6 +32,17 @@ export function Play({
   const [lastPick, setLastPick] = useState<LatLon | null>(null);
   const [elapsed, setElapsed] = useState(0);
   const startedAt = useRef(performance.now());
+  const section = useRef<HTMLElement>(null);
+
+  // also when the phone turns mid-quiz: people start upright, see the hint, and turn it
+  useEffect(() => {
+    const sideways = window.matchMedia?.(SIDEWAYS);
+    if (!sideways) return;
+    const fill = () => sideways.matches && section.current?.scrollIntoView?.({ block: "start" });
+    fill();
+    sideways.addEventListener("change", fill);
+    return () => sideways.removeEventListener("change", fill);
+  }, []);
 
   const current = cities[round];
   const finished = round >= cities.length;
@@ -78,7 +91,7 @@ export function Play({
   const secondsLeft = Math.max(0, TIME_CAP - elapsed) / 100;
 
   return (
-    <section className="play">
+    <section className="play" ref={section}>
       <h1>{answered ? (points ? "Nice shot!" : "Missed!") : `Find ${name}!`}</h1>
       <div className="chips" aria-label={`Round ${round + 1} of ${cities.length}`}>
         {cities.map((_, i) => (
