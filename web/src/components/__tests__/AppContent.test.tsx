@@ -213,6 +213,12 @@ describe("welcome and 1P World Tour", () => {
     sessionStorage.clear();
   });
 
+  it("the ribbon says the game runs on testnet", async () => {
+    window.history.replaceState({}, "", "/");
+    await start();
+    expect(screen.getByText("Testnet")).toBeInTheDocument();
+  });
+
   it("plays before any wallet is connected; the rival sprite stays out of a solo run", async () => {
     window.history.replaceState({}, "", "/");
     wallet.connected = false;

@@ -99,6 +99,7 @@ p { margin: 0 0 12px; }
 .masthead { display: flex; align-items: center; gap: 24px; padding: 14px 4%; background: #191144; border-bottom: 6px solid var(--pink); box-shadow: 0 5px 0 #080621; }
 .masthead .brand { display: flex; align-items: center; }
 .masthead .brand img { width: 190px; height: auto; image-rendering: pixelated; }
+.masthead .testnet { margin-left: 10px; padding: 1px 6px; border: 2px solid var(--cyan); font: 9px/1.6 var(--display); text-transform: uppercase; color: var(--cyan); white-space: nowrap; }
 .masthead nav { display: flex; gap: 20px; flex: 1; flex-wrap: wrap; }
 .masthead nav button { background: none; border: 0; padding: 6px 0; font: 13px/1.6 var(--display); text-transform: uppercase; color: var(--white); }
 .masthead nav button.active { color: var(--yellow); text-shadow: 2px 2px 0 var(--pink); }

@@ -40,6 +40,9 @@ export function Shell({
           }}
         >
           <img src="/brand/geoquizz-wordmark.svg" alt="GeoQuizz" width={840} height={205} />
+          <span className="testnet" title="Miden testnet: Geocoins are play money.">
+            Testnet
+          </span>
         </a>
         <nav aria-label="Sections">
           {(Object.keys(TAB_LABEL) as Tab[]).map((t) => (
