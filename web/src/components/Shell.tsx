@@ -41,7 +41,10 @@ export function Shell({
           {walletLabel ?? "Connect wallet"}
         </button>
       </header>
-      <main>{children}</main>
+      <main>
+        <p className="rotate-hint">Turn your phone sideways: the map is much easier to play.</p>
+        {children}
+      </main>
     </>
   );
 }

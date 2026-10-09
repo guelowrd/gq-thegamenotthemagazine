@@ -5,9 +5,9 @@ import type { ChallengeStorage } from "../notes";
 import {
   shotRefusal,
   isAnchorMismatch,
-  LAG_CANDIDATES,
   learnBreadOffset,
-  nextLagIndex,
+  nextDelayIndex,
+  SEND_DELAYS_MS,
   myOpenShotsOn,
   fmtGeocoin,
   outcomeText,
@@ -181,13 +181,13 @@ describe("a pasted code", () => {
   });
 });
 
-describe("the bind lag for Bread", () => {
-  it("starts one block ahead, keeps a lag that landed, and cycles through the others on failure", () => {
-    expect(LAG_CANDIDATES[0]).toBe(1);
-    expect(nextLagIndex(0, true)).toBe(0);
+describe("when to hand a request to Bread", () => {
+  it("starts ~2 s into a block, keeps a delay that landed, tries earlier then later on failure", () => {
+    expect(SEND_DELAYS_MS[0]).toBe(2000);
+    expect(nextDelayIndex(0, true)).toBe(0);
     const tried = [0];
-    for (let i = 0; i < 3; i++) tried.push(nextLagIndex(tried.at(-1)!, false));
-    expect(tried.map((i) => LAG_CANDIDATES[i])).toEqual([1, 0, 2, 1]);
+    for (let i = 0; i < 3; i++) tried.push(nextDelayIndex(tried.at(-1)!, false));
+    expect(tried.map((i) => SEND_DELAYS_MS[i])).toEqual([2000, 1000, 2700, 2000]);
   });
 });
 

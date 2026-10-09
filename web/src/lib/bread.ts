@@ -25,7 +25,7 @@ import { shotStorage, encodeStorage, type AccountFelts, type ChallengeStorage } 
 import { SHOT_DEADLINE_INDEX } from "./notes";
 import { randomSeed, type Word4 } from "./quiz";
 import { packAnswers, type Answer } from "./rules";
-import { fmtGeocoin, LAG_CANDIDATES, learnBreadOffset, nextLagIndex, parseAnchorMismatch, submitWithRetry } from "./flow";
+import { fmtGeocoin, learnBreadOffset, nextDelayIndex, parseAnchorMismatch, SEND_DELAYS_MS, submitWithRetry } from "./flow";
 import authVectors from "../../../rules/auth_vectors.json";
 
 /** What the app needs from a signer: Bread's adapter hook, or the local test wallet. */
@@ -62,22 +62,12 @@ export function selfCheckAuthArgs(): boolean {
   });
 }
 
-/**
- * A request builder carrying the auth args Bread's multisig needs, bound to the current tip.
- *
- * Bread anchors the request at ITS sync height when it receives it and rejects the request if
- * that block differs from the bound block (`SummaryAnchorMismatchError`). Testnet makes a block
- * every ~3 s, so the bound block has to be as fresh as possible: sync first, bind the result,
- * submit at once. `submit` retries with a fresh block when Bread still reports the mismatch.
- */
-async function breadBuilder(client: Client, blockOffset: number): Promise<{ builder: TransactionRequestBuilder; boundBlock: number }> {
-  const feeFaucet = await client.feeFaucetId();
-  const boundBlock = (await waitForFreshBlock(client)) + blockOffset;
+/** A request builder carrying the auth args Bread's multisig needs, bound to `boundBlock`. */
+function breadBuilder(boundBlock: number, feeFaucet: AccountId): TransactionRequestBuilder {
   const { elements, commitment } = multisigAuthArgs(boundBlock, randomSeed(), feeFaucet);
   const advice = new AdviceMap();
   advice.insert(commitment, feltArray(elements));
-  const builder = new TransactionRequestBuilder().withAuthArg(commitment).extendAdviceMap(advice).withBlockNumbers([boundBlock]);
-  return { builder, boundBlock };
+  return new TransactionRequestBuilder().withAuthArg(commitment).extendAdviceMap(advice).withBlockNumbers([boundBlock]);
 }
 
 /** The commitment of block `n` as the node reports it (null when the node has no such block yet). */
@@ -120,42 +110,48 @@ export async function waitFor(client: Client, runExclusive: <T>(fn: () => Promis
 
 export type Submitted = { txId: string; noteIds: string[] };
 
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
 /**
- * Syncs until the chain tip advances (or ~6 s pass) and returns the new tip, so the request is
- * bound at the very start of a block's ~3 s lifetime: Bread, which anchors at its own sync height
- * a second or two later, then sees the same block.
+ * Waits for the node's tip to move and returns the new block and when it was seen. A header call
+ * (~60 ms) every 100 ms sees a block within ~0.15 s of its production; testnet makes one every 3 s.
  */
-async function waitForFreshBlock(client: Client): Promise<number> {
-  const start = (await client.syncState()).blockNum();
-  const deadline = Date.now() + 6_000;
-  while (Date.now() < deadline) {
-    await new Promise((r) => setTimeout(r, 250));
-    const now = (await client.syncState()).blockNum();
-    if (now > start) return now;
+async function nextBlock(): Promise<{ block: number; seenAt: number }> {
+  const rpc = new RpcClient(endpoint());
+  try {
+    const start = (await rpc.getBlockHeaderByNumber(undefined)).blockNum();
+    const deadline = Date.now() + 6_000;
+    while (Date.now() < deadline) {
+      await sleep(100);
+      const block = (await rpc.getBlockHeaderByNumber(undefined)).blockNum();
+      if (block > start) return { block, seenAt: Date.now() };
+    }
+    return { block: start, seenAt: Date.now() };
+  } finally {
+    rpc.free();
   }
-  return start;
 }
 
 const ANCHOR_RETRIES = 10;
 
-// The bind lag that last worked in this browser (an index into LAG_CANDIDATES); see flow.ts.
-const LAG_KEY = "gq:bread-lag";
-let lagIndex = (() => {
+// The hand-over delay that last worked in this browser (an index into SEND_DELAYS_MS); see flow.ts.
+const DELAY_KEY = "gq:bread-send-delay";
+let delayIndex = (() => {
   try {
-    return (Number(localStorage.getItem(LAG_KEY)) || 0) % LAG_CANDIDATES.length;
+    return (Number(localStorage.getItem(DELAY_KEY)) || 0) % SEND_DELAYS_MS.length;
   } catch {
     return 0;
   }
 })();
-let lagPending = false;
+let delayPending = false;
 
-/** After a Bread request: did its effect show on chain? Sets the bind lag for the next one. */
+/** After a Bread request: did its effect show on chain? Sets the hand-over delay for the next one. */
 export function reportBreadOutcome(landed: boolean) {
-  if (!lagPending) return;
-  lagPending = false;
-  lagIndex = nextLagIndex(lagIndex, landed);
+  if (!delayPending) return;
+  delayPending = false;
+  delayIndex = nextDelayIndex(delayIndex, landed);
   try {
-    localStorage.setItem(LAG_KEY, String(lagIndex));
+    localStorage.setItem(DELAY_KEY, String(delayIndex));
   } catch {
     /* private window */
   }
@@ -188,16 +184,20 @@ async function submit(
     return requestTransaction(Transaction.createCustomTransaction(address, address, await build(builder), inputNoteIds, importNotes));
   }
   let lastBound = 0;
-  // Bread imports shipped notes before it syncs: one more block
-  const lag = (importNotes?.length ? 1 : 0) + LAG_CANDIDATES[lagIndex];
+  const feeFaucet = await client.feeFaucetId();
+  // Bread imports shipped notes before it syncs: hand over ~1 s earlier
+  const delay = Math.max(0, SEND_DELAYS_MS[delayIndex] - (importNotes?.length ? 1000 : 0));
   const txId = await submitWithRetry(
     async (offset, attempt) => {
       onSubmitAttempt(attempt, ANCHOR_RETRIES);
-      const { builder, boundBlock } = await breadBuilder(client, offset);
+      const { block, seenAt } = await nextBlock();
+      const boundBlock = block + offset;
       lastBound = boundBlock;
-      return requestTransaction(Transaction.createCustomTransaction(address, address, await build(builder), inputNoteIds, importNotes));
+      const tx = Transaction.createCustomTransaction(address, address, await build(breadBuilder(boundBlock, feeFaucet)), inputNoteIds, importNotes);
+      await sleep(seenAt + delay - Date.now());
+      return requestTransaction(tx);
     },
-    lag,
+    1,
     ANCHOR_RETRIES,
     async (e) => {
       const parsed = parseAnchorMismatch(e);
@@ -206,7 +206,7 @@ async function submit(
       return learned;
     },
   );
-  lagPending = true;
+  delayPending = true;
   return txId;
 }
 

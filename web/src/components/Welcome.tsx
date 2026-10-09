@@ -9,6 +9,7 @@ export function Welcome({ onStart }: { onStart: () => void }) {
           Click to start
         </span>
       </button>
+      <p className="rotate-hint">Turn your phone sideways: the map is much easier to play.</p>
     </div>
   );
 }

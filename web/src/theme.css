@@ -97,6 +97,7 @@ p { margin: 0 0 12px; }
 .masthead .wallet { display: block; margin: 0; min-height: 44px; padding: 10px 12px; font-size: 12px; max-width: 280px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .masthead .sound { background: none; border: 0; padding: 6px 0; font: 12px/1.6 var(--display); text-transform: uppercase; color: var(--cyan); white-space: nowrap; }
 .share { display: flex; flex-wrap: wrap; gap: 4px 0; margin-top: 8px; }
+
 main { max-width: 1440px; margin: 0 auto; padding: 28px 4% 56px; }
 
 /* welcome: full-image attract screen with a blinking start line */
@@ -184,4 +185,33 @@ table.report td:nth-child(2) { text-align: right; color: var(--muted); }
   .panel { padding: 16px; }
   .panel-title { margin: -16px -16px 12px; padding: 8px 16px; }
   .hud .city { font-size: 24px; }
+}
+
+/* phones held upright: suggest landscape, where the map is big enough to aim */
+.rotate-hint { display: none; margin: 0 0 16px; padding: 10px 14px; border: 3px solid var(--yellow); background: var(--void); color: var(--yellow); font: 13px/1.5 var(--display); text-transform: uppercase; text-align: center; }
+@media (orientation: portrait) and (max-width: 640px) { .rotate-hint { display: block; } .welcome-screen .rotate-hint { margin: 16px; } }
+/* phones held sideways: map beside a slim HUD, everything inside the screen height */
+@media (orientation: landscape) and (max-height: 500px) {
+  .masthead { padding: 6px 12px; gap: 12px; flex-wrap: nowrap; }
+  .masthead .brand img { width: 110px; }
+  .masthead nav { gap: 12px; }
+  .masthead nav button, .masthead .sound { font-size: 10px; padding: 2px 0; }
+  .masthead .wallet { min-height: 32px; padding: 4px 8px; font-size: 10px; max-width: 150px; }
+  main { padding: 8px 12px 16px; }
+  .play h1 { font-size: 18px; margin-bottom: 4px; text-shadow: 2px 2px 0 var(--pink); }
+  .chips { margin-bottom: 6px; }
+  .chips span { width: 20px; height: 20px; font-size: 10px; }
+  .play .cols { display: grid; grid-template-columns: auto 190px; gap: 10px; }
+  .play .cols .hud { order: 0; padding: 10px; }
+  .play .map-frame { padding: 4px; width: fit-content; }
+  .play .world-map { height: min(calc(100dvh - 150px), calc((100vw - 240px) / 2)); width: auto; }
+  .play .banner { font-size: 14px; padding: 6px 10px; margin-top: 6px; }
+  .hud .eyebrow { font-size: 10px; margin-bottom: 2px; }
+  .hud .city { font-size: 16px; }
+  .hud .country { margin-bottom: 6px; font-size: 12px; }
+  .hud .clock, .hud .total { font-size: 20px; margin-bottom: 6px; }
+  .hud .bar { margin: 4px 0 8px; }
+  .hud .rival { margin-bottom: 8px; }
+  .hud .rival img { width: 32px; }
+  .hud .rival .bubble { font-size: 10px; padding: 4px 6px; }
 }

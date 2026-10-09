@@ -88,14 +88,17 @@ export async function learnBreadOffset(
 }
 
 /**
- * How many blocks ahead of a fresh block to bind a Bread request. Bread 1.17.1 anchors it at its
- * own sync height when its queue runs it, after approval, and fails it unless that is the bound
- * block; the failure never reaches the dApp. Measured on testnet 2026-10-09: the anchor landed one
- * block after a fresh-block bind twice (both failed), on the bound block once (it went through).
- * The app keeps a lag that worked and tries the next candidate after one that never showed on chain.
+ * When to hand a Bread request over, in ms after the app sees a new block N; the request binds
+ * block N + 1. Bread 1.17.1 fails a dApp request unless the bound block is the height its
+ * pre-approval check synced to (its queue anchors there after approval, without syncing again),
+ * and the dApp never hears of the failure. Measured 2026-10-09: blocks every 3.00 s (±40 ms);
+ * sending right at a new block, Bread synced to that block once and to the next one three times,
+ * so its sync lands ~2-3 s after the hand-over, on a block edge. Handing over ~2 s into block N
+ * puts it in the middle of block N + 1. A delay that landed is kept; after one that never showed
+ * on chain the next candidate is tried (earlier, then later), remembered per browser.
  */
-export const LAG_CANDIDATES = [1, 0, 2];
-export const nextLagIndex = (index: number, landed: boolean) => (landed ? index : (index + 1) % LAG_CANDIDATES.length);
+export const SEND_DELAYS_MS = [2000, 1000, 2700];
+export const nextDelayIndex = (index: number, landed: boolean) => (landed ? index : (index + 1) % SEND_DELAYS_MS.length);
 
 /**
  * The wallet took the request but the chain never showed its effect. Bread answers a dApp as soon
