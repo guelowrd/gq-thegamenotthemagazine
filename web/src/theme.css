@@ -101,7 +101,7 @@ p { margin: 0 0 12px; }
 .masthead .brand img { width: 190px; height: auto; image-rendering: pixelated; }
 /* the wallet button with the Testnet tag standing beside it, as tall as the button */
 .masthead .account { display: flex; align-items: stretch; gap: 6px; }
-.masthead .testnet { writing-mode: vertical-rl; transform: rotate(180deg); display: flex; align-items: center; justify-content: center; padding: 0 2px; border: 2px solid var(--cyan); font: 7px/1 var(--display); text-transform: uppercase; color: var(--cyan); white-space: nowrap; }
+.masthead .testnet { writing-mode: vertical-rl; display: flex; align-items: center; justify-content: center; padding: 0 2px; border: 2px solid var(--cyan); font: 7px/1 var(--display); text-transform: uppercase; color: var(--cyan); white-space: nowrap; }
 .masthead nav { display: flex; gap: 20px; flex: 1; flex-wrap: wrap; }
 .masthead nav button { background: none; border: 0; padding: 6px 0; font: 13px/1.6 var(--display); text-transform: uppercase; color: var(--white); }
 .masthead nav button.active { color: var(--yellow); text-shadow: 2px 2px 0 var(--pink); }
