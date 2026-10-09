@@ -37,8 +37,9 @@ type Mode =
 
 /**
  * The music each screen plays: the solo song during a 1P run, the result song from "Post your
- * record?" until OK on "Record posted!", the VS song during a shot and the result song on its
- * result; a waiting screen keeps the song of the screen it came from; the home theme elsewhere.
+ * record?" until OK on "Record posted!", the VS song during a shot and the result song from the
+ * moment it ends (claiming included); a waiting screen keeps the song of the screen it came from;
+ * the home theme elsewhere.
  */
 const trackOf = (m: Mode): Track =>
   m.kind === "play-champion"
@@ -215,7 +216,9 @@ function GqApp() {
       setMode(onConfirmed?.(s) ?? { kind: "done", text: outcomeText(text, true), txId: s.txId });
     };
     setTrouble(null);
-    setMode({ kind: "busy", text, back, stage: previous ? "network" : "prepare", since: Date.now(), track: trackOf(mode) });
+    // waiting keeps the song of the screen it came from; after a quiz, the song of what comes next
+    const track = mode.kind === "play-champion" || mode.kind === "play-rival" ? trackOf(back) : trackOf(mode);
+    setMode({ kind: "busy", text, back, stage: previous ? "network" : "prepare", since: Date.now(), track });
     setSubmitAttemptListener((attempt) => update({ text: attempt > 1 ? `${text} (try ${attempt})` : text }));
     setSubmitStageListener((stage) => update({ stage, since: Date.now() }));
     try {
