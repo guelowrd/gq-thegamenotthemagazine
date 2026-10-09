@@ -1,5 +1,6 @@
 // The public boards, arcade style: rank, nickname, number. Read from the chain, no wallet needed.
-// Wide screens show them all (Defended / Smashed, then the Loserboard, below); narrow ones pick one with the tabs.
+// Wide screens show them all (Defended / Smashed below); narrow ones pick one with the tabs. The
+// Loserboard is its own section under them, on every screen.
 
 import { useState, type ReactNode } from "react";
 import { keyOf, type boards, type Ranked } from "@/lib/hub";
@@ -8,7 +9,7 @@ import type { AccountFelts } from "@/lib/notes";
 type Boards = ReturnType<typeof boards>;
 type Name = keyof Boards;
 
-const TITLE: Record<Name, string> = { coins: "Most Geocoins won", records: "Best records", defended: "Defended", smashed: "Smashed", losers: "Loserboard" };
+const TITLE: Record<Name, string> = { coins: "Most Geocoins won", records: "Best records", defended: "Defended", smashed: "Smashed", losers: "Most lost shots" };
 const UNIT: Record<Name, string> = { coins: "Geocoins won", records: "Record", defended: "Rivals beaten", smashed: "Records smashed", losers: "Shots lost" };
 const EMPTY: Record<Name, string> = { coins: "No wins yet.", records: "No records yet.", defended: "No rivals beaten yet.", smashed: "No records yet.", losers: "No losers yet." };
 const COLOR: Record<Name, string> = { coins: "yellow", records: "pink", defended: "mint", smashed: "mint", losers: "red" };
@@ -27,7 +28,7 @@ function Tabs<T extends string>({ items, value, onPick, className }: { items: [T
 
 /** `data`: null while the chain is still being read. `action`: beside the title (Refresh). */
 export function Leaderboards({ data, me, name, action }: { data: Boards | null; me: AccountFelts | null; name: (a: AccountFelts) => string; action?: ReactNode }) {
-  const [pick, setPick] = useState<"coins" | "records" | "wins" | "losers">("coins");
+  const [pick, setPick] = useState<"coins" | "records" | "wins">("coins");
   const [side, setSide] = useState<"defended" | "smashed">("defended");
   const mine = (r: Ranked) => !!me && keyOf(r.who) === keyOf(me);
   const row = (r: Ranked) => (
@@ -80,7 +81,7 @@ export function Leaderboards({ data, me, name, action }: { data: Boards | null; 
         {action}
       </div>
       <section className="high-scores" data-pick={pick}>
-        <Tabs items={[["coins", "Geocoins"], ["records", "Records"], ["wins", "Wins"], ["losers", "Losers"]]} value={pick} onPick={setPick} className="board-tabs" />
+        <Tabs items={[["coins", "Geocoins"], ["records", "Records"], ["wins", "Wins"]]} value={pick} onPick={setPick} className="board-tabs" />
         <div className="boards-grid">
           {board("coins")}
           {board("records")}
@@ -92,8 +93,11 @@ export function Leaderboards({ data, me, name, action }: { data: Boards | null; 
               {board("smashed")}
             </div>
           </section>
-          {board("losers")}
         </div>
+      </section>
+      <section className="loserboard">
+        <h1>Loserboard</h1>
+        <div className="boards-grid">{board("losers")}</div>
       </section>
     </>
   );
