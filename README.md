@@ -70,6 +70,12 @@ themselves travel in the advice map under that key and the script re-hashes them
 claimant also puts the shot's deadline in the advice map under the shot note id, and the hash
 check proves it.
 
+## Deploy
+
+`vercel.json` builds `web/` with Yarn and serves `web/dist` with the two cross-origin isolation
+headers the Miden web client needs (the dev server sets the same ones). Import the repository in
+Vercel as is; no environment variables are required for testnet.
+
 ## Build and test
 
 Toolchain (once): `cargo install --locked midenup && midenup install 0.17.0`.
