@@ -32,7 +32,7 @@ type Mode =
   /** `back`: where the Back button, a failure or a wallet that never finishes returns to */
   /** `track`: the music of the screen it came from, which keeps playing while it waits */
   | { kind: "busy"; text: string; back: Mode; stage: Stage; since: number; track: Track }
-  /** `home`: OK leaves the record behind and goes back to the 1P World Tour (after a win) */
+  /** `home`: OK leaves the record behind and goes back to the splash screen (after a win) */
   | { kind: "done"; title?: string; text: string; rows?: ReportRow[]; txId?: string; share?: { recordId: string; score: number }; retry?: () => void; retryLabel?: string; home?: boolean;
       /** when a retried claim stops making sense: the shot's end, as a clock time (ms) */
       claimUntil?: number };
@@ -626,11 +626,12 @@ function GqApp() {
             className={mode.retry ? "btn" : "btn primary"}
             onClick={() => {
               if (mode.home) {
-                // the record is won: nothing left to do with it, start from the 1P World Tour
+                // the record is won: nothing left to do with it, back to the splash screen
                 setSharedRecord(null);
                 setCode("");
                 history.replaceState(null, "", withoutRecord(location.href));
                 setTab("1p");
+                setStarted(false);
               }
               setMode({ kind: "lobby" });
             }}
