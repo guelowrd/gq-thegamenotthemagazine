@@ -6,8 +6,8 @@ use miden_standards::code_builder::CodeBuilder;
 
 pub const GQ_SCORE_MASM: &str = include_str!("../../masm/games/gq_score.masm");
 pub const CHALLENGE_CORE_MASM: &str = include_str!("../../masm/challenge/challenge_core.masm");
-pub const PRIZE_MASM: &str = include_str!("../../masm/challenge/prize.masm");
-pub const CHALLENGE_MASM: &str = include_str!("../../masm/challenge/challenge.masm");
+pub const RECORD_MASM: &str = include_str!("../../masm/challenge/record.masm");
+pub const SHOT_MASM: &str = include_str!("../../masm/challenge/shot.masm");
 
 fn builder() -> Result<CodeBuilder> {
     CodeBuilder::default()
@@ -17,12 +17,12 @@ fn builder() -> Result<CodeBuilder> {
         .context("link challenge::core")
 }
 
-pub fn prize_script() -> Result<NoteScript> {
-    builder()?.compile_note_script(PRIZE_MASM).context("compile prize.masm")
+pub fn record_script() -> Result<NoteScript> {
+    builder()?.compile_note_script(RECORD_MASM).context("compile record.masm")
 }
 
-pub fn challenge_script() -> Result<NoteScript> {
+pub fn shot_script() -> Result<NoteScript> {
     builder()?
-        .compile_note_script(CHALLENGE_MASM)
-        .context("compile challenge.masm")
+        .compile_note_script(SHOT_MASM)
+        .context("compile shot.masm")
 }

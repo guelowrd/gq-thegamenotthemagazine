@@ -1,4 +1,4 @@
-//! MockChain harness shared by the challenge tests: a GQ faucet, a champion, a challenger and a
+//! MockChain harness shared by the shot tests: a GC faucet, a champion, a rival and a
 //! stranger, all standard wallets (the shape Bread creates), plus helpers to post the notes the
 //! way the clients do: as output notes of a transaction from the creator's funded wallet.
 
@@ -10,7 +10,7 @@ use integration::{
     deadline_advice,
     felt,
     rules::{Answer, City, ROUNDS, VECTOR_CITIES},
-    scripts::{challenge_script, prize_script},
+    scripts::{shot_script, record_script},
     storage::{ChallengeStorage, GqGameData},
     GQ_TAG,
 };
@@ -26,12 +26,12 @@ use miden_standards::{testing::note::NoteBuilder, tx_script::SendNotesTransactio
 use miden_testing::{Auth, MockChain};
 use rand::{rngs::StdRng, SeedableRng};
 
-pub const STAKE: u64 = 1_000_000; // 1 GQ at 6 decimals
+pub const STAKE: u64 = 1_000_000; // 1 GC at 6 decimals
 pub const PRIZE: u64 = 5_000_000;
-pub const FUNDS: u64 = 100_000_000; // every wallet starts with 100 GQ
+pub const FUNDS: u64 = 100_000_000; // every wallet starts with 100 GC
 pub const EXPIRY: u32 = 100;
-/// A challenge must be settled before this block (well before the prize expires).
-pub const CHALLENGE_DEADLINE: u32 = 40;
+/// A shot must be settled before this block (well before the record expires).
+pub const SHOT_DEADLINE: u32 = 40;
 
 pub const CITIES: [City; ROUNDS] = VECTOR_CITIES;
 
@@ -88,41 +88,41 @@ pub struct Setup {
     pub chain: MockChain,
     pub faucet: Account,
     pub champion: Account,
-    pub challenger: Account,
+    pub rival: Account,
     pub stranger: Account,
-    pub prize: Note,
-    pub prize_storage: ChallengeStorage,
-    pub challenge_script: NoteScript,
+    pub record: Note,
+    pub record_storage: ChallengeStorage,
+    pub shot_script: NoteScript,
     seed: u64,
 }
 
-/// Chain with the prize note posted by the champion. `target` is the score to beat.
+/// Chain with the record note posted by the champion. `target` is the score to beat.
 pub fn setup(target: u32) -> Result<Setup> {
     setup_with_cities(target, CITIES)
 }
 
 pub fn setup_with_cities(target: u32, cities: [City; ROUNDS]) -> Result<Setup> {
     let mut builder = MockChain::builder();
-    let faucet = builder.add_existing_basic_faucet(auth(), "GQ", 1_000_000_000, None)?;
+    let faucet = builder.add_existing_basic_faucet(auth(), "GC", 1_000_000_000, None)?;
     let funds = |faucet: AccountId| FungibleAsset::new(faucet, FUNDS).map(Into::into);
     let champion = builder.add_existing_wallet_with_assets(auth(), [funds(faucet.id())?])?;
-    let challenger = builder.add_existing_wallet_with_assets(auth(), [funds(faucet.id())?])?;
+    let rival = builder.add_existing_wallet_with_assets(auth(), [funds(faucet.id())?])?;
     let stranger = builder.add_existing_wallet_with_assets(auth(), [funds(faucet.id())?])?;
     let chain = builder.build()?;
 
-    let challenge_script = challenge_script()?;
-    let prize_storage = ChallengeStorage::prize(
+    let shot_script = shot_script()?;
+    let record_storage = ChallengeStorage::record(
         EXPIRY,
         target,
         STAKE,
         champion.id(),
-        Word::from(challenge_script.root()),
+        Word::from(shot_script.root()),
         game_data(cities).to_felts(),
     );
-    let prize = build_note(
+    let record = build_note(
         champion.id(),
-        prize_script()?,
-        &prize_storage,
+        record_script()?,
+        &record_storage,
         FungibleAsset::new(faucet.id(), PRIZE)?,
         1,
     )?;
@@ -130,49 +130,49 @@ pub fn setup_with_cities(target: u32, cities: [City; ROUNDS]) -> Result<Setup> {
         chain,
         faucet,
         champion: champion.clone(),
-        challenger,
+        rival,
         stranger,
-        prize: prize.clone(),
-        prize_storage,
-        challenge_script,
+        record: record.clone(),
+        record_storage,
+        shot_script,
         seed: 2,
     };
-    s.publish(&champion, &prize)?;
+    s.publish(&champion, &record)?;
     Ok(s)
 }
 
 impl Setup {
     fn account(&self, id: AccountId) -> &Account {
-        [&self.champion, &self.challenger, &self.stranger]
+        [&self.champion, &self.rival, &self.stranger]
             .into_iter()
             .find(|a| a.id() == id)
             .expect("known account")
     }
 
-    /// A challenge note by `player` against the prize, holding `amount` of `faucet`.
-    pub fn challenge_note(
+    /// A shot note by `rival` against the record, holding `amount` of `faucet`.
+    pub fn shot_note(
         &mut self,
-        player: AccountId,
+        rival: AccountId,
         faucet: AccountId,
         amount: u64,
         storage: &ChallengeStorage,
     ) -> Result<Note> {
         self.seed += 1;
         build_note(
-            player,
-            self.challenge_script.clone(),
+            rival,
+            self.shot_script.clone(),
             storage,
             FungibleAsset::new(faucet, amount)?,
             self.seed,
         )
     }
 
-    /// The challenger's correct challenge note for the prize, already on chain.
-    pub fn standard_challenge(&mut self) -> Result<Note> {
-        let storage = self.prize_storage.challenge_for(self.challenger.id(), self.prize.id(), CHALLENGE_DEADLINE);
-        let note = self.challenge_note(self.challenger.id(), self.faucet.id(), STAKE, &storage)?;
-        let challenger = self.challenger.clone();
-        self.publish(&challenger, &note)?;
+    /// The rival's correct shot note for the record, already on chain.
+    pub fn standard_shot(&mut self) -> Result<Note> {
+        let storage = self.record_storage.shot_for(self.rival.id(), self.record.id(), SHOT_DEADLINE);
+        let note = self.shot_note(self.rival.id(), self.faucet.id(), STAKE, &storage)?;
+        let rival = self.rival.clone();
+        self.publish(&rival, &note)?;
         Ok(note)
     }
 
@@ -194,7 +194,7 @@ impl Setup {
     }
 
     /// `account` consumes `notes` with `answers` (none on the reclaim/collect paths): the note
-    /// argument is the answers' commitment, the answers themselves and the challenge deadlines go
+    /// argument is the answers' commitment, the answers themselves and the shot deadlines go
     /// in the advice map.
     pub async fn consume(
         &mut self,

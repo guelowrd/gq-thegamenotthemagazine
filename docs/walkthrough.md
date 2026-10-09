@@ -9,11 +9,11 @@
 
 | step | tx | block |
 |---|---|---|
-| champion posts prize note `0x3a4cdefd…` (3 GQ in that Rust run; the app uses the 1 GQ stake, target 2000) | `0x605937cd2e30d9334e10e76c4d50b3bc72386c0e21ee5306c7775e2e98b9315d` | 56406 |
-| loser posts challenge note (1 GQ) | `0xc959a2388f7ada28883066b5f19278a286327d6ba4fc43ddfb5f26c00567e190` | 56409 |
+| champion posts record note `0x3a4cdefd…` (3 GQ in that Rust run; the app uses the 1 GQ stake, target 2000) | `0x605937cd2e30d9334e10e76c4d50b3bc72386c0e21ee5306c7775e2e98b9315d` | 56406 |
+| loser posts shot note (1 GQ) | `0xc959a2388f7ada28883066b5f19278a286327d6ba4fc43ddfb5f26c00567e190` | 56409 |
 | loser settles with a losing answer → stake forfeited to champion (public P2ID) | `0x002140106cb6e56586edad0c5a5c2801f75fa149ddb56919e66820b1114e7b90` | 56411 |
-| winner posts challenge note (1 GQ) | `0xb15a34b7ccb6758684b2a6c2646510f24e8ae6afd3923665f4cad77dc1a44f49` | 56414 |
-| winner claims prize + stake in one tx (prize note + own challenge note) | `0x8913d0e9cd9f4b0a387002556793bd0e4d2b3d85a40e697bd8674bb2f869fe11` | 56416 |
+| winner posts shot note (1 GQ) | `0xb15a34b7ccb6758684b2a6c2646510f24e8ae6afd3923665f4cad77dc1a44f49` | 56414 |
+| winner claims prize + stake in one tx (record note + own shot note) | `0x8913d0e9cd9f4b0a387002556793bd0e4d2b3d85a40e697bd8674bb2f869fe11` | 56416 |
 
 Balances after (GQ): champion 2 (+1 GQ forfeit still sitting in its P2ID note), loser 4, winner 8.
 Explorer: `https://testnet.midenscan.com/tx/<id>`.
@@ -30,9 +30,9 @@ cd web && yarn install && yarn dev          # http://localhost:5173
 ```
 
 1. Install Bread (latest release at https://www.miden.xyz/bread, v1.17.1+, testnet build), create a wallet, fund fees ("Fund your wallet": 0.01 USDCx).
-2. Get GQ: `cargo run --release --bin gq_faucet mint <your mtst1… address> 10` (anyone with the
+2. Get GQ: `cargo run --release --bin geocoin mint <your mtst1… address> 10` (anyone with the
    faucet key; ask Gaylord). Bread auto-claims the public P2ID note. The stake is 1 GQ: the champion
-   stakes it as the prize, each challenger stakes it to play.
+   stakes it as the prize, each rival stakes it to play.
 3. Connect, "Play", then "Yes" to put 1 GQ on your score. Another account opens the shared link
    and clicks "Play (1 GQ)". A win settles (stake back, plus the prize if you claimed first); a
    loss signs nothing, the champion collects the stake once the challenge deadline (~6 min) passes.
@@ -41,7 +41,7 @@ cd web && yarn install && yarn dev          # http://localhost:5173
    it" after their deadline).
 5. Share: after posting, the champion gets "Share on X" and a link of the form
    `<app>/?prize=<note id>`. Opening it loads the prize straight from the node (no lobby needed)
-   and offers "Challenge & play": one click posts the challenge note and starts the quiz as soon
+   and offers "Challenge & play": one click posts the shot note and starts the quiz as soon
    as the note is on chain; the app then settles the challenge (and claims the prize on a win).
 
 Every transaction is built by the app (`web/src/lib/bread.ts`) and signed in Bread. Bread
@@ -56,17 +56,17 @@ Notes the wallet never synced travel with their inclusion proofs (`importNotes`)
 store (fee-funded from the public faucet, ~1 min of proof-of-work on first use), remembers it in
 `localStorage`, claims whatever is sent to it on connect, and signs the very same requests Bread
 would. `?local=2` is a second wallet, so one browser can play both sides. Mint GQ to the id shown
-in the header: `cargo run --release --bin gq_faucet mint <0x… id> 10`.
+in the header: `cargo run --release --bin geocoin mint <0x… id> 10`.
 
 Full round verified this way on 2026-10-09 (test wallets `0x071d3da3…` champion, `0x35b6665a…`
-challenger): prize `0x6c3143e9…` (target 900), challenge posted from the shared link, perfect
+rival): prize `0x6c3143e9…` (target 900), challenge posted from the shared link, perfect
 play, prize + stake claimed in one transaction; a lost challenge signed nothing and its stake was
 collected by the champion after the deadline. Balances reconciled to the GQ.
 
 Troubleshooting: `SummaryAnchorMismatchError: the transaction summary binds block commitment …
 but the captured chain anchor is …` comes from Bread anchoring at its own sync height; the app
 retries with a fresh block automatically (see design.md, Bread specifics). A `You need N GQ`
-error means the wallet has no GQ yet: mint with `gq_faucet mint`. A transaction that fails with
+error means the wallet has no GQ yet: mint with `geocoin mint`. A transaction that fails with
 `assertion failed with error code: <number>` failed inside the note scripts;
 `cargo run --release --bin probe` prints the code of every message (for example
 `14434107113890732517` = "challenge: the deadline has passed", normal after ~6 min).
@@ -74,4 +74,4 @@ error means the wallet has no GQ yet: mint with `gq_faucet mint`. A transaction 
 Prizes posted before 2026-10-09 carry the previous prize script (root `0x320f3695…`, listed in
 `web/src/config.ts` as legacy): they still show under "Yours" for take-back and their failed
 challenges under "For you", but no new challenge is offered on them. Their claim path read the
-challenge's *current* assets and failed whenever the challenge note's script ran first.
+challenge's *current* assets and failed whenever the shot note's script ran first.

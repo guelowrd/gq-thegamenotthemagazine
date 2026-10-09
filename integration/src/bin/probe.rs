@@ -6,15 +6,15 @@ use miden_client::rpc::{Endpoint, GrpcClient, NodeRpcClient};
 use miden_protocol::errors::MasmError;
 
 const MESSAGES: &[&str] = &[
-    "challenge: note storage must hold the 16 header items plus game data in whole words",
-    "challenge: the deadline has passed",
-    "challenge: the deadline has not passed yet",
-    "challenge: the note must hold exactly one asset",
-    "challenge: the challenge stake is not in the prize's asset",
-    "challenge: the challenge stake is below min_stake",
-    "challenge: no challenge note bound to this prize and consumer in the transaction",
-    "prize: the answer does not beat the target score",
-    "challenge: only the player or the champion may consume this note",
+    "shot: note storage must hold the 16 header items plus game data in whole words",
+    "shot: the deadline has passed",
+    "shot: the deadline has not passed yet",
+    "shot: the note must hold exactly one asset",
+    "shot: the shot's stake is not in the record's asset",
+    "shot: the shot's stake is below min_stake",
+    "shot: no shot note bound to this record and consumer in the transaction",
+    "record: the answer does not beat the target score",
+    "shot: only the rival or the champion may consume this note",
 ];
 
 #[tokio::main]

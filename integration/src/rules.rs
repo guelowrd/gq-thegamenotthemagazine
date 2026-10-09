@@ -56,7 +56,7 @@ pub struct City {
     pub cos: u32,
 }
 
-/// One answered round, as the player's client submits it.
+/// One answered round, as the rival's client submits it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Answer {
     pub lat: u32,

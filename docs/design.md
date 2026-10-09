@@ -1,14 +1,14 @@
-# GQ (GeoQuiz) on Miden: design
+# GQ (GeoQuizz) on Miden: design
 
 Status: approved direction, 2026-10-08. Targets **Miden testnet v0.17**
 only. Note scripts are **MASM for now**; a Rust port is planned once the
 compiler release after 0.11.0 ships (see "Why MASM").
 
-Vocabulary: a **prize note** is posted by the champion. A **challenge note**
-is posted by a challenger and bound to one prize note. The reusable part is
-the *challenge mechanic*; GeoQuiz is one game plugged into it.
+Vocabulary: a **record note** is posted by the champion. A **shot note**
+is posted by a rival and bound to one record note. The reusable part is
+the *challenge mechanic*; GeoQuizz is one game plugged into it.
 
-## 1. The game (GeoQuiz)
+## 1. The game (GeoQuizz)
 
 A quiz is 4 rounds. Each round shows a city name; the player clicks the map.
 The client records the click as centi-degrees (`lat_cd = round((lat+90)*100)`,
@@ -36,7 +36,7 @@ which is exactly the single note argument a Miden note script receives.
 Quiz selection is off-chain and deterministic: `seed` (random Word chosen by the
 champion) plus the dataset pick 4 distinct city indices via SHA-256. The prize
 note stores the resulting `{city_idx, lat_cd, lon_cd, cos_x100}` per round, the
-seed and the dataset hash. A challenger's client re-derives the indices from the
+seed and the dataset hash. A rival's client re-derives the indices from the
 seed and refuses a challenge whose stored rounds don't match the bundled
 dataset. On-chain, only the stored coordinates are used.
 
@@ -46,9 +46,9 @@ Map: equirectangular SVG rendered from Natural Earth 110m country outlines
 (public domain). Click to lat/lon is a linear mapping. No map library.
 
 Stake: one amount, **1 GQ**, for everyone. The champion puts it in the prize
-note (that is the prize); each challenger puts the same amount in their
-challenge note to play. GQ is a fungible token from a faucet we deploy on
-testnet (`gq_faucet` binary; Gaylord mints). The contracts only know a generic
+note (that is the prize); each rival puts the same amount in their
+shot note to play. GQ is a fungible token from a faucet we deploy on
+testnet (`geocoin` binary; Gaylord mints). The contracts only know a generic
 `min_stake` and "same asset as the prize", so another game can use another
 token or amount.
 
@@ -58,11 +58,11 @@ token or amount.
 
 | artifact | paths | who consumes |
 |---|---|---|
-| `prize.masm`     | **claim** (challenger, before expiry, winning answer, with their challenge note in the same tx) / **reclaim** (champion, after expiry) | prize assets go to the consumer |
-| `challenge.masm` | **settle** (player, before the challenge deadline, winning answer only: stake back) / **collect** (champion, from the deadline on) | |
+| `record.masm`     | **claim** (rival, before expiry, winning answer, with their shot note in the same tx) / **reclaim** (champion, after expiry) | prize assets go to the consumer |
+| `shot.masm` | **settle** (player, before the challenge deadline, winning answer only: stake back) / **collect** (champion, from the deadline on) | |
 
 Both include `challenge_core.masm` (storage layout, deadline checks, the
-"find my challenge note" check, asset receipt) and call one game procedure,
+"find my shot note" check, asset receipt) and call one game procedure,
 `beats_target(ANSWER, game_data_ptr, target) -> bool`, provided by
 `games/gq_score.masm`. The core never sees a score; the game decides what beats
 the target. Game data is any whole number of words after the 16-felt header;
@@ -83,19 +83,19 @@ hardcoded.
  2      target             champion's score to beat (strictly greater wins)
  3      min_stake          minimum challenge amount, in the prize's asset
  4      expiry_block       prize lifetime (~24 h = 28 800 blocks at 3 s)
- 5..6   player             [suffix, prefix]  zero in a prize note
- 7      challenge_deadline block by which the player must settle; zero in a prize note
- 8..11  PRIZE_ID           zero in a prize note
-12..15  CHALLENGE_ROOT     challenge.masm script root
-16..    GAME DATA          whole words, any length; GeoQuiz: SEED(4) DATASET(4) 4×{city,lat,lon,cos} = 24
+ 5..6   player             [suffix, prefix]  zero in a record note
+ 7      shot_deadline block by which the player must settle; zero in a record note
+ 8..11  RECORD_ID           zero in a record note
+12..15  SHOT_ROOT     shot.masm script root
+16..    GAME DATA          whole words, any length; GeoQuizz: SEED(4) DATASET(4) 4×{city,lat,lon,cos} = 24
 ```
 
-A challenge note is a copy of its prize note's storage with `player`,
-`challenge_deadline` and `PRIZE_ID` filled in. The deadline is short on purpose
+A shot note is a copy of its record note's storage with `player`,
+`shot_deadline` and `RECORD_ID` filled in. The deadline is short on purpose
 (~6 min = 120 blocks, two or three plays of the game): once the stake is down,
-the challenger gets one sitting, not hours to rehearse the same four cities.
-A challenge settles before `min(challenge_deadline, expiry_block)` and the
-champion collects from that block on, so a challenger cannot pick a deadline
+the rival gets one sitting, not hours to rehearse the same four cities.
+A challenge settles before `min(shot_deadline, expiry_block)` and the
+champion collects from that block on, so a rival cannot pick a deadline
 past the prize's own life. Both notes are **public**, tagged `GQ_TAG` (one u32
 for the app), and carry GQ.
 
@@ -105,11 +105,11 @@ The kernel exposes other input notes' script root, storage commitment and
 initial assets, not their storage contents. So the prize script:
 
 1. loops `0..tx::get_num_input_notes()` for input notes whose
-   `input_note::get_script_root(i) == CHALLENGE_ROOT`;
-2. for each, reads that note's `challenge_deadline` from the advice map (key =
+   `input_note::get_script_root(i) == SHOT_ROOT`;
+2. for each, reads that note's `shot_deadline` from the advice map (key =
    the note id; the claimant supplies it) and builds the storage the note must
    have: its own storage with `player = active_account::get_id()`,
-   `PRIZE_ID = active_note::get_note_id()` and that deadline;
+   `RECORD_ID = active_note::get_note_id()` and that deadline;
 3. hashes the whole storage (same length as its own) with `note::compute_storage_commitment` and compares
    with `input_note::get_storage_info(i).commitment`; a lie about the deadline,
    the player, the prize or the quiz hashes differently;
@@ -120,7 +120,7 @@ initial assets, not their storage contents. So the prize script:
    (verified on testnet 2026-10-09, `ERR_WRONG_ASSET`; test `claim_works_whichever_note_runs_first`);
 5. aborts if no note passes.
 
-A challenge note with altered quiz data, another player or another prize id
+A shot note with altered quiz data, another player or another prize id
 hashes differently and cannot claim.
 
 ### Deadlines
@@ -129,19 +129,19 @@ hashes differently and cannot claim.
 back-dated, so every before-expiry path calls
 `tx::update_expiration_block_delta(CLAIM_FUZZ)`; a back-dated block then buys
 at most `CLAIM_FUZZ` blocks. After-expiry paths cannot be forged forward.
-The prize lives `PRIZE_LIFETIME_BLOCKS` (~24 h); a challenge must be settled
-within `CHALLENGE_WINDOW_BLOCKS` (~6 min) of its creation; the client refuses
-a challenge on a prize with fewer than `MIN_CHALLENGE_WINDOW_BLOCKS` left.
+The prize lives `RECORD_LIFETIME_BLOCKS` (~24 h); a challenge must be settled
+within `SHOT_WINDOW_BLOCKS` (~6 min) of its creation; the client refuses
+a challenge on a prize with fewer than `MIN_SHOT_WINDOW_BLOCKS` left.
 
 ### Flow
 
-- Champion plays, posts a prize note holding the stake, with `target`,
+- Champion plays, posts a record note holding the stake, with `target`,
   `min_stake` (= the stake), expiry and the quiz.
-- Challenger posts a challenge note (1 GQ) copying the prize storage, then
+- Rival posts a shot note (1 GQ) copying the prize storage, then
   plays the same quiz.
 - Winner who is first: one transaction consumes the prize (claim) and their
-  challenge note (settle, win): prize plus stake back.
-- Later winners: settle their challenge note alone (refund) before its deadline.
+  shot note (settle, win): prize plus stake back.
+- Later winners: settle their shot note alone (refund) before its deadline.
 - Loser: nothing to sign. A losing answer cannot settle; the champion collects
   the stake from the challenge deadline (~6 min) on. Prize closure never refunds
   challenges.
@@ -172,14 +172,14 @@ explicit input notes plus per-note args. A local read-only client syncs
 
 1. Timing and clicks are whatever the browser submits; a modified client
    scores 5200. Anti-cheat is deferred by the brief.
-2. A challenger can play first and post the challenge only when they know they
+2. A rival can play first and post the challenge only when they know they
    won; nothing onchain orders challenge before play (no commitment stage).
-3. The champion knows their own quiz. Irrelevant: they want challengers to lose.
-4. A wrong `CHALLENGE_ROOT` in a prize makes it unclaimable until expiry; only
+3. The champion knows their own quiz. Irrelevant: they want rivals to lose.
+4. A wrong `SHOT_ROOT` in a prize makes it unclaimable until expiry; only
    the champion is hurt (clients cross-check before challenging).
 5. Reference block can be back-dated by up to `CLAIM_FUZZ` blocks.
 6. Public notes expose scores, ids and amounts.
-7. A challenger can post a challenge and never play; the champion collects after expiry.
+7. A rival can post a challenge and never play; the champion collects after expiry.
 
 ## 3. Why MASM (verified 2026-10-08)
 
@@ -200,7 +200,7 @@ a standard BasicWallet account, which is what Bread creates. Spike at
   moves the assets into a vanilla BasicWallet.
 - Compiler `main` already has the fix (linked-package stub resolution +
   generated `miden::raw::standards` bindings). It is unreleased. When it ships,
-  port `prize.masm`/`challenge.masm` to Rust; the storage layout, paths and
+  port `record.masm`/`shot.masm` to Rust; the storage layout, paths and
   tests stay.
 
 B2 is a cost, not a blocker: local-node validation is a four-binary topology.
@@ -265,10 +265,10 @@ Bread specifics (found 2026-10-08, see `web/src/lib/bread.ts`):
 
 ```
 gq/
-  masm/challenge/        challenge_core.masm, prize.masm, challenge.masm   (reusable)
-  masm/games/            gq_score.masm                                     (GeoQuiz)
+  masm/challenge/        challenge_core.masm, record.masm, shot.masm   (reusable)
+  masm/games/            gq_score.masm                                     (GeoQuizz)
   integration/           Rust: assemble scripts, rules reference + vectors, MockChain tests,
-                         bins: build_scripts, gq_faucet (deploy/mint), testnet_flow
+                         bins: build_scripts, geocoin (deploy/mint), testnet_flow
   web/                   React app from frontend-template PR #31 (SDK 0.17) + Bread adapter
   docs/design.md, docs/walkthrough.md
   tasks/todo.md, tasks/lessons.md

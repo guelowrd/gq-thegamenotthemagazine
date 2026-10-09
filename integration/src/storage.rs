@@ -1,9 +1,9 @@
-//! Host-side view of the challenge note storage (`masm/challenge/challenge_core.masm`).
+//! Host-side view of the shot note storage (`masm/shot/challenge_core.masm`).
 //!
-//! Both the prize note and the challenge note use this 64-felt layout; a challenge note is its
-//! prize note's storage with `player`, `challenge_deadline` and `prize_id` filled in.
-//! Layout: champion(2) target min_stake expiry | player(2) challenge_deadline | PRIZE_ID(4) |
-//! CHALLENGE_ROOT(4) | game data(48).
+//! Both the record note and the shot note use this 64-felt layout; a shot note is its
+//! record note's storage with `rival`, `shot_deadline` and `record_id` filled in.
+//! Layout: champion(2) target min_stake expiry | rival(2) shot_deadline | RECORD_ID(4) |
+//! SHOT_ROOT(4) | game data(48).
 
 use miden_client::{account::AccountId, note::NoteId, Felt, Word};
 
@@ -11,7 +11,7 @@ use crate::{felt, rules::{City, ROUNDS}};
 
 pub const NUM_STORAGE_ITEMS: usize = 64;
 pub const GAME_DATA_LEN: usize = 8 + 4 * ROUNDS;
-pub const CHALLENGE_DEADLINE_INDEX: usize = 7;
+pub const SHOT_DEADLINE_INDEX: usize = 7;
 
 /// Game-specific payload (48 felts): seed, dataset hash, ten cities.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -43,25 +43,25 @@ pub struct ChallengeStorage {
     pub target: u32,
     pub min_stake: u64,
     pub champion: AccountId,
-    /// `None` in a prize note.
-    pub player: Option<AccountId>,
-    /// Zero in a prize note.
-    pub prize_id: Word,
-    pub challenge_root: Word,
+    /// `None` in a record note.
+    pub rival: Option<AccountId>,
+    /// Zero in a record note.
+    pub record_id: Word,
+    pub shot_root: Word,
     pub game: [Felt; GAME_DATA_LEN],
-    /// Block by which the player must settle; zero in a prize note. A challenge is settleable
-    /// before `min(challenge_deadline, expiry_block)`.
-    pub challenge_deadline: u32,
+    /// Block by which the rival must settle; zero in a record note. A shot is settleable
+    /// before `min(shot_deadline, expiry_block)`.
+    pub shot_deadline: u32,
 }
 
 impl ChallengeStorage {
-    /// The prize note's storage.
-    pub fn prize(
+    /// The record note's storage.
+    pub fn record(
         expiry_block: u32,
         target: u32,
         min_stake: u64,
         champion: AccountId,
-        challenge_root: Word,
+        shot_root: Word,
         game: [Felt; GAME_DATA_LEN],
     ) -> Self {
         Self {
@@ -69,27 +69,27 @@ impl ChallengeStorage {
             target,
             min_stake,
             champion,
-            player: None,
-            prize_id: Word::default(),
-            challenge_root,
+            rival: None,
+            record_id: Word::default(),
+            shot_root,
             game,
-            challenge_deadline: 0,
+            shot_deadline: 0,
         }
     }
 
-    /// The challenge note's storage for `player` against the prize note `prize_id`, settleable
+    /// The shot note's storage for `rival` against the record note `record_id`, settleable
     /// until `deadline`.
-    pub fn challenge_for(&self, player: AccountId, prize_id: NoteId, deadline: u32) -> Self {
+    pub fn shot_for(&self, rival: AccountId, record_id: NoteId, deadline: u32) -> Self {
         Self {
-            player: Some(player),
-            prize_id: prize_id.as_word(),
-            challenge_deadline: deadline,
+            rival: Some(rival),
+            record_id: record_id.as_word(),
+            shot_deadline: deadline,
             ..self.clone()
         }
     }
 
     pub fn to_felts(&self) -> Vec<Felt> {
-        let (player_suffix, player_prefix) = match self.player {
+        let (rival_suffix, rival_prefix) = match self.rival {
             Some(id) => (id.suffix(), Felt::from(id.prefix())),
             None => (felt(0), felt(0)),
         };
@@ -99,12 +99,12 @@ impl ChallengeStorage {
             felt(self.target as u64),
             felt(self.min_stake),
             felt(self.expiry_block as u64),
-            player_suffix,
-            player_prefix,
-            felt(self.challenge_deadline as u64),
+            rival_suffix,
+            rival_prefix,
+            felt(self.shot_deadline as u64),
         ];
-        v.extend_from_slice(self.prize_id.as_elements());
-        v.extend_from_slice(self.challenge_root.as_elements());
+        v.extend_from_slice(self.record_id.as_elements());
+        v.extend_from_slice(self.shot_root.as_elements());
         v.extend_from_slice(&self.game);
         debug_assert_eq!(v.len(), NUM_STORAGE_ITEMS);
         v

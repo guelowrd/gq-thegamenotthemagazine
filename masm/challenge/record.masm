@@ -1,8 +1,8 @@
-#! PRIZE note: the champion's prize and target score.
+#! RECORD note: the champion's prize and target score.
 #!
 #! Paths:
 #! - claim:   anyone but the champion, before expiry, with a winning ANSWER as the note argument,
-#!            consuming their own challenge note for this prize in the same transaction.
+#!            consuming their own shot note for this record in the same transaction.
 #! - reclaim: the champion, after expiry.
 #!
 #! Inputs:  [ANSWER]
@@ -11,7 +11,7 @@
 use {NoteArgs} from miden::protocol::types
 use challenge::core
 
-const ERR_PRIZE_TARGET_NOT_BEATEN = "prize: the answer does not beat the target score"
+const ERR_RECORD_NOT_BEATEN = "record: the answer does not beat the target score"
 
 @note_script
 pub proc main(args: NoteArgs)
@@ -26,7 +26,7 @@ pub proc main(args: NoteArgs)
         exec.core::assert_before_expiry
         exec.core::answer_beats_target
         # => [beats_target]
-        assert.err=ERR_PRIZE_TARGET_NOT_BEATEN
+        assert.err=ERR_RECORD_NOT_BEATEN
         exec.core::assert_challenge_present
         exec.core::receive_all
     end

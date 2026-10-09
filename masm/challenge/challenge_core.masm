@@ -1,28 +1,28 @@
-#! Challenge mechanic, shared by `prize.masm` and `challenge.masm`.
+#! Challenge mechanic, shared by `record.masm` and `shot.masm`.
 #!
-#! A champion posts a PRIZE note holding the prize and a target score. A challenger posts a
-#! CHALLENGE note holding their stake, bound to one prize. Whoever beats the target with a verified
-#! answer takes the prize and their stake back; a challenge that is not won before its deadline is
-#! collected by the champion.
+#! A champion posts a RECORD note holding the prize and a target score. A rival posts a SHOT note
+#! holding their stake, bound to one record. Whoever beats the target with a verified answer takes
+#! the prize and their stake back; a shot that is not won before its deadline is collected by the
+#! champion.
 #!
-#! Both notes share one storage layout (64 felts for GeoQuizz). A challenge note is its prize note's storage
-#! with `player`, `challenge_deadline` and `PRIZE_ID` filled in, which is what lets the prize
-#! recognise it by storage commitment at claim time: the claimant supplies the challenge's deadline
-#! through the advice map (key = the challenge note id), and the recomputed commitment only
-#! matches if that is the deadline the note really carries.
+#! Both notes share one storage layout (64 felts for GeoQuizz). A shot note is its record note's
+#! storage with `rival`, `shot_deadline` and `RECORD_ID` filled in, which is what lets the record
+#! recognise it by storage commitment at claim time: the claimant supplies the shot's deadline
+#! through the advice map (key = the shot note id), and the recomputed commitment only matches if
+#! that is the deadline the note really carries.
 #!
-#!   0..1   champion           [suffix, prefix]
-#!   2      target             score to beat (strictly greater wins)
-#!   3      min_stake          minimum challenge amount, in the prize's asset
-#!   4      expiry_block       prize lifetime (claim window)
-#!   5..6   player             [suffix, prefix]   zero in a prize note
-#!   7      challenge_deadline block by which the player must settle; zero in a prize note
-#!   8..11  PRIZE_ID           zero in a prize note
-#!  12..15  CHALLENGE_ROOT     script root of challenge.masm
-#!  16..    GAME DATA          opaque here; any length in whole words; the game reads it
+#!   0..1   champion        [suffix, prefix]
+#!   2      target          score to beat (strictly greater wins)
+#!   3      min_stake       minimum shot amount, in the record's asset
+#!   4      expiry_block    record lifetime (claim window)
+#!   5..6   rival           [suffix, prefix]   zero in a record note
+#!   7      shot_deadline   block by which the rival must settle; zero in a record note
+#!   8..11  RECORD_ID       zero in a record note
+#!  12..15  SHOT_ROOT       script root of shot.masm
+#!  16..    GAME DATA       opaque here; any length in whole words; the game reads it
 #!
-#! A challenge settles before `min(challenge_deadline, expiry_block)` and the champion collects
-#! from that block on, so a challenger cannot pick a deadline past the prize's own life.
+#! A shot settles before `min(shot_deadline, expiry_block)` and the champion collects from that
+#! block on, so a rival cannot pick a deadline past the record's own life.
 #!
 #! The game plugs in one procedure, `gq::score::beats_target`:
 #!   [ANSWER, data_ptr, target] -> [beats]
@@ -54,24 +54,24 @@ pub const CHAMPION_PREFIX_PTR = 1
 pub const TARGET_PTR = 2
 pub const MIN_STAKE_PTR = 3
 pub const EXPIRY_PTR = 4
-pub const PLAYER_SUFFIX_PTR = 5
-pub const PLAYER_PREFIX_PTR = 6
-pub const CHALLENGE_DEADLINE_PTR = 7
-pub const PRIZE_ID_PTR = 8
-pub const CHALLENGE_ROOT_PTR = 12
+pub const RIVAL_SUFFIX_PTR = 5
+pub const RIVAL_PREFIX_PTR = 6
+pub const SHOT_DEADLINE_PTR = 7
+pub const RECORD_ID_PTR = 8
+pub const SHOT_ROOT_PTR = 12
 pub const GAME_DATA_PTR = 16
 
 # scratch memory
 const NUM_ITEMS_PTR = 260            # this note's storage length
 const EXPECTED_PTR = 512             # expected challenge storage (same length)
-const EXPECTED_PLAYER_SUFFIX_PTR = 517
-const EXPECTED_PLAYER_PREFIX_PTR = 518
+const EXPECTED_RIVAL_SUFFIX_PTR = 517
+const EXPECTED_RIVAL_PREFIX_PTR = 518
 const EXPECTED_DEADLINE_PTR = 519
-const EXPECTED_PRIZE_ID_PTR = 520
+const EXPECTED_RECORD_ID_PTR = 520
 const EXPECTED_COMMITMENT_PTR = 768
 const FOUND_PTR = 772
 const ASSET_PTR = 1024               # this note's assets (up to 16 x 8 felts)
-const OTHER_ASSET_PTR = 1152         # a challenge note's initial assets, same layout
+const OTHER_ASSET_PTR = 1152         # a shot note's initial assets, same layout
 const OTHER_ASSET_VALUE_PTR = 1156
 
 #! A back-dated reference block buys at most this many blocks on the before-expiry paths.
@@ -84,9 +84,9 @@ const ERR_STORAGE_ITEMS = "challenge: note storage must hold the 16 header items
 const ERR_EXPIRED = "challenge: the deadline has passed"
 const ERR_NOT_EXPIRED = "challenge: the deadline has not passed yet"
 const ERR_ONE_ASSET = "challenge: the note must hold exactly one asset"
-const ERR_WRONG_ASSET = "challenge: the challenge stake is not in the prize's asset"
-const ERR_STAKE_TOO_SMALL = "challenge: the challenge stake is below min_stake"
-const ERR_NO_CHALLENGE = "challenge: no challenge note bound to this prize and consumer in the transaction"
+const ERR_WRONG_ASSET = "challenge: the shot's stake is not in the record's asset"
+const ERR_STAKE_TOO_SMALL = "challenge: the shot's stake is below min_stake"
+const ERR_NO_CHALLENGE = "challenge: no shot note bound to this record and consumer in the transaction"
 
 # STORAGE
 # =================================================================================================
@@ -118,8 +118,8 @@ end
 
 #! Inputs:  []
 #! Outputs: [is_player]
-pub proc is_consumer_player
-    mem_load.PLAYER_PREFIX_PTR mem_load.PLAYER_SUFFIX_PTR
+pub proc is_consumer_rival
+    mem_load.RIVAL_PREFIX_PTR mem_load.RIVAL_SUFFIX_PTR
     exec.active_account::get_id
     exec.account_id::eq
 end
@@ -150,34 +150,34 @@ pub proc assert_after_expiry
     exec.before_expiry assertz.err=ERR_NOT_EXPIRED
 end
 
-#! The block a challenge note stops being settleable: the earlier of its own deadline and the
-#! prize expiry.
+#! The block a shot note stops being settleable: the earlier of its own deadline and the
+#! record expiry.
 #!
 #! Inputs:  []
 #! Outputs: [deadline]
-proc challenge_deadline
-    mem_load.CHALLENGE_DEADLINE_PTR mem_load.EXPIRY_PTR u32min
+proc shot_deadline
+    mem_load.SHOT_DEADLINE_PTR mem_load.EXPIRY_PTR u32min
 end
 
 #! Inputs:  []
 #! Outputs: [before_deadline]
-proc before_challenge_deadline
-    exec.tx::get_reference_block_number exec.challenge_deadline
+proc before_shot_deadline
+    exec.tx::get_reference_block_number exec.shot_deadline
     # => [deadline, ref_block]
     lt
 end
 
 #! Inputs:  []
 #! Outputs: []
-pub proc assert_before_challenge_deadline
-    exec.before_challenge_deadline assert.err=ERR_EXPIRED
+pub proc assert_before_shot_deadline
+    exec.before_shot_deadline assert.err=ERR_EXPIRED
     push.CLAIM_FUZZ exec.tx::update_expiration_block_delta
 end
 
 #! Inputs:  []
 #! Outputs: []
-pub proc assert_after_challenge_deadline
-    exec.before_challenge_deadline assertz.err=ERR_NOT_EXPIRED
+pub proc assert_after_shot_deadline
+    exec.before_shot_deadline assertz.err=ERR_NOT_EXPIRED
 end
 
 # VERDICT
@@ -218,10 +218,10 @@ end
 # CLAIM CHECK
 # =================================================================================================
 
-#! Computes the storage commitment the consumer's challenge note for this prize must have, given
+#! Computes the storage commitment the consumer's shot note for this record must have, given
 #! the deadline that note claims, and stores it at EXPECTED_COMMITMENT_PTR.
 #!
-#! Inputs:  [challenge_deadline]
+#! Inputs:  [shot_deadline]
 #! Outputs: []
 proc compute_expected_challenge_commitment
     # copy this note's storage, word by word
@@ -237,45 +237,45 @@ proc compute_expected_challenge_commitment
     end
     drop drop
 
-    # challenge_deadline as claimed by the consumer (the commitment check proves it)
+    # shot_deadline as claimed by the consumer (the commitment check proves it)
     mem_store.EXPECTED_DEADLINE_PTR
 
-    # player = consumer
+    # rival = consumer
     exec.active_account::get_id
     # => [acct_suffix, acct_prefix]
-    mem_store.EXPECTED_PLAYER_SUFFIX_PTR mem_store.EXPECTED_PLAYER_PREFIX_PTR
+    mem_store.EXPECTED_RIVAL_SUFFIX_PTR mem_store.EXPECTED_RIVAL_PREFIX_PTR
 
-    # PRIZE_ID = this note
+    # RECORD_ID = this note
     exec.active_note::get_note_id
-    mem_storew_le.EXPECTED_PRIZE_ID_PTR dropw
+    mem_storew_le.EXPECTED_RECORD_ID_PTR dropw
 
     mem_load.NUM_ITEMS_PTR push.EXPECTED_PTR exec.note::compute_storage_commitment
     # => [COMMITMENT]
     mem_storew_le.EXPECTED_COMMITMENT_PTR dropw
 end
 
-#! Checks that input note `i` is the consumer's challenge note for this prize and that its stake
+#! Checks that input note `i` is the consumer's shot note for this record and that its stake
 #! is acceptable; sets FOUND_PTR when it is. Aborts if a matching note carries the wrong asset or
 #! too small a stake.
 #!
 #! The advice map must hold, under the id of every challenge-script input note, that note's
-#! `challenge_deadline` (one felt); the recomputed commitment proves the value.
+#! `shot_deadline` (one felt); the recomputed commitment proves the value.
 #!
 #! Inputs:  [i]
 #! Outputs: [i]
 proc check_input_note
     dup exec.input_note::get_script_root
     # => [ROOT, i]
-    padw mem_loadw_le.CHALLENGE_ROOT_PTR
+    padw mem_loadw_le.SHOT_ROOT_PTR
     eqw movdn.8 dropw dropw
     # => [root_matches, i]
     if.true
         dup exec.input_note::get_note_id
         # => [NOTE_ID, i]
         adv.push_mapval adv_push
-        # => [challenge_deadline, NOTE_ID, i]
+        # => [shot_deadline, NOTE_ID, i]
         movdn.4 dropw
-        # => [challenge_deadline, i]
+        # => [shot_deadline, i]
         exec.compute_expected_challenge_commitment
         # => [i]
         dup exec.input_note::get_storage_info
@@ -308,8 +308,8 @@ proc check_input_note
     end
 end
 
-#! Aborts unless the transaction also consumes the consumer's challenge note for this prize, in the
-#! prize's asset, with at least `min_stake`.
+#! Aborts unless the transaction also consumes the consumer's shot note for this record, in the
+#! record's asset, with at least `min_stake`.
 #!
 #! Inputs:  []
 #! Outputs: []

@@ -1,9 +1,9 @@
 //! End-to-end on the public testnet with two in-process wallets (same account shape as Bread):
-//! champion posts a prize note, challenger posts a challenge note and settles with a LOSING answer
-//! (the stake is forfeited to the champion as a public P2ID), then a second challenger wins and
-//! CLAIMS prize + stake in one transaction.
+//! champion posts a record note, rival posts a shot note and settles with a LOSING answer
+//! (the stake is forfeited to the champion as a public P2ID), then a second rival wins and
+//! CLAIMS record + stake in one transaction.
 //!
-//!   cargo run --release --bin gq_faucet deploy        # once
+//!   cargo run --release --bin geocoin deploy        # once
 //!   cargo run --release --bin testnet_flow
 //!
 //! Prints every transaction id (https://testnet.midenscan.com/tx/<id>).
@@ -18,7 +18,7 @@ use integration::{
     funding::ensure_accounts_funded,
     helpers::{create_basic_wallet_account, setup_client, wait_for_commit, AccountCreationConfig},
     rules::{Answer, City, ROUNDS, VECTOR_CITIES},
-    scripts::{challenge_script, prize_script},
+    scripts::{shot_script, record_script},
     storage::{ChallengeStorage, GqGameData},
     GQ_TAG,
 };
@@ -34,17 +34,17 @@ use miden_client::{
 
 type C = Client<FilesystemKeyStore>;
 
-const STAKE: u64 = 1_000_000; // 1 GQ
-const PRIZE: u64 = STAKE; // the champion stakes the same amount as the challengers
+const STAKE: u64 = 1_000_000; // 1 GC
+const PRIZE: u64 = STAKE; // the champion stakes the same amount as the rivals
 const LIFETIME_BLOCKS: u32 = 2_000;
-const CHALLENGE_WINDOW_BLOCKS: u32 = 200;
+const SHOT_WINDOW_BLOCKS: u32 = 200;
 const CITIES: [City; ROUNDS] = VECTOR_CITIES;
 
 #[tokio::main]
 async fn main() -> Result<()> {
     let state: serde_json::Value =
-        serde_json::from_str(&std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../gq.json"))?)?;
-    let gq = AccountId::from_hex(state["gq_faucet"].as_str().context("run gq_faucet deploy first")?)?;
+        serde_json::from_str(&std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../geocoin.json"))?)?;
+    let gq = AccountId::from_hex(state["geocoin"].as_str().context("run geocoin deploy first")?)?;
 
     let setup = setup_client().await?;
     let mut client = setup.client;
@@ -70,42 +70,42 @@ async fn main() -> Result<()> {
         mint_gq(&mut client, &keystore, gq, a.id(), 5_000_000).await?;
     }
 
-    // --- champion posts the prize
+    // --- champion posts the record
     let chain_tip = client.get_sync_height().await?.as_u32();
-    let challenge = challenge_script()?;
-    let prize_storage = ChallengeStorage::prize(
+    let shot = shot_script()?;
+    let record_storage = ChallengeStorage::record(
         chain_tip + LIFETIME_BLOCKS,
         2_000, // target: beat 2000 points
         STAKE,
         champion.id(),
-        Word::from(challenge.root()),
+        Word::from(shot.root()),
         GqGameData { seed: draw_word(client.rng()), dataset: Word::default(), cities: CITIES }.to_felts(),
     );
-    let prize = make_note(&mut client, champion.id(), prize_script()?, &prize_storage, FungibleAsset::new(gq, PRIZE)?)?;
-    post(&mut client, champion.id(), &prize).await?;
-    println!("prize note {}", prize.id().to_hex());
+    let record = make_note(&mut client, champion.id(), record_script()?, &record_storage, FungibleAsset::new(gq, PRIZE)?)?;
+    post(&mut client, champion.id(), &record).await?;
+    println!("record note {}", record.id().to_hex());
 
     // --- loser challenges and settles with a losing answer: stake forfeited to the champion
-    let storage = prize_storage.challenge_for(loser.id(), prize.id(), client.get_sync_height().await?.as_u32() + CHALLENGE_WINDOW_BLOCKS);
-    let ch = make_note(&mut client, loser.id(), challenge.clone(), &storage, FungibleAsset::new(gq, STAKE)?)?;
+    let storage = record_storage.shot_for(loser.id(), record.id(), client.get_sync_height().await?.as_u32() + SHOT_WINDOW_BLOCKS);
+    let ch = make_note(&mut client, loser.id(), shot.clone(), &storage, FungibleAsset::new(gq, STAKE)?)?;
     post(&mut client, loser.id(), &ch).await?;
     let bad = CITIES.map(|c| Answer { lat: (c.lat + 9000) % 18000, lon: c.lon, t: 100 });
     consume(&mut client, loser.id(), &[&ch], &bad).await?;
     println!("loser settled: stake forfeited (public P2ID to the champion)");
 
-    // --- winner challenges and claims prize + stake
-    let storage = prize_storage.challenge_for(winner.id(), prize.id(), client.get_sync_height().await?.as_u32() + CHALLENGE_WINDOW_BLOCKS);
-    let ch = make_note(&mut client, winner.id(), challenge, &storage, FungibleAsset::new(gq, STAKE)?)?;
+    // --- winner challenges and claims record + stake
+    let storage = record_storage.shot_for(winner.id(), record.id(), client.get_sync_height().await?.as_u32() + SHOT_WINDOW_BLOCKS);
+    let ch = make_note(&mut client, winner.id(), shot, &storage, FungibleAsset::new(gq, STAKE)?)?;
     post(&mut client, winner.id(), &ch).await?;
     let good = CITIES.map(|c| Answer { lat: c.lat, lon: c.lon, t: 200 });
-    consume(&mut client, winner.id(), &[&prize, &ch], &good).await?;
-    println!("winner claimed prize + stake");
+    consume(&mut client, winner.id(), &[&record, &ch], &good).await?;
+    println!("winner claimed record + stake");
 
     client.sync_state().await?;
     for (name, a) in [("champion", &champion), ("loser", &loser), ("winner", &winner)] {
         let acc = client.get_account(a.id()).await?.context("account")?;
         let bal = acc.vault().get_balance(FungibleAsset::new(gq, 1)?.id())?.as_u64();
-        println!("{name} GQ balance: {}", bal as f64 / 1e6);
+        println!("{name} GC balance: {}", bal as f64 / 1e6);
     }
     Ok(())
 }

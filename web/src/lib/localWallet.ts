@@ -81,10 +81,10 @@ export function useLocalWallet(client: Client | null, runExclusive: <T>(fn: () =
         (await client.getConsumableNotes(AccountId.fromHex(hex!)))
           .flatMap((n) => n.inputNoteRecord() ?? [])
           .filter((r) => {
-            const root = r.details().recipient().script().root().toHex();
+            const root = r.details()?.recipient().script().root().toHex();
             return root !== recordRoot && root !== shotRoot;
           })
-          .map((r) => r.id().toString()),
+          .flatMap((r) => r.id()?.toString() ?? []),
       );
       if (pending.length > 0) {
         setStatus("Claiming…");

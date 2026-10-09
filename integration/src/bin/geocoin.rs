@@ -1,10 +1,10 @@
 //! The GQ token on testnet: a public fungible faucet we control.
 //!
-//!   cargo run --release --bin gq_faucet deploy            # once; writes gq.json
-//!   cargo run --release --bin gq_faucet mint <account> <amount-in-GQ>
+//!   cargo run --release --bin geocoin deploy            # once; writes geocoin.json
+//!   cargo run --release --bin geocoin mint <account> <amount-in-GQ>
 //!
 //! `<account>` is bech32 (mtst1...) or hex. State lives next to the repo root: `store.sqlite3`,
-//! `keystore/` and `gq.json` (faucet id). Fees are paid in USDCx fetched from the testnet faucet.
+//! `keystore/` and `geocoin.json` (faucet id). Fees are paid in USDCx fetched from the testnet faucet.
 
 use anyhow::{bail, Context, Result};
 use integration::{
@@ -30,9 +30,9 @@ use miden_client::{
 };
 use rand::Rng;
 
-pub const GQ_DECIMALS: u8 = 6;
-pub const GQ_MAX_SUPPLY: u64 = 1_000_000_000 * 1_000_000; // 1e9 GQ
-const STATE_FILE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../gq.json");
+pub const GC_DECIMALS: u8 = 6;
+pub const GC_MAX_SUPPLY: u64 = 1_000_000_000 * 1_000_000; // 1e9 GQ
+const STATE_FILE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../geocoin.json");
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -40,7 +40,7 @@ async fn main() -> Result<()> {
     match args.first().map(String::as_str) {
         Some("deploy") => deploy().await,
         Some("mint") if args.len() == 3 => mint(&args[1], &args[2]).await,
-        _ => bail!("usage: gq_faucet deploy | gq_faucet mint <account> <amount-in-GQ>"),
+        _ => bail!("usage: geocoin deploy | geocoin mint <account> <amount-in-GQ>"),
     }
 }
 
@@ -50,10 +50,10 @@ async fn deploy() -> Result<()> {
     client.sync_state().await?;
 
     let faucet = FungibleFaucet::builder()
-        .name(TokenName::new("GeoQuiz")?)
+        .name(TokenName::new("GeoQuizz")?)
         .symbol(TokenSymbol::new("GQ")?)
-        .decimals(GQ_DECIMALS)
-        .max_supply(AssetAmount::new(GQ_MAX_SUPPLY)?)
+        .decimals(GC_DECIMALS)
+        .max_supply(AssetAmount::new(GC_MAX_SUPPLY)?)
         .build()
         .context("build FungibleFaucet")?;
     let policies = TokenPolicyManager::builder()
@@ -81,17 +81,17 @@ async fn deploy() -> Result<()> {
 
     let id = account.id();
     println!("GQ faucet: {} ({})", id.to_bech32(miden_client::account::NetworkId::Testnet), id.to_hex());
-    std::fs::write(STATE_FILE, format!("{{\n  \"gq_faucet\": \"{}\"\n}}\n", id.to_hex()))?;
+    std::fs::write(STATE_FILE, format!("{{\n  \"geocoin\": \"{}\"\n}}\n", id.to_hex()))?;
     println!("wrote {STATE_FILE}");
 
     fund_fees(&mut client, id).await?;
-    println!("Faucet is funded for fees. Mint with: gq_faucet mint <account> <amount>");
+    println!("Faucet is funded for fees. Mint with: geocoin mint <account> <amount>");
     Ok(())
 }
 
 async fn mint(target: &str, amount_gq: &str) -> Result<()> {
     let state: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(STATE_FILE)?)?;
-    let faucet_id = AccountId::from_hex(state["gq_faucet"].as_str().context("no gq_faucet in gq.json")?)?;
+    let faucet_id = AccountId::from_hex(state["geocoin"].as_str().context("no geocoin in geocoin.json")?)?;
     let target_id = parse_account(target)?;
     let amount = parse_gq(amount_gq)?;
 
@@ -137,8 +137,8 @@ fn parse_account(s: &str) -> Result<AccountId> {
 
 fn parse_gq(s: &str) -> Result<u64> {
     let (int, frac) = s.split_once('.').unwrap_or((s, ""));
-    if frac.len() > GQ_DECIMALS as usize {
-        bail!("at most {GQ_DECIMALS} decimals");
+    if frac.len() > GC_DECIMALS as usize {
+        bail!("at most {GC_DECIMALS} decimals");
     }
     let frac = format!("{frac:0<6}");
     Ok(int.parse::<u64>()? * 1_000_000 + frac.parse::<u64>()?)
