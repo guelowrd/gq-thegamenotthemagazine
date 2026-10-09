@@ -73,11 +73,13 @@ record", so another game can use another token or amount.
 
 Both include `challenge_core.masm` (storage layout, deadline checks, the
 "find my shot note" check, asset receipt) and call one game procedure,
-`beats_target(ANSWER, game_data_ptr, target) -> bool`, provided by
-`games/gq_score.masm`. The core never sees a score; the game decides what beats
-the target. Game data is any whole number of words after the 16-felt header;
-the core reads the storage length at run time. Another game replaces that one
-file. Anything not matching a path aborts.
+`beats_target(ANSWER, game_data_ptr, target) -> bool`, imported as
+`game::rules` (GeoQuizz: `games/gq_score.masm`). The core never sees a score;
+the game decides what beats the target. Game data is any whole number of words
+after the 16-felt header; the core reads the storage length at run time.
+Another game links another module (`scripts::scripts_for`); a six-line game in
+the MockChain tests proves it, and `docs/build-your-own-game.md` is the guide.
+Anything not matching a path aborts.
 
 Why two scripts and not one with a kind field: two artifacts named after the
 two concepts explain themselves, each has two paths, and a game can ship a new
@@ -106,7 +108,7 @@ A shot note is a copy of its record note's storage with `rival`,
 the rival gets one sitting, not hours to rehearse the same ten cities.
 A shot settles before `min(shot_deadline, expiry_block)` and the
 champion collects from that block on, so a rival cannot pick a deadline
-past the record's own life. Both notes are **public**, tagged `GQ_TAG` (one u32
+past the record's own life. Both notes are **public**, tagged `NOTE_TAG` (one u32
 for the app), and carry Geocoin.
 
 ### Binding a shot to its record (the claim check)
@@ -167,7 +169,7 @@ BasicWallet, so the standard `receive_asset` / `move_asset_to_note` /
 (custom); Bread executes it verbatim. Notes Bread has not synced are shipped
 as `importNotes` bytes (NoteFile with inclusion proof) and referenced with
 explicit input notes plus per-note args. A local read-only client syncs
-`GQ_TAG` and reads strangers' public notes.
+`NOTE_TAG` and reads strangers' public notes.
 
 ### Lightweight safeguards
 

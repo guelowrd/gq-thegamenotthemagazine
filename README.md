@@ -9,11 +9,15 @@ champion once the shot's short deadline passes. A loser signs nothing.
 GeoQuizz is the game plugged into it: a city name appears, you click the map, points for closeness
 and speed, ten cities per quiz. Players use the [Bread](https://www.miden.xyz/bread) wallet.
 
+**Building another game on the champion/rival notes?** Start with
+[`docs/build-your-own-game.md`](docs/build-your-own-game.md): one MASM procedure, four
+transactions, the pitfalls, and a six-line example game that runs through the same contracts.
+
 - Look and feel: `web/src/theme.css` is the one stylesheet, built from the retro3 design package's
-  `tokens.json` (GeoQuizz Pixel face, palette, hard pixel frames). Art, font and the two tracks
+  `tokens.json` (GeoQuizz Pixel face, palette, hard pixel frames). Art, font and the four music tracks
   live in `web/public/brand/`; the package itself (boards, prototype, handoff notes) stays out of
-  git. Screens: welcome hero → 1P World Tour (free, no wallet) → VS (a record by link or code) →
-  Player Hub (my records, my shots, what rivals left me).
+  git. Screens: welcome hero → 1P World Tour (free, no wallet) → Champion vs Rival (a record by link
+  or code) → Player Hub (my records, my shots, what rivals left me).
 - Design, verified capabilities, blockers and trust assumptions: [`docs/design.md`](docs/design.md)
 - How to run it end to end: [`docs/walkthrough.md`](docs/walkthrough.md)
 - Plan and progress: [`tasks/todo.md`](tasks/todo.md)
@@ -71,7 +75,7 @@ check proves it.
 Toolchain (once): `cargo install --locked midenup && midenup install 0.17.0`.
 
 ```sh
-cargo test -p integration --release          # scoring reference, 23 MockChain tests (all four paths, their failures, deadlines, note order, answer commitment, a longer game tail)
+cargo test -p integration --release          # scoring reference, 24 MockChain tests (all four paths, their failures, deadlines, note order, answer commitment, a longer game tail, a second game)
 cargo run --release --bin build_scripts      # assembles the two note scripts into web/public/scripts/
 cd web && yarn install && yarn test && yarn dev
 ```
@@ -87,16 +91,11 @@ faucet, `geocoin fees` tops up the fee balance it pays mints with).
 `cargo run --release --bin testnet_flow` runs champion / losing rival / winning rival with
 in-process wallets.
 
-## Adapting it to another game
+## Another game on the same notes
 
-1. Replace `masm/games/gq_score.masm` with your `beats_target(ANSWER, data_ptr, target) -> bool`
-   procedure. The core hands it the one-Word note argument (GeoQuizz uses it as a commitment to
-   data in the advice map), a pointer to your game data (any number of whole words after the
-   16-felt header) and the champion's target; you decide what "beats" means (GeoQuizz: a strictly
-   higher score).
-2. Mirror the scoring in `integration/src/rules.rs` (test vectors) and `web/src/lib/rules.ts`.
-3. Keep `masm/challenge/*` as is. Storage layout, the four paths and the binding check do not know
-   what the game is.
+Keep `masm/challenge/*` as is and write one procedure, `beats_target(ANSWER, data_ptr, target)`;
+`scripts::scripts_for(your_game)` builds the two note scripts around it. The step-by-step guide is
+[`docs/build-your-own-game.md`](docs/build-your-own-game.md).
 
 The note scripts are MASM today because the released Rust compiler (0.11.0) cannot yet call the
 standards wallet from a note script; see `docs/design.md` §3 for the port plan.
