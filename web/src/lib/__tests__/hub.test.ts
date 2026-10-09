@@ -122,14 +122,14 @@ describe("boards", () => {
     expect(boards(notes, 400, ME).defended.top.map((r) => [name(r.who), r.value])).toEqual([["JHT", 2]]);
   });
 
-  it("best scores: top 10 records, names may repeat, a tie goes to the first posted, my best row below with its real rank", () => {
+  it("best records: top 10 by score, names may repeat, a tie goes to the first posted, my best row below with its real rank", () => {
     const notes = [record(ME, 50), ...Array.from({ length: 11 }, (_, i) => record(i % 2 ? KQX : MUD, 1000 - i * 10)), record(ME, 40)];
     notes.push(record(MUD, 1000, { createdAt: 999 }));
-    const { scores } = boards(notes, 0, ME);
-    expect(scores.top).toHaveLength(10);
-    expect(scores.top.slice(0, 3).map((r) => [name(r.who), r.value])).toEqual([["MUD", 1000], ["MUD", 1000], ["KQX", 990]]);
-    expect(scores.top[1].at).toBe(999);
-    expect(scores.mine && [scores.mine.rank, scores.mine.value]).toEqual([13, 50]);
+    const { records } = boards(notes, 0, ME);
+    expect(records.top).toHaveLength(10);
+    expect(records.top.slice(0, 3).map((r) => [name(r.who), r.value])).toEqual([["MUD", 1000], ["MUD", 1000], ["KQX", 990]]);
+    expect(records.top[1].at).toBe(999);
+    expect(records.mine && [records.mine.rank, records.mine.value]).toEqual([13, 50]);
   });
 });
 

@@ -265,9 +265,9 @@ table.report td:nth-child(2) { text-align: right; color: var(--muted); }
 
 /* leaderboards: arcade high-score tables, two across with Defended / Smashed below, or one picked on narrow screens */
 .boards-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; align-items: start; }
-.records-module { grid-column: 1 / -1; }
-.records-module > h3 { margin-bottom: 14px; color: var(--yellow); }
-.records-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.wins-module { grid-column: 1 / -1; }
+.wins-module > h3 { margin-bottom: 14px; color: var(--yellow); }
+.wins-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
 .arcade { padding: 8px; }
 .arcade h3 { margin: 0 0 12px; padding: 12px 8px; background: var(--cobalt); font-size: 17px; line-height: 1.4; color: var(--yellow); }
 .arcade table { width: 100%; border-collapse: collapse; table-layout: fixed; font: 16px/1.6 var(--display); }
@@ -285,15 +285,15 @@ table.report td:nth-child(2) { text-align: right; color: var(--muted); }
 .loading-board .skeleton { width: 24%; }
 .board-tabs, .record-tabs { display: none; }
 @media (max-width: 960px) {
-  .boards-grid, .records-pair { display: block; }
+  .boards-grid, .wins-pair { display: block; }
   .board-tabs, .record-tabs { display: flex; gap: 8px; margin-bottom: 20px; }
   .board-tabs .btn, .record-tabs .btn { flex: 1; min-width: 0; margin: 0; padding: 10px 2px; font-size: 11px; }
-  .records-module > h3, .high-scores .arcade, .high-scores .records-module { display: none; }
+  .wins-module > h3, .high-scores .arcade, .high-scores .wins-module { display: none; }
   .high-scores[data-pick="coins"] [data-board="coins"],
-  .high-scores[data-pick="scores"] [data-board="scores"],
-  .high-scores[data-pick="records"] .records-module,
-  .records-module[data-side="defended"] [data-board="defended"],
-  .records-module[data-side="smashed"] [data-board="smashed"] { display: block; }
+  .high-scores[data-pick="records"] [data-board="records"],
+  .high-scores[data-pick="wins"] .wins-module,
+  .wins-module[data-side="defended"] [data-board="defended"],
+  .wins-module[data-side="smashed"] [data-board="smashed"] { display: block; }
 }
 /* four tabs: two rows of two on phones (sideways they wrap: the quiz scrolls the ribbon away) */
 @media (max-width: 640px) {
