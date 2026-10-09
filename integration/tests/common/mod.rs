@@ -6,9 +6,10 @@ use std::collections::BTreeMap;
 
 use anyhow::Result;
 use integration::{
+    answer_advice,
     deadline_advice,
     felt,
-    rules::{pack_answers, Answer, City, ROUNDS},
+    rules::{Answer, City, ROUNDS, VECTOR_CITIES},
     scripts::{challenge_script, prize_script},
     storage::{ChallengeStorage, GqGameData},
     GQ_TAG,
@@ -32,12 +33,7 @@ pub const EXPIRY: u32 = 100;
 /// A challenge must be settled before this block (well before the prize expires).
 pub const CHALLENGE_DEADLINE: u32 = 40;
 
-pub const CITIES: [City; ROUNDS] = [
-    City { idx: 0, lat: 13885, lon: 18235, cos: 66 }, // Paris 48.85N 2.35E
-    City { idx: 1, lat: 6709, lon: 13683, cos: 92 },  // Rio de Janeiro 22.91S 43.17W
-    City { idx: 2, lat: 12569, lon: 31969, cos: 81 }, // Tokyo 35.69N 139.69E
-    City { idx: 3, lat: 5607, lon: 19842, cos: 83 },  // Cape Town 33.93S 18.42E
-];
+pub const CITIES: [City; ROUNDS] = VECTOR_CITIES;
 
 pub fn perfect_answers() -> [Answer; ROUNDS] {
     CITIES.map(|c| Answer { lat: c.lat, lon: c.lon, t: 100 })
@@ -47,9 +43,6 @@ pub fn losing_answers() -> [Answer; ROUNDS] {
     CITIES.map(|c| Answer { lat: (c.lat + 9000) % 18000, lon: (c.lon + 18000) % 36000, t: 100 })
 }
 
-pub fn answer_word(answers: &[Answer; ROUNDS]) -> Word {
-    Word::new(pack_answers(answers).map(felt))
-}
 
 pub fn auth() -> Auth {
     Auth::BasicAuth { auth_scheme: AuthSchemeId::Falcon512Poseidon2 }
@@ -200,19 +193,41 @@ impl Setup {
         self.commit(&executed)
     }
 
-    /// `account` consumes `notes`, each with `arg`; the challenge deadlines go in the advice map.
+    /// `account` consumes `notes` with `answers` (none on the reclaim/collect paths): the note
+    /// argument is the answers' commitment, the answers themselves and the challenge deadlines go
+    /// in the advice map.
     pub async fn consume(
         &mut self,
         account: AccountId,
         notes: &[&Note],
-        arg: Word,
+        answers: Option<&[Answer; ROUNDS]>,
     ) -> Result<ExecutedTransaction, TransactionExecutorError> {
         let owned: Vec<Note> = notes.iter().map(|n| (*n).clone()).collect();
         let advice = deadline_advice(&owned).expect("advice");
-        self.consume_with_advice(account, notes, arg, advice).await
+        self.consume_with_advice(account, notes, answers, advice).await
     }
 
     pub async fn consume_with_advice(
+        &mut self,
+        account: AccountId,
+        notes: &[&Note],
+        answers: Option<&[Answer; ROUNDS]>,
+        mut advice: Vec<(Word, Vec<miden_client::Felt>)>,
+    ) -> Result<ExecutedTransaction, TransactionExecutorError> {
+        let arg = match answers {
+            Some(a) => {
+                let entry = answer_advice(a);
+                let key = entry.0;
+                advice.push(entry);
+                key
+            }
+            None => Word::default(),
+        };
+        self.consume_with_arg(account, notes, arg, advice).await
+    }
+
+    /// The raw form: one note argument for every note, whatever advice the caller brings.
+    pub async fn consume_with_arg(
         &mut self,
         account: AccountId,
         notes: &[&Note],

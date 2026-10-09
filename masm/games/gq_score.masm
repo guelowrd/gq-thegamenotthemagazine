@@ -1,20 +1,109 @@
-#! GeoQuiz scoring, rules version 1. The host reference is `integration/src/rules.rs`; the two are
+#! GeoQuizz scoring, rules version 2. The host reference is `integration/src/rules.rs`; the two are
 #! kept in agreement by the MockChain tests over `rules/vectors.json`.
 #!
-#! Game data layout (24 felts at `data_ptr`, written by the prize/challenge note storage):
+#! Game data layout (48 felts at `data_ptr`, written by the record/shot note storage):
 #!   data_ptr + 0..3    SEED       (opaque to scoring)
 #!   data_ptr + 4..7    DATASET    (opaque to scoring)
-#!   data_ptr + 8 + 4i  round i    [city_idx, lat_cd, lon_cd, cos_x100]
+#!   data_ptr + 8 + 4i  round i    [city_idx, lat_cd, lon_cd, cos_x100], i in 0..10
 #!
-#! One answered round is one felt: `lat_cd * 2^32 + (lon_cd * 2048 + t_10ms)`.
+#! One answered round is one felt: `lat_cd * 2^32 + (lon_cd * 2048 + t_10ms)`. The ten of them do
+#! not fit the note argument, so the argument is their commitment (the hash a note storage of those
+#! ten felts would have) and the felts themselves travel in the advice map under that key.
+#!
+#! A round scores accuracy + speed from a closeness `a` in per-mille that falls off as
+#! exp(-distance / 500 km): accuracy = 850 * a / 1000, speed = 150 * a * (1500 - t) / 1 500 000.
+#! The distance is the flat approximation sqrt(dlat² + (dlon * cos)²) in centi-degrees, and `a`
+#! comes from a table of 128 bands of 25 centi-degrees (≈ 27.8 km): band i holds
+#! d2 <= ((i + 1) * 25)² and is worth round(1000 * exp(-i * 25 * 1.11195 / 500)). Beyond: 0.
+
+use miden::protocol::note
 
 const LON_WRAP = 36000
-const D2_BAND_1 = 10000     # (1 degree)^2  in centi-degrees^2
-const D2_BAND_2 = 90000     # (3 degrees)^2
-const D2_BAND_3 = 640000    # (8 degrees)^2
-const D2_BAND_4 = 4000000   # (20 degrees)^2
+const TIME_CAP = 1500
+const ROUNDS = 10
 const ROUND_DATA_OFFSET = 8
 const ROUND_SIZE = 4
+const BAND_CD = 25
+const NUM_BANDS = 128
+const ACCURACY_MAX = 850
+const SPEED_MAX = 150
+const SPEED_DIVISOR = 1500000    # 1000 * TIME_CAP
+
+# scratch memory, above the challenge core's
+const ANSWERS_PTR = 2048         # the ten packed answers, read from the advice map
+const EXP_PTR = 2304             # the closeness table, 128 felts
+
+const ERR_ANSWERS = "gq: the advice map does not hold the answers the note argument commits to"
+
+# CLOSENESS TABLE
+# =================================================================================================
+
+#! Writes EXP_MILLI (integration/src/rules.rs) to EXP_PTR, four entries per word: the top of the
+#! stack lands at the lowest address, so each group is pushed in reverse.
+#!
+#! Inputs:  []
+#! Outputs: []
+proc load_exp_table
+    push.846.895.946.1000 mem_storew_le.2304 dropw
+    push.678.716.757.801 mem_storew_le.2308 dropw
+    push.542.574.606.641 mem_storew_le.2312 dropw
+    push.434.459.485.513 mem_storew_le.2316 dropw
+    push.348.368.389.411 mem_storew_le.2320 dropw
+    push.278.294.311.329 mem_storew_le.2324 dropw
+    push.223.236.249.263 mem_storew_le.2328 dropw
+    push.178.189.199.211 mem_storew_le.2332 dropw
+    push.143.151.160.169 mem_storew_le.2336 dropw
+    push.114.121.128.135 mem_storew_le.2340 dropw
+    push.92.97.102.108 mem_storew_le.2344 dropw
+    push.73.77.82.87 mem_storew_le.2348 dropw
+    push.59.62.66.69 mem_storew_le.2352 dropw
+    push.47.50.53.56 mem_storew_le.2356 dropw
+    push.38.40.42.44 mem_storew_le.2360 dropw
+    push.30.32.34.36 mem_storew_le.2364 dropw
+    push.24.25.27.28 mem_storew_le.2368 dropw
+    push.19.20.22.23 mem_storew_le.2372 dropw
+    push.15.16.17.18 mem_storew_le.2376 dropw
+    push.12.13.14.15 mem_storew_le.2380 dropw
+    push.10.10.11.12 mem_storew_le.2384 dropw
+    push.8.8.9.9 mem_storew_le.2388 dropw
+    push.6.7.7.8 mem_storew_le.2392 dropw
+    push.5.5.6.6 mem_storew_le.2396 dropw
+    push.4.4.5.5 mem_storew_le.2400 dropw
+    push.3.3.4.4 mem_storew_le.2404 dropw
+    push.3.3.3.3 mem_storew_le.2408 dropw
+    push.2.2.2.2 mem_storew_le.2412 dropw
+    push.2.2.2.2 mem_storew_le.2416 dropw
+    push.1.1.1.2 mem_storew_le.2420 dropw
+    push.1.1.1.1 mem_storew_le.2424 dropw
+    push.1.1.1.1 mem_storew_le.2428 dropw
+end
+
+# ANSWERS
+# =================================================================================================
+
+#! Reads the ten packed answers the note argument commits to from the advice map into memory and
+#! checks the commitment.
+#!
+#! Inputs:  [ANSWER_COMMITMENT]
+#! Outputs: []
+proc load_answers
+    adv.push_mapval
+    # => [COMMITMENT]  advice stack: [a0, ..., a9]
+    push.0 push.1
+    while.true
+        # => [r, COMMITMENT]
+        adv_push dup.1 add.ANSWERS_PTR mem_store
+        add.1 dup u32lt.ROUNDS
+    end
+    drop
+    # => [COMMITMENT]
+    push.ROUNDS push.ANSWERS_PTR exec.note::compute_storage_commitment
+    # => [COMPUTED, COMMITMENT]
+    assert_eqw.err=ERR_ANSWERS
+end
+
+# ONE ROUND
+# =================================================================================================
 
 #! Inputs:  [x, y]
 #! Outputs: [|x - y|]
@@ -28,50 +117,39 @@ proc u32_abs_diff
     end
 end
 
-#! Inputs:  [d2]
-#! Outputs: [distance_points]
-proc distance_points
-    dup u32lte.D2_BAND_1
-    if.true
-        drop push.1000
-    else
-        dup u32lte.D2_BAND_2
-        if.true
-            drop push.700
-        else
-            dup u32lte.D2_BAND_3
-            if.true
-                drop push.400
-            else
-                u32lte.D2_BAND_4
-                if.true
-                    push.150
-                else
-                    push.0
-                end
-            end
-        end
-    end
+#! Whether band `i` is still too small for `d2` (and there is a next band to try).
+#!
+#! Inputs:  [i, d2]
+#! Outputs: [d2 > ((i + 1) * BAND_CD)² and i < NUM_BANDS, i, d2]
+proc outside_band
+    dup u32lt.NUM_BANDS
+    # => [i < NUM_BANDS, i, d2]
+    dup.1 add.1 mul.BAND_CD dup mul
+    # => [threshold, i < NUM_BANDS, i, d2]
+    dup.3 swap u32gt
+    # => [d2 > threshold, i < NUM_BANDS, i, d2]
+    and
 end
 
-#! Inputs:  [t_10ms]
-#! Outputs: [speed_bonus]
-proc speed_points
-    dup u32lte.300
+#! Closeness in per-mille for a squared distance: the first band that contains it, 0 past the last.
+#!
+#! Inputs:  [d2]
+#! Outputs: [a_milli]
+proc closeness
+    push.0
+    # => [i, d2]
+    exec.outside_band
+    while.true
+        add.1
+        exec.outside_band
+    end
+    # => [i, d2]
+    swap drop
+    dup eq.NUM_BANDS
     if.true
-        drop push.300
+        drop push.0
     else
-        dup u32lte.600
-        if.true
-            drop push.200
-        else
-            u32lte.1000
-            if.true
-                push.100
-            else
-                push.0
-            end
-        end
+        add.EXP_PTR mem_load
     end
 end
 
@@ -108,47 +186,57 @@ proc round_score
     # => [d2, ptr, t]
     swap drop
     # => [d2, t]
-    exec.distance_points
-    # => [dist, t]
-    dup eq.0
-    if.true
-        # a miss earns no speed bonus
-        swap drop
-    else
-        swap exec.speed_points add
-    end
+    exec.closeness
+    # => [a, t]
+    swap push.TIME_CAP u32min push.TIME_CAP swap sub
+    # => [time_left, a]
+    dup.1 u32wrapping_mul push.SPEED_MAX u32wrapping_mul u32div.SPEED_DIVISOR
+    # => [speed, a]
+    swap push.ACCURACY_MAX u32wrapping_mul u32div.1000
+    # => [accuracy, speed]
+    add
     # => [round_score]
 end
 
-#! Scores a whole quiz: the four packed answers against the four rounds in the game data.
+# THE QUIZ
+# =================================================================================================
+
+#! Scores the ten answers at ANSWERS_PTR against the ten rounds in the game data.
 #!
-#! Inputs:  [a0, a1, a2, a3, data_ptr]
+#! Inputs:  [data_ptr]
 #! Outputs: [score]
 pub proc score
-    movup.4 add.ROUND_DATA_OFFSET
-    # => [p, a0, a1, a2, a3]
-    dup movup.2 exec.round_score
-    # => [s0, p, a1, a2, a3]
-    swap add.ROUND_SIZE
-    # => [p, acc, a1, a2, a3]
-    dup movup.3 exec.round_score movup.2 add
-    # => [acc, p, a2, a3]
-    swap add.ROUND_SIZE
-    # => [p, acc, a2, a3]
-    dup movup.3 exec.round_score movup.2 add
-    # => [acc, p, a3]
-    swap add.ROUND_SIZE
-    # => [p, acc, a3]
-    movup.2 exec.round_score add
+    exec.load_exp_table
+    add.ROUND_DATA_OFFSET
+    # => [p]
+    push.0.0 push.1
+    while.true
+        # => [r, acc, p]
+        dup add.ANSWERS_PTR mem_load
+        # => [answer, r, acc, p]
+        dup.3 swap exec.round_score
+        # => [s, r, acc, p]
+        movup.2 add
+        # => [acc', r, p]
+        swap add.1
+        # => [r + 1, acc', p]
+        movup.2 add.ROUND_SIZE movdn.2
+        # => [r + 1, acc', p + ROUND_SIZE]
+        dup u32lt.ROUNDS
+    end
+    # => [r, acc, p]
+    drop swap drop
     # => [score]
 end
 
 #! The verdict the challenge core asks the game for: does this answer beat the target?
-#! GeoQuiz: a strictly higher score wins.
+#! GeoQuizz: a strictly higher score wins.
 #!
-#! Inputs:  [a0, a1, a2, a3, data_ptr, target]
+#! Inputs:  [ANSWER_COMMITMENT, data_ptr, target]
 #! Outputs: [beats_target]
 pub proc beats_target
+    exec.load_answers
+    # => [data_ptr, target]
     exec.score
     # => [score, target]
     swap gt

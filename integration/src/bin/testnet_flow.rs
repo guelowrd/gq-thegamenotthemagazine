@@ -12,12 +12,12 @@ use std::{sync::Arc, time::Duration};
 
 use anyhow::{Context, Result};
 use integration::{
+    answer_advice,
     deadline_advice,
     faucet_api::{request_fee_tokens, TESTNET_FAUCET_API},
-    felt,
     funding::ensure_accounts_funded,
     helpers::{create_basic_wallet_account, setup_client, wait_for_commit, AccountCreationConfig},
-    rules::{pack_answers, Answer, City, ROUNDS},
+    rules::{Answer, City, ROUNDS, VECTOR_CITIES},
     scripts::{challenge_script, prize_script},
     storage::{ChallengeStorage, GqGameData},
     GQ_TAG,
@@ -38,12 +38,7 @@ const STAKE: u64 = 1_000_000; // 1 GQ
 const PRIZE: u64 = STAKE; // the champion stakes the same amount as the challengers
 const LIFETIME_BLOCKS: u32 = 2_000;
 const CHALLENGE_WINDOW_BLOCKS: u32 = 200;
-const CITIES: [City; ROUNDS] = [
-    City { idx: 0, lat: 13885, lon: 18235, cos: 66 },
-    City { idx: 1, lat: 6709, lon: 13683, cos: 92 },
-    City { idx: 2, lat: 12569, lon: 31969, cos: 81 },
-    City { idx: 3, lat: 5607, lon: 19842, cos: 83 },
-];
+const CITIES: [City; ROUNDS] = VECTOR_CITIES;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -95,7 +90,7 @@ async fn main() -> Result<()> {
     let ch = make_note(&mut client, loser.id(), challenge.clone(), &storage, FungibleAsset::new(gq, STAKE)?)?;
     post(&mut client, loser.id(), &ch).await?;
     let bad = CITIES.map(|c| Answer { lat: (c.lat + 9000) % 18000, lon: c.lon, t: 100 });
-    consume(&mut client, loser.id(), &[(&ch, word(&bad))]).await?;
+    consume(&mut client, loser.id(), &[&ch], &bad).await?;
     println!("loser settled: stake forfeited (public P2ID to the champion)");
 
     // --- winner challenges and claims prize + stake
@@ -103,7 +98,7 @@ async fn main() -> Result<()> {
     let ch = make_note(&mut client, winner.id(), challenge, &storage, FungibleAsset::new(gq, STAKE)?)?;
     post(&mut client, winner.id(), &ch).await?;
     let good = CITIES.map(|c| Answer { lat: c.lat, lon: c.lon, t: 200 });
-    consume(&mut client, winner.id(), &[(&prize, word(&good)), (&ch, word(&good))]).await?;
+    consume(&mut client, winner.id(), &[&prize, &ch], &good).await?;
     println!("winner claimed prize + stake");
 
     client.sync_state().await?;
@@ -113,10 +108,6 @@ async fn main() -> Result<()> {
         println!("{name} GQ balance: {}", bal as f64 / 1e6);
     }
     Ok(())
-}
-
-fn word(a: &[Answer; ROUNDS]) -> Word {
-    Word::new(pack_answers(a).map(felt))
 }
 
 fn make_note(client: &mut C, sender: AccountId, script: NoteScript, storage: &ChallengeStorage, asset: FungibleAsset) -> Result<Note> {
@@ -132,13 +123,16 @@ async fn post(client: &mut C, account: AccountId, note: &Note) -> Result<()> {
     wait_for_commit(client, tx).await
 }
 
-async fn consume(client: &mut C, account: AccountId, notes: &[(&Note, Word)]) -> Result<()> {
+async fn consume(client: &mut C, account: AccountId, notes: &[&Note], answers: &[Answer; ROUNDS]) -> Result<()> {
     // the notes are public and tagged GQ_TAG, so a sync brings them into the store
     client.sync_state().await?;
-    let owned: Vec<Note> = notes.iter().map(|(n, _)| (*n).clone()).collect();
+    let owned: Vec<Note> = notes.iter().map(|n| (*n).clone()).collect();
+    let (commitment, packed) = answer_advice(answers);
+    let mut advice = deadline_advice(&owned)?;
+    advice.push((commitment, packed));
     let request = TransactionRequestBuilder::new()
-        .input_notes(notes.iter().map(|(n, w)| ((*n).clone(), Some(*w))))
-        .extend_advice_map(deadline_advice(&owned)?)
+        .input_notes(notes.iter().map(|n| ((*n).clone(), Some(commitment))))
+        .extend_advice_map(advice)
         .build()?;
     let tx = client.submit_new_transaction(account, request).await?;
     println!("  consume tx {}", tx.to_hex());

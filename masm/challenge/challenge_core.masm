@@ -5,7 +5,7 @@
 #! answer takes the prize and their stake back; a challenge that is not won before its deadline is
 #! collected by the champion.
 #!
-#! Both notes share one storage layout (40 felts). A challenge note is its prize note's storage
+#! Both notes share one storage layout (64 felts for GeoQuizz). A challenge note is its prize note's storage
 #! with `player`, `challenge_deadline` and `PRIZE_ID` filled in, which is what lets the prize
 #! recognise it by storage commitment at claim time: the claimant supplies the challenge's deadline
 #! through the advice map (key = the challenge note id), and the recomputed commitment only
@@ -26,7 +26,9 @@
 #!
 #! The game plugs in one procedure, `gq::score::beats_target`:
 #!   [ANSWER, data_ptr, target] -> [beats]
-#! ANSWER is the note argument (one Word), data_ptr points at the game data, target is felt 2.
+#! ANSWER is the note argument (one Word), whatever the game makes of it (GeoQuizz: the commitment
+#! to ten packed answers it reads from the advice map), data_ptr points at the game data, target is
+#! felt 2.
 #!
 #! Both notes must hold exactly one asset. Consuming accounts must expose the standard
 #! `basic::receive_asset` procedure (every standard wallet does).

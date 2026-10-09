@@ -1,19 +1,19 @@
 //! Host-side view of the challenge note storage (`masm/challenge/challenge_core.masm`).
 //!
-//! Both the prize note and the challenge note use this 40-felt layout; a challenge note is its
+//! Both the prize note and the challenge note use this 64-felt layout; a challenge note is its
 //! prize note's storage with `player`, `challenge_deadline` and `prize_id` filled in.
 //! Layout: champion(2) target min_stake expiry | player(2) challenge_deadline | PRIZE_ID(4) |
-//! CHALLENGE_ROOT(4) | game data(24).
+//! CHALLENGE_ROOT(4) | game data(48).
 
 use miden_client::{account::AccountId, note::NoteId, Felt, Word};
 
 use crate::{felt, rules::{City, ROUNDS}};
 
-pub const NUM_STORAGE_ITEMS: usize = 40;
-pub const GAME_DATA_LEN: usize = 24;
+pub const NUM_STORAGE_ITEMS: usize = 64;
+pub const GAME_DATA_LEN: usize = 8 + 4 * ROUNDS;
 pub const CHALLENGE_DEADLINE_INDEX: usize = 7;
 
-/// Game-specific payload (24 felts): seed, dataset hash, four cities.
+/// Game-specific payload (48 felts): seed, dataset hash, ten cities.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct GqGameData {
     pub seed: Word,
