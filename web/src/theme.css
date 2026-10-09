@@ -111,7 +111,7 @@ main { max-width: 1440px; margin: 0 auto; padding: 28px 4% 56px; }
 .cols { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 24px; align-items: start; }
 .cols.wide-aside { grid-template-columns: minmax(0, 1fr) 420px; }
 /* one row per sentence: smaller type rather than a wrap */
-.terms { font-size: clamp(10px, 3.3vw, 14px); line-height: 1.7; }
+.terms { font-size: clamp(10px, 3.2vw, 14px); line-height: 1.7; }
 .hero { width: 100%; height: auto; border: 4px solid var(--cyan); outline: 4px solid var(--pink); outline-offset: -8px; }
 /* the slogan: one line where it fits, one word per line on narrow screens */
 .slogan span { white-space: nowrap; }
