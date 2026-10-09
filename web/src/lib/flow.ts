@@ -4,6 +4,7 @@
 import type { GqNote } from "./chain";
 import { shotDeadline, type AccountFelts } from "./notes";
 import type { Place } from "./quiz";
+import { GC_DECIMALS } from "@/config";
 import { roundScore, type Answer, type City } from "./rules";
 
 export const sameAccount = (a: AccountFelts | null | undefined, b: AccountFelts | null | undefined) =>
@@ -87,6 +88,16 @@ export async function learnBreadOffset(
 }
 
 /**
+ * How many blocks ahead of a fresh block to bind a Bread request. Bread 1.17.1 anchors it at its
+ * own sync height when its queue runs it, after approval, and fails it unless that is the bound
+ * block; the failure never reaches the dApp. Measured on testnet 2026-10-09: the anchor landed one
+ * block after a fresh-block bind twice (both failed), on the bound block once (it went through).
+ * The app keeps a lag that worked and tries the next candidate after one that never showed on chain.
+ */
+export const LAG_CANDIDATES = [1, 0, 2];
+export const nextLagIndex = (index: number, landed: boolean) => (landed ? index : (index + 1) % LAG_CANDIDATES.length);
+
+/**
  * The wallet took the request but the chain never showed its effect. Bread answers a dApp as soon
  * as the user approves and can still fail afterwards in its own queue, without telling the dApp.
  */
@@ -124,6 +135,19 @@ export async function submitWithRetry<T>(
       offset = learned === null ? expectedLag + (n % 2) : offset + learned;
     }
   }
+}
+
+/** An amount of Geocoin in words: "1 Geocoin", "10 Geocoins". */
+export function fmtGeocoin(v: bigint): string {
+  const n = Number(v) / 10 ** GC_DECIMALS;
+  return `${n.toLocaleString(undefined, { maximumFractionDigits: GC_DECIMALS })} Geocoin${n === 1 ? "" : "s"}`;
+}
+
+/** The shareable link to a record, and the X post that carries it. */
+export function recordLinks(recordId: string, score: number) {
+  const url = `${location.origin}${location.pathname}?record=${recordId}`;
+  const text = `${score} points on GeoQuizz (@0xMiden). Beat my record:`;
+  return { url, x: `https://x.com/intent/post?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}` };
 }
 
 export type ReportRow = { name: string; seconds: string; points: number };

@@ -1,10 +1,9 @@
 // The Player Hub: my records to take back, my shots to play, lost shots at my records to collect.
 
-import { GC_DECIMALS } from "@/config";
 import type { GqNote } from "@/lib/chain";
+import { fmtGeocoin } from "@/lib/flow";
 import { shotDeadline, type AccountFelts } from "@/lib/notes";
-
-export const fmtGc = (v: bigint) => `${(Number(v) / 10 ** GC_DECIMALS).toLocaleString(undefined, { maximumFractionDigits: GC_DECIMALS })} GC`;
+import { ShareButtons } from "./ShareButtons";
 const sameAccount = (a: AccountFelts | null, b: AccountFelts | null) => !!a && !!b && a.suffix === b.suffix && a.prefix === b.prefix;
 
 export type LobbyProps = {
@@ -36,13 +35,15 @@ export function Lobby({ me, notes, height, onSettle, onCollect }: LobbyProps) {
         <section key={p.id} className={`panel card${expired(p) ? " yellow" : ""}`}>
           <div className="eyebrow">{expired(p) ? "My record / over" : "My record / open"}</div>
           <div className="score">{p.storage.target.toLocaleString()} pts</div>
-          <p className="muted">{fmtGc(p.amount)} on it</p>
           {expired(p) ? (
             <button className="btn primary wide" onClick={() => onCollect(p)}>
               Take it back
             </button>
           ) : (
-            <p className="muted">Waiting for a rival…</p>
+            <>
+              <p className="muted">Waiting for a rival…</p>
+              <ShareButtons recordId={p.id} score={p.storage.target} />
+            </>
           )}
         </section>
       ))}
@@ -54,7 +55,7 @@ export function Lobby({ me, notes, height, onSettle, onCollect }: LobbyProps) {
             <section key={c.id} className="panel card pink">
               <div className="eyebrow">{expired(c) ? "My shot / too late" : "My shot / ready to play"}</div>
               <div className="score">beat {c.storage.target.toLocaleString()}</div>
-              <p className="muted">{fmtGc(c.amount)} on the table</p>
+              <p className="muted">{fmtGeocoin(c.amount)} on the table</p>
               {expired(c) ? (
                 <p className="muted">The champion can take it now.</p>
               ) : (
@@ -70,7 +71,7 @@ export function Lobby({ me, notes, height, onSettle, onCollect }: LobbyProps) {
         shotsAtMyRecords.map((c) => (
           <section key={c.id} className="panel card mint">
             <div className="eyebrow">{expired(c) ? "For you / ready" : "For you / in play"}</div>
-            <div className="score">{fmtGc(c.amount)}</div>
+            <div className="score">{fmtGeocoin(c.amount)}</div>
             {expired(c) ? (
               <button className="btn primary wide" onClick={() => onCollect(c)}>
                 Take it

@@ -58,13 +58,13 @@ vi.mock("@/lib/chain", () => ({
   listGqNotes: vi.fn(async () => chain.notes),
   loadScripts: vi.fn(async () => ({})),
   syncGq: vi.fn(async () => 100),
-  recordLinks: () => ({ url: "u", x: "x" }),
   wordFromHex: () => [0n, 0n, 0n, 0n],
 }));
 
 vi.mock("@/lib/bread", () => ({
   ...bread,
   selfCheckAuthArgs: () => true,
+  reportBreadOutcome: () => undefined,
   setSubmitAttemptListener: () => undefined,
   waitFor: vi.fn(async () => true),
 }));
@@ -173,7 +173,7 @@ describe("home, connected", () => {
     vi.mocked(useMint).mockReturnValue({ mint, result: null, isLoading: false, stage: "idle", error: null, reset: vi.fn() } as never);
     await start(/champion vs rival/i);
     fireEvent.click(await screen.findByRole("button", { name: /get geocoins/i }));
-    await screen.findByText(/10 GC for you! Open your wallet to take them/i);
+    await screen.findByText(/10 Geocoins for you! Open your wallet to take them/i);
     expect(importAccountById).toHaveBeenCalledTimes(1);
     expect(mint).toHaveBeenCalledWith(expect.objectContaining({ targetAccountId: "mtst1me", amount: 10_000_000n, noteType: "public" }));
   });

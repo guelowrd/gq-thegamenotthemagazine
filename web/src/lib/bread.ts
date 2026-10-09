@@ -25,7 +25,7 @@ import { shotStorage, encodeStorage, type AccountFelts, type ChallengeStorage } 
 import { SHOT_DEADLINE_INDEX } from "./notes";
 import { randomSeed, type Word4 } from "./quiz";
 import { packAnswers, type Answer } from "./rules";
-import { learnBreadOffset, parseAnchorMismatch, submitWithRetry } from "./flow";
+import { fmtGeocoin, LAG_CANDIDATES, learnBreadOffset, nextLagIndex, parseAnchorMismatch, submitWithRetry } from "./flow";
 import authVectors from "../../../rules/auth_vectors.json";
 
 /** What the app needs from a signer: Bread's adapter hook, or the local test wallet. */
@@ -102,8 +102,7 @@ export async function requireGc(wallet: Wallet, needed: bigint): Promise<void> {
     .reduce((sum, a) => sum + BigInt(a.amount), 0n);
   if (balance < needed) {
     throw new Error(
-      `You need ${Number(needed) / 1e6} GC but your wallet holds ${Number(balance) / 1e6} GC. ` +
-        `Get Geocoins first.`,
+      `You need ${fmtGeocoin(needed)} and your wallet holds ${fmtGeocoin(balance)}. Get Geocoins first.`,
     );
   }
 }
@@ -138,6 +137,29 @@ async function waitForFreshBlock(client: Client): Promise<number> {
 }
 
 const ANCHOR_RETRIES = 10;
+
+// The bind lag that last worked in this browser (an index into LAG_CANDIDATES); see flow.ts.
+const LAG_KEY = "gq:bread-lag";
+let lagIndex = (() => {
+  try {
+    return (Number(localStorage.getItem(LAG_KEY)) || 0) % LAG_CANDIDATES.length;
+  } catch {
+    return 0;
+  }
+})();
+let lagPending = false;
+
+/** After a Bread request: did its effect show on chain? Sets the bind lag for the next one. */
+export function reportBreadOutcome(landed: boolean) {
+  if (!lagPending) return;
+  lagPending = false;
+  lagIndex = nextLagIndex(lagIndex, landed);
+  try {
+    localStorage.setItem(LAG_KEY, String(lagIndex));
+  } catch {
+    /* private window */
+  }
+}
 /** Progress callback for the UI: which attempt is running. */
 export let onSubmitAttempt: (attempt: number, total: number) => void = () => {};
 export const setSubmitAttemptListener = (fn: typeof onSubmitAttempt) => (onSubmitAttempt = fn);
@@ -166,14 +188,16 @@ async function submit(
     return requestTransaction(Transaction.createCustomTransaction(address, address, await build(builder), inputNoteIds, importNotes));
   }
   let lastBound = 0;
-  return submitWithRetry(
+  // Bread imports shipped notes before it syncs: one more block
+  const lag = (importNotes?.length ? 1 : 0) + LAG_CANDIDATES[lagIndex];
+  const txId = await submitWithRetry(
     async (offset, attempt) => {
       onSubmitAttempt(attempt, ANCHOR_RETRIES);
       const { builder, boundBlock } = await breadBuilder(client, offset);
       lastBound = boundBlock;
       return requestTransaction(Transaction.createCustomTransaction(address, address, await build(builder), inputNoteIds, importNotes));
     },
-    importNotes?.length ? 1 : 0,
+    lag,
     ANCHOR_RETRIES,
     async (e) => {
       const parsed = parseAnchorMismatch(e);
@@ -182,6 +206,8 @@ async function submit(
       return learned;
     },
   );
+  lagPending = true;
+  return txId;
 }
 
 /** Champion: post a record note. `storage.shotRoot` is filled from the loaded script. */

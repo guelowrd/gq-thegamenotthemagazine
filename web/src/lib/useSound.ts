@@ -1,4 +1,5 @@
-// Four original tracks, off by default; nothing loads until the toggle is on.
+// Four original tracks, on by default (the home theme starts with the first click: browsers block
+// sound before it); SOUND OFF stops them and nothing loads while off.
 // ponytail: one <audio> element, no fades; the choice is remembered per browser.
 
 import { useEffect, useRef, useState } from "react";
@@ -15,9 +16,9 @@ const KEY = "gq:sound";
 export function useSound(track: Track) {
   const [on, setOn] = useState(() => {
     try {
-      return localStorage.getItem(KEY) === "on";
+      return localStorage.getItem(KEY) !== "off";
     } catch {
-      return false;
+      return true;
     }
   });
   const audio = useRef<HTMLAudioElement | null>(null);
@@ -31,11 +32,12 @@ export function useSound(track: Track) {
     const src = TRACKS[track];
     if (!a.src.endsWith(src)) a.src = src;
     // after a reload the browser refuses to play before the first click or key: try again then
-    const retry = () => void a.play().catch(() => undefined);
-    void a.play().catch(() => {
+    const arm = () => {
       window.addEventListener("pointerdown", retry, { once: true });
       window.addEventListener("keydown", retry, { once: true });
-    });
+    };
+    const retry = () => void a.play()?.catch(arm);
+    void a.play()?.catch(arm);
     return () => {
       window.removeEventListener("pointerdown", retry);
       window.removeEventListener("keydown", retry);

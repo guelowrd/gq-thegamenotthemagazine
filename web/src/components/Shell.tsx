@@ -1,4 +1,4 @@
-// The arcade chrome around every screen: masthead (wordmark, tabs, wallet), toolbar line.
+// The arcade chrome around every screen: one ribbon with the wordmark, the tabs, sound and wallet.
 
 import type { ReactNode } from "react";
 import { TAB_LABEL, type Tab } from "@/lib/tabs";
@@ -6,7 +6,6 @@ import { TAB_LABEL, type Tab } from "@/lib/tabs";
 export function Shell({
   tab,
   onTab,
-  crumb,
   walletLabel,
   onWallet,
   soundOn,
@@ -15,7 +14,6 @@ export function Shell({
 }: {
   tab: Tab;
   onTab: (t: Tab) => void;
-  crumb: string;
   /** null when no wallet is connected */
   walletLabel: string | null;
   onWallet: () => void;
@@ -36,16 +34,13 @@ export function Shell({
             </button>
           ))}
         </nav>
+        <button className="sound" onClick={onSound} aria-pressed={soundOn}>
+          Sound {soundOn ? "on" : "off"}
+        </button>
         <button className="btn wallet" onClick={onWallet}>
           {walletLabel ?? "Connect wallet"}
         </button>
       </header>
-      <div className="toolbar">
-        <span className="crumb">{crumb}</span>
-        <button onClick={onSound} aria-pressed={soundOn}>
-          Sound {soundOn ? "on" : "off"}
-        </button>
-      </div>
       <main>{children}</main>
     </>
   );

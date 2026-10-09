@@ -43,8 +43,11 @@ describe("Lobby", () => {
   it("shows the champion their own record, and take-it-back only once expired", () => {
     const h = handlers();
     const { rerender } = render(<Lobby me={champion} notes={[prize]} height={100} {...h} />);
-    expect(screen.queryByRole("button")).toBeNull();
+    expect(screen.queryByRole("button", { name: /take it back/i })).toBeNull();
     expect(screen.getByText(/waiting for a rival/i)).toBeInTheDocument();
+    // an open record can be shared again from the hub
+    expect(screen.getByRole("link", { name: /share on x/i }).getAttribute("href")).toContain(encodeURIComponent("?record=0xp"));
+    expect(screen.queryByText(/on it/i)).toBeNull();
     rerender(<Lobby me={champion} notes={[prize]} height={1000} {...h} />);
     fireEvent.click(screen.getByRole("button", { name: /take it back/i }));
     expect(h.onCollect).toHaveBeenCalledWith(prize);

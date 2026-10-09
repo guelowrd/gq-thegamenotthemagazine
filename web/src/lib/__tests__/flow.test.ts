@@ -5,9 +5,13 @@ import type { ChallengeStorage } from "../notes";
 import {
   shotRefusal,
   isAnchorMismatch,
+  LAG_CANDIDATES,
   learnBreadOffset,
+  nextLagIndex,
   myOpenShotsOn,
+  fmtGeocoin,
   outcomeText,
+  recordLinks,
   parseAnchorMismatch,
   parseCode,
   reportRows,
@@ -174,5 +178,27 @@ describe("a pasted code", () => {
   it("cannot read a posted X status and says what to do", () => {
     expect(parseCode("https://x.com/someone/status/1234567890")).toEqual({ hint: "Open the post and copy the GeoQuizz link." });
     expect(parseCode("hello")).toEqual({ hint: "That is not a GeoQuizz code." });
+  });
+});
+
+describe("the bind lag for Bread", () => {
+  it("starts one block ahead, keeps a lag that landed, and cycles through the others on failure", () => {
+    expect(LAG_CANDIDATES[0]).toBe(1);
+    expect(nextLagIndex(0, true)).toBe(0);
+    const tried = [0];
+    for (let i = 0; i < 3; i++) tried.push(nextLagIndex(tried.at(-1)!, false));
+    expect(tried.map((i) => LAG_CANDIDATES[i])).toEqual([1, 0, 2, 1]);
+  });
+});
+
+describe("Geocoin in words", () => {
+  it("spells the token out, singular and plural", () => {
+    expect(fmtGeocoin(1_000_000n)).toBe("1 Geocoin");
+    expect(fmtGeocoin(10_000_000n)).toBe("10 Geocoins");
+  });
+  it("shares a record as a ?record= link, inside the X post too", () => {
+    const { url, x } = recordLinks("0xabc", 9690);
+    expect(url).toMatch(/\?record=0xabc$/);
+    expect(decodeURIComponent(x)).toContain(url);
   });
 });

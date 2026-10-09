@@ -9,16 +9,17 @@ import { LOCAL_WALLET, useLocalWallet } from "@/lib/localWallet";
 import { GEOCOIN_GRANT, useGeocoin } from "@/lib/geocoin";
 import { useSound } from "@/lib/useSound";
 import { CITIES_URL, MIN_SHOT_WINDOW_BLOCKS, RECORD_LIFETIME_BLOCKS, STAKE } from "@/config";
-import { accountFelts, fetchGqNote, knownNote, listGqNotes, loadScripts, parseAccountId, recordLinks, syncGq, wordFromHex, type GqNote } from "@/lib/chain";
-import { postShot, postRecord, settle, collect, selfCheckAuthArgs, setSubmitAttemptListener, waitFor, type Submitted } from "@/lib/bread";
+import { accountFelts, fetchGqNote, knownNote, listGqNotes, loadScripts, parseAccountId, syncGq, wordFromHex, type GqNote } from "@/lib/chain";
+import { postShot, postRecord, settle, collect, reportBreadOutcome, selfCheckAuthArgs, setSubmitAttemptListener, waitFor, type Submitted } from "@/lib/bread";
 import { shotDeadline, type ChallengeStorage } from "@/lib/notes";
-import { NOT_FINISHED, shotRefusal, myOpenShotsOn as openShotsOn, outcomeText, parseCode, reportRows, settlePlan, sharedRecordState, type ReportRow } from "@/lib/flow";
+import { fmtGeocoin, NOT_FINISHED, shotRefusal, myOpenShotsOn as openShotsOn, outcomeText, parseCode, reportRows, settlePlan, sharedRecordState, type ReportRow } from "@/lib/flow";
 import { datasetWord, quizCities, randomSeed, type Place, type Word4 } from "@/lib/quiz";
 import { type City } from "@/lib/rules";
-import { Lobby, fmtGc } from "./Lobby";
+import { Lobby } from "./Lobby";
+import { ShareButtons } from "./ShareButtons";
 import { Play, type PlayResult } from "./Play";
 import { Shell } from "./Shell";
-import { TAB_LABEL, type Tab } from "@/lib/tabs";
+import { type Tab } from "@/lib/tabs";
 import { Welcome } from "./Welcome";
 import { WorldMap } from "./WorldMap";
 
@@ -29,7 +30,7 @@ type Mode =
   | { kind: "play-rival"; shots: GqNote[]; record?: GqNote }
   /** `back`: where the Back button, a failure or a wallet that never finishes returns to */
   | { kind: "busy"; text: string; back: Mode }
-  | { kind: "done"; title?: string; text: string; rows?: ReportRow[]; txId?: string; share?: { url: string; x: string }; retry?: () => void };
+  | { kind: "done"; title?: string; text: string; rows?: ReportRow[]; txId?: string; share?: { recordId: string; score: number }; retry?: () => void };
 
 /** Something that needs a connected wallet; it runs once the wallet is there. */
 type Intent = { kind: "post"; m: Extract<Mode, { kind: "post-record" }> } | { kind: "shot"; record: GqNote } | { kind: "geocoins" };
@@ -156,6 +157,7 @@ function GqApp() {
         const records = await Promise.all(noteIds.map((id) => knownNote(client, id)));
         return posted ? records.every((r) => !!r) : records.every((r) => !!r?.consumed);
       });
+      reportBreadOutcome(seen);
       if (!live()) return;
       void refresh();
       if (seen) return setMode(onConfirmed?.(submitted) ?? { kind: "done", text: outcomeText(text, true), txId });
@@ -200,7 +202,7 @@ function GqApp() {
         return postRecord(client, wallet, storage, STAKE);
       },
       m,
-      ({ txId, noteIds }) => ({ kind: "done", title: "Record posted!", text: "Now find someone to beat you.", txId, share: recordLinks(noteIds[0], m.result.score) }),
+      ({ txId, noteIds }) => ({ kind: "done", title: "Record posted!", text: "Now find someone to beat you.", txId, share: { recordId: noteIds[0], score: m.result.score } }),
     );
   }
 
@@ -273,7 +275,7 @@ function GqApp() {
     try {
       const txId = await mintGeocoins(wallet.address!);
       if (LOCAL_WALLET) await local.claim();
-      setMode({ kind: "done", text: `${fmtGc(GEOCOIN_GRANT)} for you! Open your wallet to take them.`, txId });
+      setMode({ kind: "done", text: `${fmtGeocoin(GEOCOIN_GRANT)} for you! Open your wallet to take them.`, txId });
     } catch (e) {
       fail(e);
       setMode({ kind: "lobby" });
@@ -321,11 +323,11 @@ function GqApp() {
         <div className="big-score">{sharedRecord.storage.target.toLocaleString()} pts to beat</div>
         <div className="row">
           <span>Prize</span>
-          <span className="value">{fmtGc(sharedRecord.amount)}</span>
+          <span className="value">{fmtGeocoin(sharedRecord.amount)}</span>
         </div>
         <div className="row">
           <span>One shot</span>
-          <span className="value">{fmtGc(sharedRecord.storage.minStake)}</span>
+          <span className="value">{fmtGeocoin(sharedRecord.storage.minStake)}</span>
         </div>
         {state === "mine" && <p className="muted">This is yours.</p>}
         {state === "already-challenged" && (
@@ -356,7 +358,6 @@ function GqApp() {
         setTab(t);
         setMode({ kind: "lobby" });
       }}
-      crumb={TAB_LABEL[tab]}
       walletLabel={walletLabel}
       onWallet={() => (wallet.connected ? void wallet.disconnect() : connect())}
       soundOn={sound.on}
@@ -428,7 +429,7 @@ function GqApp() {
       {mode.kind === "play-champion" && <Play cities={mode.cities} places={places} onDone={(result) => setMode({ kind: "post-record", seed: mode.seed, cities: mode.cities, result })} />}
 
       {mode.kind === "post-record" && (
-        <div className="cols">
+        <div className="cols wide-aside">
           <section className="panel">
             <div className="panel-title">Run complete!</div>
             <div className="big-score">{mode.result.score.toLocaleString()} pts</div>
@@ -436,7 +437,13 @@ function GqApp() {
           </section>
           <aside className="panel yellow">
             <div className="panel-title">Post your record?</div>
-            <p>Rivals pay 1 Geocoin to try to beat you. If they do, they take your Geocoin. Otherwise, their Geocoin is yours!</p>
+            <p className="terms">
+              Rivals must pay 1 Geocoin to try to beat you.
+              <br />
+              If they do, they take your Geocoin :(
+              <br />
+              Otherwise, their Geocoin is yours!!!
+            </p>
             <button className="btn primary wide" onClick={() => withWallet({ kind: "post", m: mode })}>
               Post it
             </button>
@@ -477,16 +484,7 @@ function GqApp() {
           {mode.title && <h2>{mode.title}</h2>}
           <p>{mode.text}</p>
           {mode.rows && <Report rows={mode.rows} />}
-          {mode.share && (
-            <p>
-              <a className="btn primary" href={mode.share.x} target="_blank" rel="noreferrer">
-                Share on X
-              </a>
-              <button className="btn" onClick={() => void navigator.clipboard.writeText(mode.share!.url)}>
-                Copy link
-              </button>
-            </p>
-          )}
+          {mode.share && <ShareButtons recordId={mode.share.recordId} score={mode.share.score} />}
           {mode.retry && (
             <button className="btn primary" onClick={mode.retry}>
               Try again

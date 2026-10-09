@@ -95,9 +95,8 @@ p { margin: 0 0 12px; }
 .masthead nav button.active { color: var(--yellow); text-shadow: 2px 2px 0 var(--pink); }
 .masthead nav button.active::before { content: "▶ "; color: var(--pink); }
 .masthead .wallet { display: block; margin: 0; min-height: 44px; padding: 10px 12px; font-size: 12px; max-width: 280px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.toolbar { display: flex; align-items: center; gap: 20px; padding: 10px 4%; background: #0f0c2e; border-bottom: 2px solid var(--rule); font: 12px/1.6 var(--display); text-transform: uppercase; color: var(--cyan); }
-.toolbar .crumb { flex: 1; }
-.toolbar button { background: none; border: 0; color: var(--white); font: inherit; text-transform: inherit; }
+.masthead .sound { background: none; border: 0; padding: 6px 0; font: 12px/1.6 var(--display); text-transform: uppercase; color: var(--cyan); white-space: nowrap; }
+.share { display: flex; flex-wrap: wrap; gap: 4px 0; margin-top: 8px; }
 main { max-width: 1440px; margin: 0 auto; padding: 28px 4% 56px; }
 
 /* welcome: full-image attract screen with a blinking start line */
@@ -110,6 +109,9 @@ main { max-width: 1440px; margin: 0 auto; padding: 28px 4% 56px; }
 
 /* two-column pages: stage left, panel right */
 .cols { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 24px; align-items: start; }
+.cols.wide-aside { grid-template-columns: minmax(0, 1fr) 420px; }
+/* one row per sentence: smaller type rather than a wrap */
+.terms { font-size: clamp(10px, 3.3vw, 14px); line-height: 1.7; }
 .hero { width: 100%; height: auto; border: 4px solid var(--cyan); outline: 4px solid var(--pink); outline-offset: -8px; }
 /* the slogan: one line where it fits, one word per line on narrow screens */
 .slogan span { white-space: nowrap; }
@@ -179,7 +181,6 @@ table.report td:nth-child(2) { text-align: right; color: var(--muted); }
   .masthead { flex-wrap: wrap; padding: 12px 16px; }
   .masthead nav { order: 3; width: 100%; justify-content: space-between; gap: 8px; }
   .masthead .wallet { margin-left: auto; max-width: 160px; }
-  .toolbar { padding: 8px 16px; }
   .panel { padding: 16px; }
   .panel-title { margin: -16px -16px 12px; padding: 8px 16px; }
   .hud .city { font-size: 24px; }
