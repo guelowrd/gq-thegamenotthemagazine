@@ -19,12 +19,10 @@ import {
 } from "@miden-sdk/miden-sdk";
 import { Transaction } from "@miden-sdk/miden-wallet-adapter-base";
 import type { useMidenFiWallet } from "@miden-sdk/miden-wallet-adapter-react";
-import { answerCommitment, buildGqNote, endpoint, fetchNotesWithProof, feltArray, loadScripts, parseAccountId, syncGq, type Client, type GqNote } from "./chain";
+import { buildChallengeNote, endpoint, fetchNotesWithProof, feltArray, loadScripts, parseAccountId, syncNotes, type Client, type ChallengeNote } from "./chain";
 import { SHOT_WINDOW_BLOCKS, GC_FAUCET, NETWORK_POLL_INTERVAL_MS, NETWORK_POLL_TIMEOUT_MS } from "@/config";
-import { shotStorage, encodeStorage, type AccountFelts, type ChallengeStorage } from "./notes";
-import { SHOT_DEADLINE_INDEX } from "./notes";
+import { encodeStorage, SHOT_DEADLINE_INDEX, shotStorage, ZERO_WORD, type AccountFelts, type ChallengeStorage, type GameAnswer } from "./notes";
 import { randomSeed, type Word4 } from "./quiz";
-import { packAnswers, type Answer } from "./rules";
 import { fmtGeocoin, learnBreadOffset, nextDelayIndex, parseAnchorMismatch, SEND_DELAYS_MS, submitWithRetry, withTimeout } from "./flow";
 import authVectors from "../../../rules/auth_vectors.json";
 
@@ -106,7 +104,7 @@ export async function waitFor(client: Client, runExclusive: <T>(fn: () => Promis
   const deadline = Date.now() + NETWORK_POLL_TIMEOUT_MS;
   while (Date.now() < deadline) {
     try {
-      await runExclusive(() => syncGq(client));
+      await runExclusive(() => syncNotes(client));
       if (await runExclusive(check)) return true;
     } catch (e) {
       console.warn("[gq] sync failed while waiting, trying again", e);
@@ -237,7 +235,7 @@ export async function postRecord(client: Client, wallet: Wallet, storage: Challe
   const serial = randomSeed();
   // WASM objects are consumed by the builder, so every attempt builds its own note (same serial,
   // hence the same note id)
-  const make = () => buildGqNote(parseAccountId(wallet.address!), record, felts, amount, serial);
+  const make = () => buildChallengeNote(parseAccountId(wallet.address!), record, felts, amount, serial);
   const noteId = make().id().toString();
   const txId = await submit(client, wallet, (b) => {
     const notes = new NoteArray();
@@ -248,14 +246,14 @@ export async function postRecord(client: Client, wallet: Wallet, storage: Challe
 }
 
 /** Rival: post a shot note at `record`, staking `record.storage.minStake`. */
-export async function postShot(client: Client, wallet: Wallet, record: GqNote, me: AccountFelts): Promise<Submitted & { deadline: number }> {
+export async function postShot(client: Client, wallet: Wallet, record: ChallengeNote, me: AccountFelts): Promise<Submitted & { deadline: number }> {
   await requireGc(wallet, record.storage.minStake);
   const { shot } = await loadScripts();
   const deadline = (await client.getSyncHeight()) + SHOT_WINDOW_BLOCKS;
   const storage = shotStorage(record.storage, me, record.idWord, deadline);
   const felts = encodeStorage(storage);
   const serial = randomSeed();
-  const make = () => buildGqNote(parseAccountId(wallet.address!), shot, felts, record.storage.minStake, serial);
+  const make = () => buildChallengeNote(parseAccountId(wallet.address!), shot, felts, record.storage.minStake, serial);
   const noteId = make().id().toString();
   const txId = await submit(client, wallet, (b) => {
     const notes = new NoteArray();
@@ -270,7 +268,7 @@ export async function postShot(client: Client, wallet: Wallet, record: GqNote, m
  * all of them); when `record` is given, claim it in the same transaction. The notes travel with
  * their inclusion proofs so Bread needs no prior sync of them.
  */
-export async function settle(client: Client, wallet: Wallet, shots: GqNote[], record: GqNote | undefined, answers: Answer[]): Promise<Submitted> {
+export async function settle(client: Client, wallet: Wallet, shots: ChallengeNote[], record: ChallengeNote | undefined, answer: GameAnswer): Promise<Submitted> {
   if (shots.length === 0) throw new Error("no shot note to settle");
   const ids = [...(record ? [record.id] : []), ...shots.map((c) => c.id)];
   const { files } = await fetchNotesWithProof(ids);
@@ -279,15 +277,15 @@ export async function settle(client: Client, wallet: Wallet, shots: GqNote[], re
   const build = async (b: TransactionRequestBuilder) => {
     const { inputs } = await fetchNotesWithProof(ids);
     const advice = new AdviceMap();
-    // the note argument commits to the answers; the scripts read them from the advice map
-    advice.insert(answerCommitment(answers), feltArray(packAnswers(answers)));
+    // whatever the game reads besides the note argument (GeoQuizz: its ten answers)
+    for (const [key, felts] of answer.advice) advice.insert(wordOf(key), feltArray(felts));
     for (const input of inputs) {
       // the record script learns each shot's deadline from the advice map and proves it by commitment
       if (input.note().recipient().script().root().toHex() === shotRoot) {
         const items = input.note().recipient().storage().items();
         advice.insert(Word.fromHex(input.id().toString()), feltArray([items[SHOT_DEADLINE_INDEX].asInt()]));
       }
-      b = b.withExplicitInputNote(input, answerCommitment(answers));
+      b = b.withExplicitInputNote(input, wordOf(answer.arg));
     }
     return b.extendAdviceMap(advice).build();
   };
@@ -295,18 +293,16 @@ export async function settle(client: Client, wallet: Wallet, shots: GqNote[], re
 }
 
 /** Champion after expiry: reclaim a record note or collect a lost shot's stake. */
-export async function collect(client: Client, wallet: Wallet, note: GqNote): Promise<Submitted> {
+export async function collect(client: Client, wallet: Wallet, note: ChallengeNote): Promise<Submitted> {
   const { files } = await fetchNotesWithProof([note.id]);
   const build = async (b: TransactionRequestBuilder) => {
     const { inputs } = await fetchNotesWithProof([note.id]);
-    return b.withExplicitInputNote(inputs[0], Word.newFromFelts(feltsOf([0n, 0n, 0n, 0n]))).build();
+    return b.withExplicitInputNote(inputs[0], wordOf(ZERO_WORD)).build();
   };
   return { txId: await submit(client, wallet, build, [note.id], files), noteIds: [note.id] };
 }
 
-function feltsOf(w: Word4): Felt[] {
-  return w.map((v) => new Felt(v));
-}
+const wordOf = (w: Word4) => Word.newFromFelts(w.map((v) => new Felt(v)));
 
 // keep the unused-import linter honest about the types this file relies on
 export type { NoteAndArgs, NoteAndArgsArray };

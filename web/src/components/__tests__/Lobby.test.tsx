@@ -2,7 +2,7 @@
 // show exactly the actions the rules allow.
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import type { GqNote } from "@/lib/chain";
+import type { ChallengeNote } from "@/lib/chain";
 import type { ChallengeStorage } from "@/lib/notes";
 import { Lobby } from "../Lobby";
 
@@ -16,13 +16,11 @@ const base: ChallengeStorage = {
   rival: null,
   recordId: [0n, 0n, 0n, 0n],
   shotRoot: [1n, 1n, 1n, 1n],
-  seed: [0n, 0n, 0n, 0n],
-  dataset: [0n, 0n, 0n, 0n],
-  cities: [],
+  game: [],
   shotDeadline: 0,
 };
-const prize: GqNote = { id: "0xp", idWord: [9n, 9n, 9n, 9n], kind: "record", storage: base, amount: 1_000_000n, consumed: false };
-const myChallenge: GqNote = {
+const prize: ChallengeNote = { id: "0xp", idWord: [9n, 9n, 9n, 9n], kind: "record", storage: base, amount: 1_000_000n, consumed: false };
+const myChallenge: ChallengeNote = {
   id: "0xc",
   idWord: [1n, 1n, 1n, 1n],
   kind: "shot",

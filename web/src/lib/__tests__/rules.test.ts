@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import vectors from "../../../../rules/vectors.json";
-import { answerCommitment } from "../chain";
-import { closeness, EXP_MILLI, packAnswers, quizScore, QUIZ_MAX, ROUNDS, roundScore, unpackRound, type Answer, type City } from "../rules";
+import { answerCommitment, closeness, EXP_MILLI, packAnswers, quizScore, QUIZ_MAX, ROUNDS, roundScore, unpackRound, type Answer, type City } from "../rules";
 
 const PARIS: City = { idx: 0, lat: 13885, lon: 18235, cos: 66 };
 const ans = (lat: number, lon: number, t: number): Answer => ({ lat, lon, t });

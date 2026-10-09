@@ -24,7 +24,6 @@ export const RECORD_SCRIPT_URL = "/scripts/record.bin";
 export const SHOT_SCRIPT_URL = "/scripts/shot.bin";
 export const CITIES_URL = "/cities.json";
 
-export const EXPLORER_BASE_URL = "https://testnet.midenscan.com";
 export const NETWORK_POLL_INTERVAL_MS = 2_500;
 export const NETWORK_POLL_TIMEOUT_MS = 120_000;
 

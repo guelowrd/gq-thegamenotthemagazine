@@ -2,12 +2,29 @@
 // Mirrored by integration/src/quiz.rs and checked against rules/quiz_vectors.json.
 
 import { cosX100, latToCd, lonToCd, ROUNDS, type City } from "./rules";
+import type { Word4 } from "./notes";
 
+export type { Word4 };
 export type Place = { name: string; country: string; lat: number; lon: number };
 
-/** A seed is four field elements; its byte form is the four u64s little-endian. */
-export type Word4 = [bigint, bigint, bigint, bigint];
+/** GeoQuizz's game data in a note: seed, dataset hash, then [idx, lat, lon, cos] per city (48 felts). */
+export type GqGame = { seed: Word4; dataset: Word4; cities: City[] };
+const GAME_ITEMS = 8 + 4 * ROUNDS;
 
+export function encodeGame(g: GqGame): bigint[] {
+  if (g.cities.length !== ROUNDS) throw new Error(`expected ${ROUNDS} cities`);
+  return [...g.seed, ...g.dataset, ...g.cities.flatMap((c) => [c.idx, c.lat, c.lon, c.cos].map(BigInt))];
+}
+
+export function decodeGame(felts: bigint[]): GqGame {
+  if (felts.length !== GAME_ITEMS) throw new Error(`not GeoQuizz game data (${felts.length} felts)`);
+  const word = (at: number): Word4 => [felts[at], felts[at + 1], felts[at + 2], felts[at + 3]];
+  const cities: City[] = [];
+  for (let b = 8; b < GAME_ITEMS; b += 4) cities.push({ idx: Number(felts[b]), lat: Number(felts[b + 1]), lon: Number(felts[b + 2]), cos: Number(felts[b + 3]) });
+  return { seed: word(0), dataset: word(4), cities };
+}
+
+/** A seed's byte form: its four field elements as u64 little-endian. */
 export function seedBytes(seed: Word4): Uint8Array {
   const out = new Uint8Array(32);
   const view = new DataView(out.buffer);

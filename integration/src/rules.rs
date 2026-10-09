@@ -293,6 +293,7 @@ mod vector_tests {
         assert_eq!(v["perfect_instant"], QUIZ_MAX);
         assert_eq!(v["perfect_at_the_cap"], 8500);
         assert_eq!(v["all_missed"], 0);
-        assert_eq!(v["mixed_bands"], 1000 + 874 + 376 + 0 + 460 + 5 * 850);
+        // the fourth city is too far and scores nothing
+        assert_eq!(v["mixed_bands"], 1000 + 874 + 376 + 460 + 5 * 850);
     }
 }

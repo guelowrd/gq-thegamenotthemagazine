@@ -1,7 +1,8 @@
 // Plays one quiz: ten cities, one click each, time measured in the browser. Map left, HUD right.
 
 import { useEffect, useRef, useState } from "react";
-import { WorldMap, type LatLon } from "./WorldMap";
+import { WorldMap } from "./WorldMap";
+import type { LatLon } from "@/lib/map";
 import { latToCd, lonToCd, quizScore, roundScore, TIME_CAP, type Answer, type City } from "@/lib/rules";
 import type { Place } from "@/lib/quiz";
 import { blocksToClock } from "@/lib/flow";

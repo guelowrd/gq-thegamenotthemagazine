@@ -9,12 +9,12 @@ import { LOCAL_WALLET, useLocalWallet } from "@/lib/localWallet";
 import { GEOCOIN_GRANT, useGeocoin } from "@/lib/geocoin";
 import { useSound, type Track } from "@/lib/useSound";
 import { BLOCK_SECONDS, CITIES_URL, MIN_SHOT_WINDOW_BLOCKS, RECORD_LIFETIME_BLOCKS, STAKE } from "@/config";
-import { accountFelts, fetchGqNote, knownNote, listGqNotes, loadScripts, parseAccountId, syncGq, wordFromHex, type GqNote } from "@/lib/chain";
+import { accountFelts, fetchChallengeNote, knownNote, listChallengeNotes, loadScripts, parseAccountId, syncNotes, wordFromHex, type ChallengeNote } from "@/lib/chain";
 import { postShot, postRecord, settle, collect, reportBreadOutcome, selfCheckAuthArgs, setSubmitAttemptListener, setSubmitStageListener, waitFor, type Submitted } from "@/lib/bread";
 import { shotDeadline, type ChallengeStorage } from "@/lib/notes";
 import { claimVerdict, explain, fmtGeocoin, NOT_FINISHED, SHOT_LOST, shotRefusal, withoutRecord, withTimeout, type Trouble, myOpenShotsOn as openShotsOn, outcomeText, parseCode, reportRows, settlePlan, sharedRecordState, type ReportRow } from "@/lib/flow";
-import { datasetWord, quizCities, randomSeed, type Place, type Word4 } from "@/lib/quiz";
-import { type City } from "@/lib/rules";
+import { datasetWord, decodeGame, encodeGame, quizCities, randomSeed, type Place, type Word4 } from "@/lib/quiz";
+import { gqAnswer, type City } from "@/lib/rules";
 import { Lobby } from "./Lobby";
 import { ShareButtons } from "./ShareButtons";
 import { Play, type PlayResult } from "./Play";
@@ -28,7 +28,7 @@ type Mode =
   | { kind: "lobby" }
   | { kind: "play-champion"; seed: Word4; cities: City[] }
   | { kind: "post-record"; seed: Word4; cities: City[]; result: PlayResult }
-  | { kind: "play-rival"; shots: GqNote[]; record?: GqNote }
+  | { kind: "play-rival"; shots: ChallengeNote[]; record?: ChallengeNote }
   /** `back`: where the Back button, a failure or a wallet that never finishes returns to */
   /** `track`: the music of the screen it came from, which keeps playing while it waits */
   | { kind: "busy"; text: string; back: Mode; stage: Stage; since: number; track: Track }
@@ -55,7 +55,7 @@ const trackOf = (m: Mode): Track =>
           : "home";
 
 /** Something that needs a connected wallet; it runs once the wallet is there. */
-type Intent = { kind: "post"; m: Extract<Mode, { kind: "post-record" }> } | { kind: "shot"; record: GqNote } | { kind: "geocoins" };
+type Intent = { kind: "post"; m: Extract<Mode, { kind: "post-record" }> } | { kind: "shot"; record: ChallengeNote } | { kind: "geocoins" };
 
 export function AppContent() {
   // `useMidenClient()` throws until the provider has created the client, so gate on readiness first.
@@ -104,13 +104,13 @@ function GqApp() {
   const [tab, setTab] = useState<Tab>(sharedRecordId ? "vs" : "1p");
   const [places, setPlaces] = useState<Place[]>([]);
   const [dataset, setDataset] = useState<Word4 | null>(null);
-  const [notes, setNotes] = useState<GqNote[]>([]);
+  const [notes, setNotes] = useState<ChallengeNote[]>([]);
   const [height, setHeight] = useState(0);
   const [mode, setMode] = useState<Mode>({ kind: "lobby" });
   const [trouble, setTrouble] = useState<{ t: Trouble; retry?: () => void } | null>(null);
   const [netSlow, setNetSlow] = useState(false);
   const [authCheck, setAuthCheck] = useState<boolean | null>(null);
-  const [sharedRecord, setSharedRecord] = useState<GqNote | null>(null);
+  const [sharedRecord, setSharedRecord] = useState<ChallengeNote | null>(null);
   const [code, setCode] = useState("");
   const [pending, setPending] = useState<Intent | null>(null);
   const sound = useSound(trackOf(mode));
@@ -127,7 +127,7 @@ function GqApp() {
 
   /** A record opened by link or code; a slow network gets "Try again". */
   const loadRecord = (id: string) =>
-    withTimeout(fetchGqNote(id), 30_000, "Loading the record")
+    withTimeout(fetchChallengeNote(id), 30_000, "Loading the record")
       .then((r) => {
         setSharedRecord(r);
         setTrouble(null);
@@ -153,9 +153,9 @@ function GqApp() {
   const refresh = useCallback(async () => {
     if (!isReady || !client) return;
     try {
-      const h = await withTimeout(runExclusive(() => syncGq(client)), 30_000, "Syncing");
+      const h = await withTimeout(runExclusive(() => syncNotes(client)), 30_000, "Syncing");
       setHeight(h);
-      setNotes(await runExclusive(() => listGqNotes(client)));
+      setNotes(await runExclusive(() => listChallengeNotes(client)));
       setNetSlow(false);
     } catch (e) {
       console.warn("[gq] background sync failed", e);
@@ -237,7 +237,7 @@ function GqApp() {
     setSubmitStageListener((stage) => update({ stage, since: Date.now() }));
     try {
       if (previous) {
-        await runExclusive(() => syncGq(client)).catch(() => undefined);
+        await runExclusive(() => syncNotes(client)).catch(() => undefined);
         if (await runExclusive(() => landed(previous.noteIds))) return live() ? finish(previous) : undefined;
         update({ stage: "prepare", since: Date.now() });
       }
@@ -279,9 +279,7 @@ function GqApp() {
           rival: null,
           recordId: [0n, 0n, 0n, 0n],
           shotRoot: [0n, 0n, 0n, 0n], // filled from the loaded script
-          seed: m.seed,
-          dataset,
-          cities: m.cities,
+          game: encodeGame({ seed: m.seed, dataset, cities: m.cities }),
           shotDeadline: 0,
         };
         return postRecord(client, wallet, storage, STAKE);
@@ -291,10 +289,10 @@ function GqApp() {
     );
   }
 
-  const myOpenShotsOn = (record: GqNote) => openShotsOn(notes, me, record, height);
+  const myOpenShotsOn = (record: ChallengeNote) => openShotsOn(notes, me, record, height);
 
   /** Posts the shot note and, once it is on chain, starts the quiz right away. */
-  async function takeShot(record: GqNote) {
+  async function takeShot(record: ChallengeNote) {
     if (!dataset) return;
     const rival = accountFelts(parseAccountId(wallet.address!));
     const refusal = shotRefusal(record, height, MIN_SHOT_WINDOW_BLOCKS);
@@ -310,9 +308,10 @@ function GqApp() {
       true,
       async () => {
         // refuse a quiz that does not come from the seed and this dataset
-        const expected = await quizCities(record.storage.seed, places);
-        const same = expected.every((c, i) => JSON.stringify(c) === JSON.stringify(record.storage.cities[i]));
-        if (!same || record.storage.dataset.some((f, i) => f !== dataset[i])) throw new Error("This record's quiz does not match the dataset.");
+        const game = decodeGame(record.storage.game);
+        const expected = await quizCities(game.seed, places);
+        const same = expected.every((c, i) => JSON.stringify(c) === JSON.stringify(game.cities[i]));
+        if (!same || game.dataset.some((f, i) => f !== dataset[i])) throw new Error("This record's quiz does not match the dataset.");
         return postShot(client, wallet, record, rival);
       },
       { kind: "lobby" },
@@ -333,9 +332,9 @@ function GqApp() {
     );
   }
 
-  const settleAfterPlay = (shots: GqNote[], record: GqNote | undefined) => (r: PlayResult) => {
+  const settleAfterPlay = (shots: ChallengeNote[], record: ChallengeNote | undefined) => (r: PlayResult) => {
     const plan = settlePlan(shots, record, r.score, height);
-    const rows = reportRows(shots[0].storage.cities, r.answers, places);
+    const rows = reportRows(decodeGame(shots[0].storage.game).cities, r.answers, places);
     if (!plan.won) {
       // nothing to sign on a loss: the Geocoin waits for the champion at the deadline
       setMode({ kind: "done", title: "The record stands.", text: plan.text, rows });
@@ -348,11 +347,11 @@ function GqApp() {
         false,
         async () => {
           // ask the chain first: a claim that already landed (or a shot already taken) needs no wallet
-          const now = await Promise.all(shots.map((s) => withTimeout(fetchGqNote(s.id), 30_000, "Checking your shot")));
+          const now = await Promise.all(shots.map((s) => withTimeout(fetchChallengeNote(s.id), 30_000, "Checking your shot")));
           const verdict = claimVerdict(now.map((s) => ({ consumedAt: s.consumedAt, deadline: shotDeadline(s.storage) })));
           if (verdict === "claimed") return { txId: "", noteIds: shots.map((s) => s.id) };
           if (verdict === "lost") throw new Error(SHOT_LOST);
-          return settle(client, wallet, shots, plan.claimPrize ? record : undefined, r.answers);
+          return settle(client, wallet, shots, plan.claimPrize ? record : undefined, gqAnswer(r.answers));
         },
         // the win stands on failure: the report stays and the claim can be sent again until the shot ends
         { kind: "done", title: "Record smashed!", text: plan.text, rows, retry: claim, retryLabel: plan.claimPrize ? "Claim my prize" : "Get my Geocoin back", claimUntil },
@@ -588,7 +587,7 @@ function GqApp() {
 
       {mode.kind === "play-rival" && (
         <Play
-          cities={mode.shots[0].storage.cities}
+          cities={decodeGame(mode.shots[0].storage.game).cities}
           places={places}
           rival={{ blocksLeft: shotDeadline(mode.shots[0].storage) - height }}
           onDone={settleAfterPlay(mode.shots, mode.record)}

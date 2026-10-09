@@ -52,7 +52,7 @@ async fn main() -> Result<()> {
     client.add_note_tag(NoteTag::new(NOTE_TAG)).await?;
     client.sync_state().await?;
 
-    let cfg = || AccountCreationConfig { account_type: AccountType::Private, ..Default::default() };
+    let cfg = || AccountCreationConfig { account_type: AccountType::Private };
     let champion = create_basic_wallet_account(&mut client, keystore.clone(), cfg()).await?;
     let loser = create_basic_wallet_account(&mut client, keystore.clone(), cfg()).await?;
     let winner = create_basic_wallet_account(&mut client, keystore.clone(), cfg()).await?;

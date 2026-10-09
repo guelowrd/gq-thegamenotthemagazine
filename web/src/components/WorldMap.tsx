@@ -1,21 +1,8 @@
-// An equirectangular world map: the package's pixel world (1000 × 500, Natural Earth geometry
-// quantised) as the picture, so click → latitude/longitude stays a linear mapping. No map library.
+// The world map: the pixel world (1000 × 500, Natural Earth geometry quantised) as the picture, the
+// projection in lib/map.ts, a 30° graticule and the marks. No map library.
 
 import type { MouseEvent } from "react";
-
-export const MAP_W = 1000;
-export const MAP_H = 500;
-
-export type LatLon = { lat: number; lon: number };
-
-export const pixelToLatLon = (x: number, y: number): LatLon => ({
-  lat: 90 - (y / MAP_H) * 180,
-  lon: (x / MAP_W) * 360 - 180,
-});
-export const latLonToPixel = (p: LatLon) => ({
-  x: ((p.lon + 180) / 360) * MAP_W,
-  y: ((90 - p.lat) / 180) * MAP_H,
-});
+import { latLonToPixel, MAP_H, MAP_W, pixelToLatLon, type LatLon } from "@/lib/map";
 
 // a graticule every 30°: meridians from 150°W to 150°E, parallels from 60°N to 60°S
 const MERIDIANS = Array.from({ length: 11 }, (_, i) => latLonToPixel({ lat: 0, lon: -150 + 30 * i }).x);

@@ -33,7 +33,7 @@ pub struct ChallengeStorage {
 impl ChallengeStorage {
     /// The record note's storage.
     pub fn record(expiry_block: u32, target: u32, min_stake: u64, champion: AccountId, shot_root: Word, game: Vec<Felt>) -> Self {
-        assert!(game.len() % 4 == 0, "game data must be whole words");
+        assert!(game.len().is_multiple_of(4), "game data must be whole words");
         Self {
             expiry_block,
             target,

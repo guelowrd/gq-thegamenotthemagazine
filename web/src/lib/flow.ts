@@ -1,7 +1,7 @@
 // The app's decisions, as pure functions so they can be tested without React, WASM or Bread.
 // Every rule here was once a bug in the component.
 
-import type { GqNote } from "./chain";
+import type { ChallengeNote } from "./chain";
 import { shotDeadline, type AccountFelts } from "./notes";
 import type { Place } from "./quiz";
 import { BLOCK_SECONDS, GC_DECIMALS } from "@/config";
@@ -10,11 +10,11 @@ import { roundScore, type Answer, type City } from "./rules";
 export const sameAccount = (a: AccountFelts | null | undefined, b: AccountFelts | null | undefined) =>
   !!a && !!b && a.suffix === b.suffix && a.prefix === b.prefix;
 
-export const isOpen = (n: GqNote, height: number) =>
+export const isOpen = (n: ChallengeNote, height: number) =>
   !n.consumed && height < (n.kind === "shot" ? shotDeadline(n.storage) : n.storage.expiryBlock);
 
 /** My unconsumed, unexpired shot notes at `record`: one play settles all of them. */
-export function myOpenShotsOn(notes: GqNote[], me: AccountFelts | null, record: GqNote, height: number): GqNote[] {
+export function myOpenShotsOn(notes: ChallengeNote[], me: AccountFelts | null, record: ChallengeNote, height: number): ChallengeNote[] {
   if (!me) return [];
   return notes.filter(
     (n) =>
@@ -28,7 +28,7 @@ export function myOpenShotsOn(notes: GqNote[], me: AccountFelts | null, record: 
 export type SharedRecordState = "open" | "claimed" | "expired" | "mine" | "already-challenged";
 
 /** What a `?record=<id>` landing page should offer. */
-export function sharedRecordState(record: GqNote, me: AccountFelts | null, myOpen: GqNote[], height: number): SharedRecordState {
+export function sharedRecordState(record: ChallengeNote, me: AccountFelts | null, myOpen: ChallengeNote[], height: number): SharedRecordState {
   if (record.consumed) return "claimed";
   if (height >= record.storage.expiryBlock) return "expired";
   if (sameAccount(me, record.storage.champion)) return "mine";
@@ -37,7 +37,7 @@ export function sharedRecordState(record: GqNote, me: AccountFelts | null, myOpe
 }
 
 /** Why a shot cannot be taken right now, or null when it can. */
-export function shotRefusal(record: GqNote, height: number, minWindow: number): string | null {
+export function shotRefusal(record: ChallengeNote, height: number, minWindow: number): string | null {
   if (record.consumed) return "This one is over.";
   if (record.storage.expiryBlock - height < minWindow) return "Too late for this one.";
   return null;
@@ -49,7 +49,7 @@ export type SettlePlan = { won: boolean; claimPrize: boolean; text: string };
  * After a play: a win settles the open shots (and claims the prize if it is still there);
  * a loss sends nothing to the chain, the Geocoin waits for the champion at the deadline.
  */
-export function settlePlan(shots: GqNote[], record: GqNote | undefined, score: number, height: number): SettlePlan {
+export function settlePlan(shots: ChallengeNote[], record: ChallengeNote | undefined, score: number, height: number): SettlePlan {
   if (shots.length === 0) throw new Error("no shot note to settle");
   const target = shots[0].storage.target;
   const won = score > target;
@@ -158,7 +158,7 @@ export function explain(e: unknown): Trouble {
   if (/already been consumed|already consumed/i.test(raw)) return t("already-done", "This was already done.");
   if (/deadline has passed|too late|is over/i.test(raw)) return t("too-late", "Too late: this one is over.");
   if (/quiz does not match|dataset/i.test(raw)) return t("other-cities", "This record uses another city list. It can't be played here.");
-  if (/not found on chain|is not public|not a GeoQuizz|Not found/i.test(raw)) return t("not-found", "We can't find that record. Check the link.");
+  if (/not found on chain|is not public|not a record or shot|not GeoQuizz game data|Not found/i.test(raw)) return t("not-found", "We can't find that record. Check the link.");
   if (/assertion failed|error code/i.test(raw)) return t("refused", "The game said no to this move.");
   if (/fetch|network|timed out|timeout|deadline exceeded|unavailable|transport|ECONN|50[234]|load failed|faucet/i.test(raw))
     return t("network", "The Miden network is slow or busy right now. Try again in a moment.");

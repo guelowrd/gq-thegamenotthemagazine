@@ -2,7 +2,7 @@
 // Miden components without WASM. One scenario per incident from the first Bread session.
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { GqNote } from "@/lib/chain";
+import type { ChallengeNote } from "@/lib/chain";
 import type { ChallengeStorage } from "@/lib/notes";
 
 vi.mock("@miden-sdk/react", () => import("@/__tests__/mocks/miden-sdk-react"));
@@ -36,13 +36,11 @@ const storage: ChallengeStorage = {
   rival: null,
   recordId: [0n, 0n, 0n, 0n],
   shotRoot: [1n, 1n, 1n, 1n],
-  seed: [0n, 0n, 0n, 0n],
-  dataset: [0n, 0n, 0n, 0n],
-  cities,
+  game: encodeGame({ seed: [0n, 0n, 0n, 0n], dataset: [0n, 0n, 0n, 0n], cities }),
   shotDeadline: 0,
 };
-const prize: GqNote = { id: "0xp", idWord: [9n, 9n, 9n, 9n], kind: "record", storage, amount: 1_000_000n, consumed: false };
-const myChallenge: GqNote = {
+const prize: ChallengeNote = { id: "0xp", idWord: [9n, 9n, 9n, 9n], kind: "record", storage, amount: 1_000_000n, consumed: false };
+const myChallenge: ChallengeNote = {
   id: "0xc",
   idWord: [1n, 1n, 1n, 1n],
   kind: "shot",
@@ -54,10 +52,10 @@ const myChallenge: GqNote = {
 vi.mock("@/lib/chain", () => ({
   accountFelts: () => me,
   parseAccountId: (s: string) => s,
-  fetchGqNote: vi.fn(async () => chain.shared),
-  listGqNotes: vi.fn(async () => chain.notes),
+  fetchChallengeNote: vi.fn(async () => chain.shared),
+  listChallengeNotes: vi.fn(async () => chain.notes),
   loadScripts: vi.fn(async () => ({})),
-  syncGq: vi.fn(async () => 100),
+  syncNotes: vi.fn(async () => 100),
   knownNote: vi.fn(async () => undefined),
   wordFromHex: () => [0n, 0n, 0n, 0n],
 }));
@@ -80,7 +78,8 @@ vi.mock("@/lib/quiz", async (orig) => ({
 
 import { useMidenClient, useMint } from "@miden-sdk/react";
 import { waitFor as waitForMock } from "@/lib/bread";
-import { fetchGqNote, knownNote, syncGq } from "@/lib/chain";
+import { fetchChallengeNote, knownNote, syncNotes } from "@/lib/chain";
+import { encodeGame } from "@/lib/quiz";
 import { AppContent } from "../AppContent";
 
 beforeEach(() => {
@@ -170,7 +169,7 @@ describe("shared record link, connected as a stranger", () => {
   });
 
   it("a record that fails to load says why and loads on Try again", async () => {
-    vi.mocked(fetchGqNote).mockRejectedValueOnce(new TypeError("Failed to fetch"));
+    vi.mocked(fetchChallengeNote).mockRejectedValueOnce(new TypeError("Failed to fetch"));
     render(<AppContent />);
     await screen.findByText(/network is slow or busy/i);
     fireEvent.click(screen.getByRole("button", { name: /try again/i }));
@@ -179,13 +178,13 @@ describe("shared record link, connected as a stranger", () => {
   });
 
   it("a failing background sync only shows a NETWORK SLOW tag, never an error box", async () => {
-    vi.mocked(syncGq).mockRejectedValue(new TypeError("Failed to fetch"));
+    vi.mocked(syncNotes).mockRejectedValue(new TypeError("Failed to fetch"));
     try {
       render(<AppContent />);
       await screen.findByText(/network slow/i);
       expect(screen.queryByRole("alert")).toBeNull();
     } finally {
-      vi.mocked(syncGq).mockResolvedValue(100);
+      vi.mocked(syncNotes).mockResolvedValue(100);
     }
   });
 

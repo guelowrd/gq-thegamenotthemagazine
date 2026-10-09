@@ -1,6 +1,7 @@
 import { render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { latLonToPixel, MAP_H, MAP_W, pixelToLatLon, WorldMap } from "../WorldMap";
+import { latLonToPixel, MAP_H, MAP_W, pixelToLatLon } from "@/lib/map";
+import { WorldMap } from "../WorldMap";
 
 describe("equirectangular mapping", () => {
   it("maps the corners and the centre", () => {

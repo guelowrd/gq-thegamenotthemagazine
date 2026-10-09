@@ -1,3 +1,6 @@
+import { Felt, FeltArray, Poseidon2, type Word } from "@miden-sdk/miden-sdk";
+import type { GameAnswer, Word4 } from "./notes";
+
 // GeoQuizz scoring, rules version 2. Mirrors integration/src/rules.rs and masm/games/gq_score.masm;
 // all three are checked against rules/vectors.json.
 //
@@ -79,4 +82,22 @@ export function unpackRound(v: bigint): Answer {
 export function packAnswers(answers: Answer[]): bigint[] {
   if (answers.length !== ROUNDS) throw new Error(`expected ${ROUNDS} answers`);
   return answers.map(packRound);
+}
+
+/**
+ * The note argument for settling or claiming: the commitment to the ten packed answers, the hash a
+ * note storage of those felts would have. The felts themselves go in the advice map under it.
+ */
+export function answerCommitment(answers: Answer[]): Word {
+  const felts = new FeltArray();
+  for (const v of packAnswers(answers)) felts.push(new Felt(v));
+  return Poseidon2.hashElements(felts);
+}
+
+/** GeoQuizz's answer for a claim: the commitment as the note argument, the answers under it. */
+export function gqAnswer(answers: Answer[]): GameAnswer {
+  const arg = answerCommitment(answers)
+    .toFelts()
+    .map((f) => f.asInt()) as Word4;
+  return { arg, advice: [[arg, packAnswers(answers)]] };
 }

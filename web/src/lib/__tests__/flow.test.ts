@@ -1,6 +1,6 @@
 // One test per incident from the first Bread session.
 import { describe, expect, it, vi } from "vitest";
-import type { GqNote } from "../chain";
+import type { ChallengeNote } from "../chain";
 import type { ChallengeStorage } from "../notes";
 import {
   blocksToClock,
@@ -39,13 +39,11 @@ const base: ChallengeStorage = {
   rival: null,
   recordId: [0n, 0n, 0n, 0n],
   shotRoot: [1n, 1n, 1n, 1n],
-  seed: [0n, 0n, 0n, 0n],
-  dataset: [0n, 0n, 0n, 0n],
-  cities: [],
+  game: [],
   shotDeadline: 0,
 };
-const prize: GqNote = { id: "0x9", idWord: [...recordId], kind: "record", storage: base, amount: 1_000_000n, consumed: false };
-const challenge = (rival: typeof me, deadline: number, consumed = false, id = "0xc"): GqNote => ({
+const prize: ChallengeNote = { id: "0x9", idWord: [...recordId], kind: "record", storage: base, amount: 1_000_000n, consumed: false };
+const challenge = (rival: typeof me, deadline: number, consumed = false, id = "0xc"): ChallengeNote => ({
   id,
   idWord: [1n, 2n, 3n, 4n],
   kind: "shot",
@@ -225,7 +223,7 @@ describe("errors in plain words", () => {
     [new Error("Loading the record timed out after 30 s"), "network"],
     [new Error("The faucet note never arrived."), "network"],
     [new Error("some notes were not found on chain"), "not-found"],
-    [new Error("This note is not a GeoQuizz record or shot."), "not-found"],
+    [new Error("This note is not a record or shot of this game."), "not-found"],
     [new Error("failed to execute transaction kernel program: assertion failed with error code: 14434107113890732517"), "refused"],
     [new Error("challenge: the deadline has passed"), "too-late"],
     [new Error("This record's quiz does not match the dataset."), "other-cities"],

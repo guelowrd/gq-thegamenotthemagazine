@@ -59,7 +59,7 @@ pub fn request_fee_tokens(base_url: &str, account: AccountId) -> Result<String> 
 }
 
 fn hex_decode(s: &str) -> Result<Vec<u8>> {
-    if s.len() % 2 != 0 {
+    if !s.len().is_multiple_of(2) {
         bail!("odd hex length");
     }
     (0..s.len())

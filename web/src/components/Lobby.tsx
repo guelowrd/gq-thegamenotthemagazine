@@ -1,6 +1,6 @@
 // The Player Hub: my records to take back, my shots to play, lost shots at my records to collect.
 
-import type { GqNote } from "@/lib/chain";
+import type { ChallengeNote } from "@/lib/chain";
 import { blocksToClock, fmtGeocoin } from "@/lib/flow";
 import { shotDeadline, type AccountFelts } from "@/lib/notes";
 import { ShareButtons } from "./ShareButtons";
@@ -8,20 +8,20 @@ const sameAccount = (a: AccountFelts | null, b: AccountFelts | null) => !!a && !
 
 export type LobbyProps = {
   me: AccountFelts | null;
-  notes: GqNote[];
+  notes: ChallengeNote[];
   height: number;
-  onSettle: (shot: GqNote, record: GqNote | undefined) => void;
-  onCollect: (note: GqNote) => void;
+  onSettle: (shot: ChallengeNote, record: ChallengeNote | undefined) => void;
+  onCollect: (note: ChallengeNote) => void;
 };
 
 export function Lobby({ me, notes, height, onSettle, onCollect }: LobbyProps) {
   const records = notes.filter((n) => n.kind === "record" && !n.consumed);
   const shots = notes.filter((n) => n.kind === "shot" && !n.consumed);
   const recordById = (idWord: bigint[]) => notes.find((n) => n.kind === "record" && n.idWord.every((f, i) => f === idWord[i]));
-  const deadline = (n: GqNote) => (n.kind === "shot" ? shotDeadline(n.storage) : n.storage.expiryBlock);
-  const expired = (n: GqNote) => height >= deadline(n);
+  const deadline = (n: ChallengeNote) => (n.kind === "shot" ? shotDeadline(n.storage) : n.storage.expiryBlock);
+  const expired = (n: ChallengeNote) => height >= deadline(n);
 
-  const mine = (n: GqNote) => sameAccount(me, n.storage.champion);
+  const mine = (n: ChallengeNote) => sameAccount(me, n.storage.champion);
   // records are shared by link only; the app never lists other people's
   const myRecords = records.filter(mine);
   const myShots = shots.filter((n) => sameAccount(me, n.storage.rival));

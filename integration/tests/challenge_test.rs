@@ -216,7 +216,7 @@ async fn shot_deadline_cuts_settle_short_and_opens_collect() -> Result<()> {
     let mut s = setup(1000)?;
     let shot = s.standard_shot()?;
     s.jump_to(SHOT_DEADLINE)?;
-    assert!(SHOT_DEADLINE < EXPIRY);
+    const { assert!(SHOT_DEADLINE < EXPIRY) };
     let r = s.consume(s.rival.id(), &[&shot], Some(&perfect_answers())).await;
     assert!(r.is_err(), "settle at the shot deadline must fail even though the record is open");
     let r = s
