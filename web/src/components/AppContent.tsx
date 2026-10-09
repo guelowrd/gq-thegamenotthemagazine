@@ -2,19 +2,22 @@
 // link or code, take a shot) / Player Hub (my records, my shots, what rivals left me).
 // The app's own Miden client only reads the chain (and mints Geocoins); the wallet signs the rest.
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMidenClient, useMiden } from "@miden-sdk/react";
 import { useMidenFiWallet } from "@miden-sdk/miden-wallet-adapter-react";
 import { LOCAL_WALLET, useLocalWallet } from "@/lib/localWallet";
 import { GEOCOIN_GRANT, geocoinRefusal, GRANT_PENDING_MS, useGeocoin } from "@/lib/geocoin";
 import { useSound, type Track } from "@/lib/useSound";
 import { BLOCK_SECONDS, CITIES_URL, MIN_SHOT_WINDOW_BLOCKS, RECORD_LIFETIME_BLOCKS, STAKE } from "@/config";
-import { accountFelts, fetchChallengeNote, knownNote, listChallengeNotes, loadScripts, parseAccountId, syncNotes, wordFromHex, type ChallengeNote } from "@/lib/chain";
+import { accountFelts, bech32Of, fetchChallengeNote, knownNote, listChallengeNotes, loadScripts, parseAccountId, syncNotes, withConsumedAt, wordFromHex, type ChallengeNote } from "@/lib/chain";
+import { boards, history as pastGames, keyOf, lettersBackward, nicknames, playersInOrder } from "@/lib/hub";
 import { gcBalance, postShot, postRecord, settle, collect, reportBreadOutcome, setSubmitAttemptListener, setSubmitStageListener, waitFor, type Submitted } from "@/lib/bread";
 import { shotDeadline, type ChallengeStorage } from "@/lib/notes";
 import { claimVerdict, explain, fmtGeocoin, NOT_FINISHED, SHOT_LOST, shotRefusal, withoutRecord, withTimeout, type Trouble, myOpenShotsOn as openShotsOn, outcomeText, parseCode, reportRows, settlePlan, sharedRecordState, type ReportRow } from "@/lib/flow";
 import { datasetWord, decodeGame, encodeGame, quizCities, randomSeed, type Place, type Word4 } from "@/lib/quiz";
 import { gqAnswer, type City } from "@/lib/rules";
+import { History } from "./History";
+import { Leaderboards } from "./Leaderboards";
 import { Lobby } from "./Lobby";
 import { ShareButtons } from "./ShareButtons";
 import { Play, type PlayResult } from "./Play";
@@ -105,6 +108,8 @@ function GqApp() {
   const [places, setPlaces] = useState<Place[]>([]);
   const [dataset, setDataset] = useState<Word4 | null>(null);
   const [notes, setNotes] = useState<ChallengeNote[]>([]);
+  // the first read of every game's notes, history and boards wait for it
+  const [notesRead, setNotesRead] = useState(false);
   const [height, setHeight] = useState(0);
   const [mode, setMode] = useState<Mode>({ kind: "lobby" });
   const [trouble, setTrouble] = useState<{ t: Trouble; retry?: () => void } | null>(null);
@@ -119,6 +124,15 @@ function GqApp() {
   const lastGrant = useRef<{ to: string; at: number } | null>(null);
 
   const me = wallet.connected && wallet.address ? accountFelts(parseAccountId(wallet.address)) : null;
+  const meKey = me && keyOf(me);
+  // arcade names for everyone who played, in the order they first did; a newcomer comes last
+  const names = useMemo(() => {
+    const players = playersInOrder(notes);
+    if (me && !players.some((p) => keyOf(p) === meKey)) players.push(me);
+    return nicknames(players.map((p) => ({ key: keyOf(p), address: bech32Of(p) })));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [notes, meKey]);
+  const nameOf = (a: Parameters<typeof keyOf>[0]) => names.get(keyOf(a)) ?? lettersBackward(bech32Of(a)).slice(0, 3);
 
   /** A failure in plain words, with a way to try again when there is one. */
   const oops = (e: unknown, retry?: () => void) => setTrouble({ t: explain(e), retry });
@@ -155,7 +169,8 @@ function GqApp() {
     try {
       const h = await withTimeout(runExclusive(() => syncNotes(client)), 30_000, "Syncing");
       setHeight(h);
-      setNotes(await runExclusive(() => listChallengeNotes(client)));
+      setNotes(await withConsumedAt(await runExclusive(() => listChallengeNotes(client))));
+      setNotesRead(true);
       setNetSlow(false);
     } catch (e) {
       console.warn("[gq] background sync failed", e);
@@ -468,7 +483,7 @@ function GqApp() {
     setStarted(false);
   };
 
-  const walletLabel = wallet.connected && wallet.address ? `${LOCAL_WALLET ? "Test wallet" : "Wallet"} ${wallet.address.slice(0, 10)}…` : null;
+  const walletLabel = wallet.connected && me ? `${LOCAL_WALLET ? "Test wallet" : "Wallet"} / ${nameOf(me)}` : null;
 
   if (!started) return <Welcome onStart={() => setStarted(true)} />;
 
@@ -554,17 +569,25 @@ function GqApp() {
               />
               <p>{geocoinButton}</p>
             </>
-          ) : (
-            <section className="panel">
-              <p>Connect your wallet to see your records and shots.</p>
-              <button className="btn primary" onClick={connect} disabled={wallet.connecting}>
-                {wallet.connecting ? (LOCAL_WALLET && local.status) || "…" : "Connect wallet"}
-              </button>
-              {!LOCAL_WALLET && wallet.wallet?.readyState !== "Installed" && <p className="muted">You need the Bread wallet first.</p>}
-            </section>
-          )}
+          ) : null}
+          <History
+            items={me && notesRead ? pastGames(notes, me, height, nameOf) : null}
+            connect={
+              !wallet.connected && (
+                <section className="panel">
+                  <p>Connect to see your games.</p>
+                  <button className="btn primary" onClick={connect} disabled={wallet.connecting}>
+                    {wallet.connecting ? (LOCAL_WALLET && local.status) || "…" : "Connect wallet"}
+                  </button>
+                  {!LOCAL_WALLET && wallet.wallet?.readyState !== "Installed" && <p className="muted">You need the Bread wallet first.</p>}
+                </section>
+              )
+            }
+          />
         </>
       )}
+
+      {mode.kind === "lobby" && tab === "boards" && <Leaderboards data={notesRead ? boards(notes, height, me) : null} me={me} name={nameOf} />}
 
       {mode.kind === "play-champion" && <Play cities={mode.cities} places={places} onDone={(result) => setMode({ kind: "post-record", seed: mode.seed, cities: mode.cities, result })} />}
 

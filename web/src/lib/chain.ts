@@ -3,6 +3,7 @@
 
 import {
   AccountId,
+  AccountInterface,
   Endpoint,
   Felt,
   FeltArray,
@@ -20,6 +21,7 @@ import {
   NoteStorage,
   NoteTag,
   NoteType,
+  NetworkId,
   RpcClient,
   Word,
 } from "@miden-sdk/miden-sdk";
@@ -76,8 +78,11 @@ export type ChallengeNote = {
   storage: ChallengeStorage;
   amount: bigint;
   consumed: boolean;
-  /** the block it was consumed in, when read from the node (fetchChallengeNote) */
+  /** the block it was consumed in, when read from the node (fetchChallengeNote, withConsumedAt) */
   consumedAt?: number;
+  /** the block it was included in, from the local store */
+  createdAt?: number;
+  nullifier?: string;
 };
 
 /** What a note script root means to this app, or null for a foreign note. */
@@ -102,7 +107,8 @@ export async function syncNotes(client: Client): Promise<number> {
  */
 export async function listChallengeNotes(client: Client): Promise<ChallengeNote[]> {
   const scripts = await loadScripts();
-  const toNote = (id: NoteId | undefined, recipient: NoteRecipient | undefined, assets: NoteAssets, consumed: boolean): ChallengeNote | null => {
+  type Located = { inclusionProof(): { location(): { blockNum(): number } } | undefined; nullifier(): string | undefined };
+  const toNote = (id: NoteId | undefined, recipient: NoteRecipient | undefined, assets: NoteAssets, consumed: boolean, r: Located): ChallengeNote | null => {
     if (!id || !recipient) return null;
     const kind = kindOf(recipient.script().root().toHex(), scripts);
     if (!kind) return null;
@@ -113,7 +119,8 @@ export async function listChallengeNotes(client: Client): Promise<ChallengeNote[
       return null; // same script, foreign layout
     }
     const gq = assets.fungibleAssets().find((a) => a.faucetId().toString() === GC_FAUCET);
-    return { id: id.toString(), idWord: wordFromHex(id.toString()), ...kind, storage, amount: gq?.amount() ?? 0n, consumed };
+    const createdAt = r.inclusionProof()?.location().blockNum();
+    return { id: id.toString(), idWord: wordFromHex(id.toString()), ...kind, storage, amount: gq?.amount() ?? 0n, consumed, createdAt, nullifier: r.nullifier() };
   };
   const seen = new Set<string>();
   const out: ChallengeNote[] = [];
@@ -124,11 +131,56 @@ export async function listChallengeNotes(client: Client): Promise<ChallengeNote[
   };
   for (const r of await client.getInputNotes(new NoteFilter(NoteFilterTypes.All))) {
     const d = r.details();
-    add(toNote(r.id(), d.recipient(), d.assets(), r.isConsumed()));
+    add(toNote(r.id(), d.recipient(), d.assets(), r.isConsumed(), r));
   }
-  for (const r of await client.getOutputNotes(new NoteFilter(NoteFilterTypes.All))) add(toNote(r.id(), r.recipient(), r.assets(), r.isConsumed()));
+  for (const r of await client.getOutputNotes(new NoteFilter(NoteFilterTypes.All))) add(toNote(r.id(), r.recipient(), r.assets(), r.isConsumed(), r));
   return out.reverse();
 }
+
+// the block a note was consumed in never changes: asked once per note per page load
+const consumedAtCache = new Map<string, number>();
+
+/**
+ * Fills `consumedAt` on consumed notes from the node (the store only says whether). A note the node
+ * cannot answer for yet stays without one and is asked again next time.
+ * ponytail: one request at a time, ~0.1 s per consumed note on the first load; batch them when the
+ * game's history grows into the hundreds.
+ */
+export async function withConsumedAt(notes: ChallengeNote[]): Promise<ChallengeNote[]> {
+  const missing = notes.filter((n) => n.consumed && n.nullifier && !consumedAtCache.has(n.id));
+  if (missing.length > 0) {
+    const rpc = new RpcClient(endpoint());
+    try {
+      for (const n of missing) {
+        const at = await rpc.getNullifierCommitHeight(Word.fromHex(n.nullifier!), n.createdAt ?? 0).catch(() => undefined);
+        if (at !== undefined) consumedAtCache.set(n.id, at);
+      }
+    } finally {
+      rpc.free();
+    }
+  }
+  return notes.map((n) => (consumedAtCache.has(n.id) ? { ...n, consumedAt: consumedAtCache.get(n.id) } : n));
+}
+
+const blockTimeCache = new Map<number, number>();
+
+/** When block `n` was made, in ms since the epoch. */
+export async function blockTime(n: number): Promise<number> {
+  const cached = blockTimeCache.get(n);
+  if (cached !== undefined) return cached;
+  const rpc = new RpcClient(endpoint());
+  try {
+    const ms = (await rpc.getBlockHeaderByNumber(n)).timestamp() * 1000;
+    blockTimeCache.set(n, ms);
+    return ms;
+  } finally {
+    rpc.free();
+  }
+}
+
+/** An account's address as wallets show it (Bread adds a `_…` routing part after it). */
+export const bech32Of = (a: AccountFelts) =>
+  AccountId.fromPrefixSuffix(new Felt(a.prefix), new Felt(a.suffix)).toBech32(MIDEN_RPC_URL === "devnet" ? NetworkId.devnet() : NetworkId.testnet(), AccountInterface.BasicWallet);
 
 /** The store's record of a note, whether it came in (input) or went out (output); undefined if unknown. */
 export async function knownNote(client: Client, id: string): Promise<{ consumed: boolean } | undefined> {

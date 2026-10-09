@@ -58,6 +58,10 @@ vi.mock("@/lib/chain", () => ({
   syncNotes: vi.fn(async () => 100),
   knownNote: vi.fn(async () => undefined),
   wordFromHex: () => [0n, 0n, 0n, 0n],
+  withConsumedAt: vi.fn(async (notes: unknown[]) => notes),
+  blockTime: vi.fn(async () => Date.now()),
+  // every test account reads …thj9 backward: JHT, then JHN, JHL… in the order they played
+  bech32Of: () => "mtst1aryq2znjyt4wqq29lxwta3sjnqlnthj9",
 }));
 
 vi.mock("@/lib/bread", () => ({
@@ -247,6 +251,26 @@ describe("welcome and 1P World Tour", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it("the leaderboards are public: they show without a wallet", async () => {
+    window.history.replaceState({}, "", "/");
+    const record = { ...prize, createdAt: 5, storage: { ...prize.storage, champion: me } };
+    chain.notes = [record];
+    wallet.connected = false;
+    try {
+      await start(/leaderboards/i);
+      expect(await screen.findByText("2,000")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /connect wallet/i })).toBeInTheDocument();
+    } finally {
+      wallet.connected = true;
+    }
+  });
+
+  it("the wallet button shows my arcade name", async () => {
+    window.history.replaceState({}, "", "/");
+    await start();
+    expect(await screen.findByRole("button", { name: "Wallet / JHT" })).toBeInTheDocument();
   });
 
   it("the ribbon says the game runs on testnet", async () => {

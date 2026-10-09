@@ -2,6 +2,7 @@
 
 import type { ChallengeNote } from "@/lib/chain";
 import { blocksToClock, fmtGeocoin } from "@/lib/flow";
+import { triesLost } from "@/lib/hub";
 import { shotDeadline, type AccountFelts } from "@/lib/notes";
 import { ShareButtons } from "./ShareButtons";
 const sameAccount = (a: AccountFelts | null, b: AccountFelts | null) => !!a && !!b && a.suffix === b.suffix && a.prefix === b.prefix;
@@ -51,6 +52,7 @@ export function Lobby({ me, notes, height, onSettle, onCollect }: LobbyProps) {
           ) : (
             <>
               <p className="muted">Waiting for a rival…</p>
+              <LostSoFar n={triesLost(p, notes, height)} />
               <ShareButtons recordId={p.id} score={p.storage.target} />
             </>
           )}
@@ -93,3 +95,6 @@ export function Lobby({ me, notes, height, onSettle, onCollect }: LobbyProps) {
     </div>
   );
 }
+
+/** Rivals who lost are counted, never named. Nothing while none lost, or while the count is unknown. */
+const LostSoFar = ({ n }: { n: number | null }) => (n ? <p className="small">{n === 1 ? "1 try lost so far" : `${n} tries lost so far`}</p> : null);

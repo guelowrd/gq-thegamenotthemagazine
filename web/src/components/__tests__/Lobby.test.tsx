@@ -78,6 +78,14 @@ describe("Lobby", () => {
     expect(h.onCollect).toHaveBeenCalledWith([prize, myChallenge, second]);
   });
 
+  it("counts the tries lost so far on my open record, never naming who lost", () => {
+    const lost = { ...myChallenge, storage: { ...myChallenge.storage, rival: { suffix: 7n, prefix: 7n } } };
+    const { rerender } = render(<Lobby me={champion} notes={[prize, lost]} height={199} {...handlers()} />);
+    expect(screen.queryByText(/lost so far/i)).toBeNull();
+    rerender(<Lobby me={champion} notes={[prize, lost, { ...lost, id: "0xc2" }]} height={200} {...handlers()} />);
+    expect(screen.getByText("2 tries lost so far")).toBeInTheDocument();
+  });
+
   it("hides consumed notes", () => {
     render(<Lobby me={me} notes={[{ ...prize, consumed: true }]} height={100} {...handlers()} />);
     expect(screen.queryByRole("button", { name: /play/i })).toBeNull();
