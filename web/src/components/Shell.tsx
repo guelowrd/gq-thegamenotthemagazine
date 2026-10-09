@@ -37,7 +37,7 @@ export function Shell({
           ))}
         </nav>
         <button className="btn wallet" onClick={onWallet}>
-          {walletLabel ? `Wallet / ${walletLabel}` : "Connect wallet"}
+          {walletLabel ?? "Connect wallet"}
         </button>
       </header>
       <div className="toolbar">

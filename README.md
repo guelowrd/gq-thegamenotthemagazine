@@ -9,6 +9,11 @@ champion once the shot's short deadline passes. A loser signs nothing.
 GeoQuizz is the game plugged into it: a city name appears, you click the map, points for closeness
 and speed, ten cities per quiz. Players use the [Bread](https://www.miden.xyz/bread) wallet.
 
+- Look and feel: `web/src/theme.css` is the one stylesheet, built from the retro3 design package's
+  `tokens.json` (GeoQuizz Pixel face, palette, hard pixel frames). Art, font and the two tracks
+  live in `web/public/brand/`; the package itself (boards, prototype, handoff notes) stays out of
+  git. Screens: welcome hero → 1P World Tour (free, no wallet) → VS (a record by link or code) →
+  Player Hub (my records, my shots, what rivals left me).
 - Design, verified capabilities, blockers and trust assumptions: [`docs/design.md`](docs/design.md)
 - How to run it end to end: [`docs/walkthrough.md`](docs/walkthrough.md)
 - Plan and progress: [`tasks/todo.md`](tasks/todo.md)

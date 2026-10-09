@@ -48,6 +48,13 @@ cargo run --release --bin build_scripts     # once, and after any change under m
 cd web && yarn install && yarn dev          # http://localhost:5173
 ```
 
+0. The screens (since 2026-10-09): the welcome hero (click anywhere) → **1P World Tour** (LOCATE
+   FIRST CITY plays ten cities with no wallet; RUN COMPLETE! shows a row per city; YES connects the
+   wallet and posts the record) → **VS** (a `?record=` link lands here; "Have a code?" takes a
+   record link, our X share link or a bare id; INSERT GEOCOIN posts the shot and starts the quiz;
+   the red rival and the shot clock sit in the HUD) → **Player Hub** (my records: TAKE IT BACK
+   after expiry; my shots: PLAY; for you: TAKE IT after the deadline). SOUND OFF/ON in the toolbar
+   plays the two tracks, off by default.
 1. Install Bread (latest release at https://www.miden.xyz/bread, v1.17.1+, testnet build), create a wallet, fund fees ("Fund your wallet": 0.01 USDCx).
 2. Get Geocoins: once connected, "Empty pockets? Get Geocoins now!" mints 10 GC from the
    browser (the faucet has no key, anyone may mint); Bread auto-claims the public P2ID note.
@@ -56,8 +63,8 @@ cd web && yarn install && yarn dev          # http://localhost:5173
 3. Connect, "Play", then "Yes" to put 1 GC on your score. Another account opens the shared link
    and clicks "Play (1 GC)". A win settles (Geocoin back, plus the prize if you claimed first); a
    loss signs nothing, the champion collects the Geocoin once the shot deadline (~6 min) passes.
-4. The lobby only ever shows your own notes: "My records" ("Take it back" after expiry),
-   "My shots" (open shots, "Play" again on a loss while the deadline holds), "For you" (lost shots
+4. The Player Hub only ever shows your own notes: "My record" cards ("Take it back" after expiry),
+   "My shot" cards ("Play" again on a loss while the deadline holds), "For you" cards (lost shots
    at your records, "Take it" after their deadline).
 5. Share: after posting, the champion gets "Share on X" and a link of the form
    `<app>/?record=<note id>` (`?prize=` links from before still open). Opening it loads the record

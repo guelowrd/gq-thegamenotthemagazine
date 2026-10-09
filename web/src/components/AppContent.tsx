@@ -317,7 +317,7 @@ function GqApp() {
     );
   };
 
-  const walletLabel = wallet.connected && wallet.address ? (LOCAL_WALLET ? `test wallet ${wallet.address.slice(0, 10)}…` : `${wallet.address.slice(0, 10)}…`) : null;
+  const walletLabel = wallet.connected && wallet.address ? `${LOCAL_WALLET ? "Test wallet" : "Wallet"} ${wallet.address.slice(0, 10)}…` : null;
 
   if (!started) return <Welcome onStart={() => setStarted(true)} />;
 
