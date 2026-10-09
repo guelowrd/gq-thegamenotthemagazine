@@ -198,21 +198,24 @@ async function submit(
   }
   let lastBound = 0;
   const feeFaucet = await client.feeFaucetId();
-  // Bread imports shipped notes before it syncs: hand over ~1 s earlier
-  const delay = Math.max(0, SEND_DELAYS_MS[delayIndex] - (importNotes?.length ? 1000 : 0));
+  const delay = SEND_DELAYS_MS[delayIndex];
+  // Bread imports shipped notes (with their proofs) before it syncs, a few seconds more: one block
+  // further. Measured 2026-10-09: a claim bound one block ahead and handed over 1 s into the block
+  // was anchored one block later still (86603 → 86604).
+  const offset = importNotes?.length ? 2 : 1;
   const txId = await submitWithRetry(
-    async (offset, attempt) => {
+    async (shift, attempt) => {
       onSubmitAttempt(attempt, ANCHOR_RETRIES);
       onSubmitStage("prepare");
       const { block, seenAt } = await nextBlock();
-      const boundBlock = block + offset;
+      const boundBlock = block + shift;
       lastBound = boundBlock;
       const tx = Transaction.createCustomTransaction(address, address, await build(breadBuilder(boundBlock, feeFaucet)), inputNoteIds, importNotes);
       await sleep(seenAt + delay - Date.now());
       onSubmitStage("wallet");
       return requestTransaction(tx);
     },
-    1,
+    offset,
     ANCHOR_RETRIES,
     async (e) => {
       const parsed = parseAnchorMismatch(e);

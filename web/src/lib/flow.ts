@@ -95,7 +95,8 @@ export async function learnBreadOffset(
  * sending right at a new block, Bread synced to that block once and to the next one three times,
  * so its sync lands ~2-3 s after the hand-over, on a block edge. Handing over ~2 s into block N
  * puts it in the middle of block N + 1. A delay that landed is kept; after one that never showed
- * on chain the next candidate is tried (earlier, then later), remembered per browser.
+ * on chain the next candidate is tried (earlier, then later), remembered per browser. A request
+ * that ships notes (a claim) binds one block further: Bread imports them before it syncs.
  */
 export const SEND_DELAYS_MS = [2000, 1000, 2700];
 export const nextDelayIndex = (index: number, landed: boolean) => (landed ? index : (index + 1) % SEND_DELAYS_MS.length);
