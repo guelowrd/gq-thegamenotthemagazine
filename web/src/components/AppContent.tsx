@@ -32,8 +32,8 @@ type Mode =
   /** `back`: where the Back button, a failure or a wallet that never finishes returns to */
   /** `track`: the music of the screen it came from, which keeps playing while it waits */
   | { kind: "busy"; text: string; back: Mode; stage: Stage; since: number; track: Track }
-  /** `home`: OK leaves the record behind and goes back to the splash screen (after a win) */
-  | { kind: "done"; title?: string; text: string; rows?: ReportRow[]; txId?: string; share?: { recordId: string; score: number }; retry?: () => void; retryLabel?: string; home?: boolean;
+  /** `claimed`: the record is won, OK leaves it behind; after a round (`rows` or `share`) OK goes back to the splash screen */
+  | { kind: "done"; title?: string; text: string; rows?: ReportRow[]; txId?: string; share?: { recordId: string; score: number }; retry?: () => void; retryLabel?: string; claimed?: boolean;
       /** when a retried claim stops making sense: the shot's end, as a clock time (ms) */
       claimUntil?: number };
 
@@ -358,7 +358,7 @@ function GqApp() {
         () => {
           // the prize is ours: the record card must not offer it again
           if (plan.claimPrize && record) setSharedRecord((r) => (r && r.id === record.id ? { ...r, consumed: true } : r));
-          return { kind: "done", title: "Record smashed!", text: outcomeText(plan.text, true), rows, home: true };
+          return { kind: "done", title: "Record smashed!", text: outcomeText(plan.text, true), rows, claimed: true };
         },
       );
     claim();
@@ -460,6 +460,14 @@ function GqApp() {
     );
   };
 
+  const goHome = () => {
+    runToken.current++;
+    setTrouble(null);
+    setMode({ kind: "lobby" });
+    setTab("1p");
+    setStarted(false);
+  };
+
   const walletLabel = wallet.connected && wallet.address ? `${LOCAL_WALLET ? "Test wallet" : "Wallet"} ${wallet.address.slice(0, 10)}…` : null;
 
   if (!started) return <Welcome onStart={() => setStarted(true)} />;
@@ -472,13 +480,7 @@ function GqApp() {
         setTrouble(null);
         setMode({ kind: "lobby" });
       }}
-      onHome={() => {
-        runToken.current++;
-        setTrouble(null);
-        setMode({ kind: "lobby" });
-        setTab("1p");
-        setStarted(false);
-      }}
+      onHome={goHome}
       walletLabel={walletLabel}
       netSlow={netSlow}
       onWallet={() => (wallet.connected ? void wallet.disconnect() : connect())}
@@ -631,15 +633,15 @@ function GqApp() {
           <button
             className={mode.retry ? "btn" : "btn primary"}
             onClick={() => {
-              if (mode.home) {
-                // the record is won: nothing left to do with it, back to the splash screen
+              if (mode.claimed) {
+                // the record is won: nothing left to do with it
                 setSharedRecord(null);
                 setCode("");
                 history.replaceState(null, "", withoutRecord(location.href));
-                setTab("1p");
-                setStarted(false);
               }
-              setMode({ kind: "lobby" });
+              // a round is over: back to the splash screen
+              if (mode.rows || mode.share) goHome();
+              else setMode({ kind: "lobby" });
             }}
           >
             OK

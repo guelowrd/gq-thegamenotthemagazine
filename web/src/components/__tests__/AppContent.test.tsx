@@ -1,6 +1,6 @@
 // The screens, wired to mocked hooks, a fake chain and a fake Bread: the template's way of testing
 // Miden components without WASM. One scenario per incident from the first Bread session.
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ChallengeNote } from "@/lib/chain";
 import type { ChallengeStorage } from "@/lib/notes";
@@ -95,6 +95,15 @@ beforeEach(() => {
   );
   window.history.replaceState({}, "", "/?record=0xp");
 });
+
+/** Ten clicks on the map, each city's reveal skipped. Needs fake timers. */
+async function playRound() {
+  for (let i = 0; i < 10; i++) {
+    await screen.findByText(new RegExp(`find c\\d!`, "i"));
+    fireEvent.click(screen.getByRole("img", { name: /world map/i }), { clientX: 10, clientY: 10 });
+    await act(async () => void vi.advanceTimersByTime(1600));
+  }
+}
 
 /** Past the welcome screen, onto a tab. */
 async function start(tab?: RegExp) {
@@ -211,6 +220,33 @@ describe("welcome and 1P World Tour", () => {
     fireEvent.click(await screen.findByRole("button", { name: /click to start/i }));
     expect(await screen.findByRole("button", { name: /sound off/i })).toBeInTheDocument();
     sessionStorage.clear();
+  });
+
+  it("OK after a round goes back to the splash screen: after posting a record, after losing a shot", async () => {
+    window.history.replaceState({}, "", "/");
+    bread.postRecord.mockResolvedValue({ txId: "tx", noteIds: ["0xnew"] });
+    vi.useFakeTimers({ shouldAdvanceTime: true, toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      await start();
+      fireEvent.click(await screen.findByRole("button", { name: /locate first city/i }));
+      await playRound();
+      fireEvent.click(await screen.findByRole("button", { name: /post it/i }));
+      await screen.findByText(/record posted!/i);
+      fireEvent.click(screen.getByRole("button", { name: /^ok$/i }));
+      await screen.findByRole("button", { name: /click to start/i });
+
+      // a shot at a record nobody can beat (score 0 is never above the target)
+      chain.notes = [prize, myChallenge];
+      fireEvent.click(screen.getByRole("button", { name: /click to start/i }));
+      fireEvent.click(screen.getByRole("button", { name: /player hub/i }));
+      fireEvent.click(await screen.findByRole("button", { name: /^play$/i }));
+      await playRound();
+      await screen.findByText(/the record stands/i);
+      fireEvent.click(screen.getByRole("button", { name: /^ok$/i }));
+      await screen.findByRole("button", { name: /click to start/i });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("the ribbon says the game runs on testnet", async () => {
