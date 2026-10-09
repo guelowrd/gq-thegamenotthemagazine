@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useMidenClient, useMiden } from "@miden-sdk/react";
 import { useMidenFiWallet } from "@miden-sdk/miden-wallet-adapter-react";
 import { LOCAL_WALLET, useLocalWallet } from "@/lib/localWallet";
+import { GEOCOIN_GRANT, useGeocoin } from "@/lib/geocoin";
 import { CITIES_URL, MIN_SHOT_WINDOW_BLOCKS, RECORD_LIFETIME_BLOCKS, STAKE } from "@/config";
 import { accountFelts, fetchGqNote, knownNote, listGqNotes, loadScripts, parseAccountId, recordLinks, syncGq, wordFromHex, type GqNote } from "@/lib/chain";
 import { postShot, postRecord, settle, collect, selfCheckAuthArgs, setSubmitAttemptListener, waitFor, type Submitted } from "@/lib/bread";
@@ -44,6 +45,7 @@ function GqApp() {
   const bread = useMidenFiWallet();
   const local = useLocalWallet(client, runExclusive);
   const wallet = LOCAL_WALLET ? local : bread;
+  const mintGeocoins = useGeocoin(client, runExclusive);
 
   const [places, setPlaces] = useState<Place[]>([]);
   const [dataset, setDataset] = useState<Word4 | null>(null);
@@ -224,6 +226,21 @@ function GqApp() {
 
   const connect = () => wallet.connect().catch((e) => setError(e instanceof Error ? e.message : String(e)));
 
+  /** Mints the grant to the connected wallet; the local wallet then claims it, Bread claims by itself. */
+  async function getGeocoins() {
+    if (!wallet.address) return;
+    setError(null);
+    setMode({ kind: "busy", text: "Getting Geocoins" });
+    try {
+      const txId = await mintGeocoins(wallet.address);
+      if (LOCAL_WALLET) await local.claim();
+      setMode({ kind: "done", text: `${fmtGc(GEOCOIN_GRANT)} in your pocket. Done!`, txId });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+      setMode({ kind: "lobby" });
+    }
+  }
+
   if (!wallet.connected) {
     return (
       <main className="gq">
@@ -247,6 +264,7 @@ function GqApp() {
       <header className="top">
         <h1>GQ</h1>
         <span className="muted">{LOCAL_WALLET ? `test wallet ${wallet.address}` : `${wallet.address?.slice(0, 10)}…`}</span>
+        <button className="secondary" onClick={() => void getGeocoins()}>Empty pockets? Get Geocoins now!</button>
         <button className="secondary" onClick={() => void wallet.disconnect()}>Leave</button>
       </header>
       {error && <p className="error">{error}</p>}

@@ -3,7 +3,7 @@
 export const APP_NAME = "GQ GeoQuizz";
 
 // Geocoin (GC): a fungible faucet on testnet anyone may mint from (`cargo run --bin geocoin deploy`).
-export const GC_FAUCET = import.meta.env.VITE_GC_FAUCET ?? "0x02a14387adb68f516e57cc5aa65891";
+export const GC_FAUCET = import.meta.env.VITE_GC_FAUCET ?? "0x2a85bbc7c655b6d116381742015892";
 export const GC_DECIMALS = 6;
 
 // The stake of the GeoQuizz UI: the champion puts it in the record note, each rival puts the

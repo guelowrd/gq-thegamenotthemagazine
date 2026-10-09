@@ -76,6 +76,7 @@ vi.mock("@/lib/quiz", async (orig) => ({
   quizCities: async () => cities,
 }));
 
+import { useMidenClient, useMint } from "@miden-sdk/react";
 import { AppContent } from "../AppContent";
 
 beforeEach(() => {
@@ -121,6 +122,21 @@ describe("shared record link, connected as a stranger", () => {
 });
 
 describe("home, connected", () => {
+  it("mints ten Geocoins to the connected wallet from the faucet nobody holds a key to", async () => {
+    window.history.replaceState({}, "", "/");
+    // the app's own client refreshes the public faucet account before executing the mint
+    const importAccountById = vi.fn(async () => undefined);
+    vi.mocked(useMidenClient).mockReturnValue({ importAccountById } as never);
+    const mint = vi.fn(async () => ({ transactionId: "tx" }));
+    vi.mocked(useMint).mockReturnValue({ mint, result: null, isLoading: false, stage: "idle", error: null, reset: vi.fn() } as never);
+    render(<AppContent />);
+    fireEvent.click(await screen.findByRole("button", { name: /get geocoins/i }));
+    await screen.findByText(/10 GC in your pocket/i);
+    expect(importAccountById).toHaveBeenCalledTimes(1);
+    expect(mint).toHaveBeenCalledWith(expect.objectContaining({ targetAccountId: "mtst1me", amount: 10_000_000n, noteType: "public" }));
+  });
+
+
   it("settles all my open shots at the record with one play", async () => {
     window.history.replaceState({}, "", "/");
     const second = { ...myChallenge, id: "0xc2", idWord: [2n, 2n, 2n, 2n] as [bigint, bigint, bigint, bigint] };

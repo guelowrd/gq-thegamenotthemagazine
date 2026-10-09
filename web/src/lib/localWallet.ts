@@ -30,6 +30,39 @@ export function useLocalWallet(client: Client | null, runExclusive: <T>(fn: () =
   const [connecting, setConnecting] = useState(false);
   const [status, setStatus] = useState("");
 
+  /**
+   * Claims every consumable note that is not a GQ note (those need arguments and the app consumes
+   * them), waiting up to `waitMs` for one to show up first (a mint just submitted takes a block).
+   * Returns how many were claimed.
+   */
+  const claimIncoming = useCallback(
+    async (hex: string, waitMs: number): Promise<number> => {
+      if (!client) throw new Error("client not ready");
+      const { recordRoot, shotRoot } = await loadScripts();
+      const deadline = Date.now() + waitMs;
+      let pending: string[] = [];
+      for (;;) {
+        pending = await runExclusive(async () => {
+          await client.syncState();
+          return (await client.getConsumableNotes(AccountId.fromHex(hex)))
+            .flatMap((n) => n.inputNoteRecord() ?? [])
+            .filter((r) => {
+              const root = r.details()?.recipient().script().root().toHex();
+              return root !== recordRoot && root !== shotRoot;
+            })
+            .flatMap((r) => r.id()?.toString() ?? []);
+        });
+        if (pending.length > 0 || Date.now() >= deadline) break;
+        await sleep(3000);
+      }
+      if (pending.length === 0) return 0;
+      const r = await consume({ accountId: hex, notes: pending });
+      console.info("[gq local] claimed", pending.length, "note(s)", r.transactionId);
+      return pending.length;
+    },
+    [client, runExclusive, consume],
+  );
+
   const connect = useCallback(async () => {
     if (!client) throw new Error("client not ready");
     setConnecting(true);
@@ -75,22 +108,8 @@ export function useLocalWallet(client: Client | null, runExclusive: <T>(fn: () =
         log("claimed", r.transactionId);
       }
       // 3. whatever was sent to this account (Geocoin mints, prizes won): claim it, as Bread does by itself.
-      //    GQ notes are left alone, they need arguments and the app consumes them.
-      const { recordRoot, shotRoot } = await loadScripts();
-      const pending = await runExclusive(async () =>
-        (await client.getConsumableNotes(AccountId.fromHex(hex!)))
-          .flatMap((n) => n.inputNoteRecord() ?? [])
-          .filter((r) => {
-            const root = r.details()?.recipient().script().root().toHex();
-            return root !== recordRoot && root !== shotRoot;
-          })
-          .flatMap((r) => r.id()?.toString() ?? []),
-      );
-      if (pending.length > 0) {
-        setStatus("Claiming…");
-        const r = await consume({ accountId: hex, notes: pending });
-        log("claimed", pending.length, "note(s)", r.transactionId);
-      }
+      setStatus("Claiming…");
+      await claimIncoming(hex, 0);
       setId(hex);
       log("connected");
     } catch (e) {
@@ -100,7 +119,7 @@ export function useLocalWallet(client: Client | null, runExclusive: <T>(fn: () =
       setConnecting(false);
       setStatus("");
     }
-  }, [client, runExclusive, createWallet, consume]);
+  }, [client, runExclusive, createWallet, consume, claimIncoming]);
 
   /** Executes a dApp-built custom transaction with the local account (what Bread would do). */
   const requestTransaction = useCallback(
@@ -125,6 +144,8 @@ export function useLocalWallet(client: Client | null, runExclusive: <T>(fn: () =
     wallet: { readyState: "Installed" },
     connect,
     disconnect: async () => setId(null),
+    /** After a mint: wait for the note and claim it (Bread does this by itself). */
+    claim: () => claimIncoming(id!, 90_000),
     requestTransaction,
     requestAssets: async (): Promise<Asset[]> =>
       runExclusive(async () =>
