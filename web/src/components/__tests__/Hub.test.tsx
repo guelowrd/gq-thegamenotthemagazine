@@ -39,7 +39,7 @@ const name = (a: { suffix: bigint }) => (a.suffix === 1n ? "JHT" : `P${a.suffix}
 describe("Leaderboards", () => {
   it("lists rank, name and number; my rows are marked, and my rank shows below a top 10 I am not in", () => {
     const top = Array.from({ length: 10 }, (_, i) => ranked(other(i), i + 1, 100 - i));
-    const data = { coins: { top: [ranked(other(0), 1, 12), ranked(ME, 2, 10)], mine: null }, records: { top, mine: ranked(ME, 18, 6800) }, defended: empty, smashed: empty };
+    const data = { coins: { top: [ranked(other(0), 1, 12), ranked(ME, 2, 10)], mine: null }, records: { top, mine: ranked(ME, 18, 6800) }, defended: empty, smashed: empty, losers: empty };
     render(<Leaderboards data={data} me={ME} name={name} />);
     const mine = screen.getAllByLabelText("Your row");
     expect(mine.map((r) => r.textContent)).toEqual(["02JHT10", "18JHT6,800"]);
@@ -48,13 +48,13 @@ describe("Leaderboards", () => {
   });
 
   it("marks nothing as mine without a wallet, says LOADING before the first read, and picks a board on narrow screens", () => {
-    const data = { coins: { top: [ranked(ME, 1, 3)], mine: null }, records: empty, defended: empty, smashed: empty };
+    const data = { coins: { top: [ranked(ME, 1, 3)], mine: null }, records: empty, defended: empty, smashed: empty, losers: empty };
     const { rerender, container } = render(<Leaderboards data={data} me={null} name={name} />);
     expect(screen.queryByLabelText("Your row")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /^wins$/i }));
     expect(container.querySelector(".high-scores")?.getAttribute("data-pick")).toBe("wins");
     expect(screen.getByRole("button", { name: /^wins$/i })).toHaveAttribute("aria-pressed", "true");
     rerender(<Leaderboards data={null} me={null} name={name} />);
-    expect(screen.getAllByRole("status")).toHaveLength(4);
+    expect(screen.getAllByRole("status")).toHaveLength(5);
   });
 });

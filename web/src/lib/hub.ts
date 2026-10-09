@@ -152,17 +152,20 @@ function rank(rows: Omit<Ranked, "rank">[], me: AccountFelts | null): Board {
 /**
  * The four boards. Geocoins won: lost shots a champion took, plus prizes (a winner's own Geocoin
  * coming back is not a win). Best records: every record posted, by its score. Defended: every rival who lost at
- * one of the champion's records, open or not. Smashed: records a rival took.
+ * one of the champion's records, open or not. Smashed: records a rival took. Losers: shots a rival
+ * lost, the other side of Defended.
  */
 export function boards(notes: ChallengeNote[], height: number, me: AccountFelts | null) {
   const gc = (v: bigint) => Number(v) / 10 ** GC_DECIMALS;
   const coins: Event[] = [];
   const defended: Event[] = [];
   const smashed: Event[] = [];
+  const losers: Event[] = [];
   for (const n of notes) {
     if (n.kind === "shot") {
       if (shotOutcome(n, height, recordOf(n, notes)) !== "lost") continue;
       defended.push({ who: n.storage.champion, value: 1, at: shotDeadline(n.storage) });
+      if (n.storage.rival) losers.push({ who: n.storage.rival, value: 1, at: shotDeadline(n.storage) });
       if (n.consumedAt !== undefined) coins.push({ who: n.storage.champion, value: gc(n.amount), at: n.consumedAt });
       continue;
     }
@@ -174,7 +177,7 @@ export function boards(notes: ChallengeNote[], height: number, me: AccountFelts 
     }
   }
   const records = notes.filter((n) => n.kind === "record").map((n) => ({ key: n.id, who: n.storage.champion, value: n.storage.target, at: n.createdAt ?? Infinity }));
-  return { coins: rank(tally(coins), me), records: rank(records, me), defended: rank(tally(defended), me), smashed: rank(tally(smashed), me) };
+  return { coins: rank(tally(coins), me), records: rank(records, me), defended: rank(tally(defended), me), smashed: rank(tally(smashed), me), losers: rank(tally(losers), me) };
 }
 
 /** A time, arcade style and local: TODAY 18:42, YESTERDAY 21:10, TOMORROW 09:05, 08 OCT 20:14. */

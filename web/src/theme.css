@@ -295,6 +295,7 @@ table.report td:nth-child(2) { text-align: right; color: var(--muted); }
   .high-scores[data-pick="coins"] [data-board="coins"],
   .high-scores[data-pick="records"] [data-board="records"],
   .high-scores[data-pick="wins"] .wins-module,
+  .high-scores[data-pick="losers"] [data-board="losers"],
   .wins-module[data-side="defended"] [data-board="defended"],
   .wins-module[data-side="smashed"] [data-board="smashed"] { display: block; }
 }

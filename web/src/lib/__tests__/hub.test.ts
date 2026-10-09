@@ -122,6 +122,12 @@ describe("boards", () => {
     expect(boards(notes, 400, ME).defended.top.map((r) => [name(r.who), r.value])).toEqual([["JHT", 2]]);
   });
 
+  it("the loserboard counts each rival's lost shots, taken or not, and never a shot still in play or won", () => {
+    const open = record(ME, 5382, { expiry: 5000 });
+    const notes = [open, shot(open, KQX, 200, { consumedAt: 900 }), shot(open, MUD, 300), shot(open, MUD, 350), shot(open, MUD, 800), shot(open, KQX, 600, { consumedAt: 500 })];
+    expect(boards(notes, 400, ME).losers.top.map((r) => [name(r.who), r.value])).toEqual([["MUD", 2], ["KQX", 1]]);
+  });
+
   it("best records: top 10 by score, names may repeat, a tie goes to the first posted, my best row below with its real rank", () => {
     const notes = [record(ME, 50), ...Array.from({ length: 11 }, (_, i) => record(i % 2 ? KQX : MUD, 1000 - i * 10)), record(ME, 40)];
     notes.push(record(MUD, 1000, { createdAt: 999 }));
