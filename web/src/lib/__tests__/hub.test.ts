@@ -99,7 +99,7 @@ describe("history", () => {
       ["3,900 pts", "Nobody tried", "Taken back"],
       ["MUD / 8,400", "Lost 1 Geocoin"],
       ["KQX / 5,500", "Got my Geocoin back"],
-      ["MUD / 6,200", "I smashed it!", "Got 2 Geocoins"],
+      ["MUD / 6,200", "Smashed it!", "Got 2 Geocoins"],
       ["4,100 pts", "KQX beat it", "1 try lost"],
     ]);
   });

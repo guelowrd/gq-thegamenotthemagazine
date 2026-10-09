@@ -119,7 +119,7 @@ export function history(notes: ChallengeNote[], me: AccountFelts, height: number
         continue;
       }
       // the prize comes with the shot in one transaction: same block
-      if (record && record.consumedAt === n.consumedAt) items.push({ ...base, title, lines: ["I smashed it!", `Got ${fmtGeocoin(n.amount + record.amount)}`], tone: "mint" });
+      if (record && record.consumedAt === n.consumedAt) items.push({ ...base, title, lines: ["Smashed it!", `Got ${fmtGeocoin(n.amount + record.amount)}`], tone: "mint" });
       else items.push({ ...base, title, lines: ["Got my Geocoin back"], tone: "" });
     }
   }
