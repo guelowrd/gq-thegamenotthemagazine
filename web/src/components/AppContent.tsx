@@ -340,8 +340,8 @@ function GqApp() {
             Insert Geocoin
           </button>
         )}
-        <p className="muted terms" style={{ marginTop: 14 }}>
-          Win and get your Geocoin back + the prize :)
+        <p className="muted terms" style={{ margin: "14px 0 0" }}>
+          Win and get your Geocoin back plus the prize :)
           <br />
           Lose and your Geocoin goes to the champion :(
         </p>
