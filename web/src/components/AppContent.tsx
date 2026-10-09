@@ -35,13 +35,17 @@ type Mode =
   /** `home`: OK leaves the record behind and goes back to the 1P World Tour (after a win) */
   | { kind: "done"; title?: string; text: string; rows?: ReportRow[]; txId?: string; share?: { recordId: string; score: number }; retry?: () => void; home?: boolean };
 
-/** The music each screen plays; a waiting screen keeps the one of the screen it came from. */
+/**
+ * The music each screen plays. A solo run keeps its song from the first city to the OK on
+ * "Record posted!"; a shot plays the VS song, then the result song; a waiting screen keeps the
+ * song of the screen it came from; everything else plays the home theme.
+ */
 const trackOf = (m: Mode): Track =>
-  m.kind === "play-champion"
+  m.kind === "play-champion" || m.kind === "post-record" || (m.kind === "done" && m.share)
     ? "play"
     : m.kind === "play-rival"
       ? "vs"
-      : m.kind === "post-record" || (m.kind === "done" && m.rows)
+      : m.kind === "done" && m.rows
         ? "result"
         : m.kind === "busy"
           ? m.track
