@@ -1,15 +1,14 @@
 import { act, renderHook } from "@testing-library/react";
-import { beforeEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { useSound } from "../useSound";
 
 describe("sound", () => {
-  beforeEach(() => localStorage.clear());
-
-  it("is on by default and remembers SOUND OFF", () => {
-    const { result } = renderHook(() => useSound("home"));
-    expect(result.current.on).toBe(true);
-    act(() => result.current.toggle());
-    expect(result.current.on).toBe(false);
-    expect(renderHook(() => useSound("home")).result.current.on).toBe(false);
+  it("is on at every visit, even after SOUND OFF the last time", () => {
+    const first = renderHook(() => useSound("home"));
+    expect(first.result.current.on).toBe(true);
+    act(() => first.result.current.toggle());
+    expect(first.result.current.on).toBe(false);
+    first.unmount();
+    expect(renderHook(() => useSound("home")).result.current.on).toBe(true);
   });
 });
