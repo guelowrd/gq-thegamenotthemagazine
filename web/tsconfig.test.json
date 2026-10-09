@@ -1,0 +1,7 @@
+{
+  // The whole of src, tests included (they import ../rules/*.json): `yarn typecheck`.
+  "extends": "./tsconfig.app.json",
+  "compilerOptions": { "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.test.tsbuildinfo" },
+  "include": ["src"],
+  "exclude": []
+}

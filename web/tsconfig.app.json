@@ -28,5 +28,8 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src"]
+  "include": ["src"],
+  // tests read the shared vectors in ../rules: type-checked by tsconfig.test.json, not by the build,
+  // so the app builds from web/ alone (as Vercel does)
+  "exclude": ["src/**/__tests__"]
 }
