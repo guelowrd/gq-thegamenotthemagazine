@@ -204,6 +204,8 @@ describe("Geocoin in words", () => {
     const { url, x } = recordLinks("0xabc", 9690);
     expect(url).toMatch(/\?record=0xabc$/);
     expect(decodeURIComponent(x)).toContain(url);
+    expect(new URL(x).searchParams.get("text")).toBe("9690 points on GeoQuizz 😎\nInstall @joinbread & beat my record:");
+    expect(new URL(x).searchParams.get("url")).toBe(url);
   });
 });
 
