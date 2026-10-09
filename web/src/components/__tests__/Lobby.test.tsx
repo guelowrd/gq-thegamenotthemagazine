@@ -43,6 +43,8 @@ describe("Lobby", () => {
     const { rerender } = render(<Lobby me={champion} notes={[prize]} height={100} {...h} />);
     expect(screen.queryByRole("button", { name: /take it back/i })).toBeNull();
     expect(screen.getByText(/waiting for a rival/i)).toBeInTheDocument();
+    // 900 blocks left: 45 minutes from now, as a clock time like the history's
+    expect(screen.getByText(/^My record \/ open until (TODAY|TOMORROW) \d\d:\d\d$/)).toBeInTheDocument();
     // an open record can be shared again from the hub
     expect(screen.getByRole("link", { name: /share on x/i }).getAttribute("href")).toContain(encodeURIComponent("?record=0xp"));
     expect(screen.queryByText(/on it/i)).toBeNull();

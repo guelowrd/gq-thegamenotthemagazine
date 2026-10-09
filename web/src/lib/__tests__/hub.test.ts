@@ -134,10 +134,11 @@ describe("boards", () => {
 });
 
 describe("history times", () => {
-  it("say today, yesterday, or the date, in local time", () => {
+  it("say today, yesterday, tomorrow, or the date, in local time", () => {
     const now = new Date(2026, 9, 9, 22, 0).getTime();
     expect(whenLabel(new Date(2026, 9, 9, 18, 42).getTime(), now)).toBe("TODAY 18:42");
     expect(whenLabel(new Date(2026, 9, 8, 21, 10).getTime(), now)).toBe("YESTERDAY 21:10");
     expect(whenLabel(new Date(2026, 9, 7, 8, 5).getTime(), now)).toBe("07 OCT 08:05");
+    expect(whenLabel(new Date(2026, 9, 10, 9, 5).getTime(), now)).toBe("TOMORROW 09:05");
   });
 });

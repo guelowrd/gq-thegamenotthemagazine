@@ -2,7 +2,8 @@
 
 import type { ChallengeNote } from "@/lib/chain";
 import { blocksToClock, fmtGeocoin } from "@/lib/flow";
-import { triesLost } from "@/lib/hub";
+import { triesLost, whenLabel } from "@/lib/hub";
+import { BLOCK_SECONDS } from "@/config";
 import { shotDeadline, type AccountFelts } from "@/lib/notes";
 import { ShareButtons } from "./ShareButtons";
 const sameAccount = (a: AccountFelts | null, b: AccountFelts | null) => !!a && !!b && a.suffix === b.suffix && a.prefix === b.prefix;
@@ -21,6 +22,8 @@ export function Lobby({ me, notes, height, onSettle, onCollect }: LobbyProps) {
   const recordById = (idWord: bigint[]) => notes.find((n) => n.kind === "record" && n.idWord.every((f, i) => f === idWord[i]));
   const deadline = (n: ChallengeNote) => (n.kind === "shot" ? shotDeadline(n.storage) : n.storage.expiryBlock);
   const expired = (n: ChallengeNote) => height >= deadline(n);
+  // when it ends, as a clock time: blocks left at testnet's pace
+  const until = (n: ChallengeNote) => whenLabel(Date.now() + (deadline(n) - height) * BLOCK_SECONDS * 1000);
 
   const mine = (n: ChallengeNote) => sameAccount(me, n.storage.champion);
   // records are shared by link only; the app never lists other people's
@@ -43,7 +46,7 @@ export function Lobby({ me, notes, height, onSettle, onCollect }: LobbyProps) {
       )}
       {myRecords.map((p) => (
         <section key={p.id} className={`panel card${expired(p) ? " yellow" : ""}`}>
-          <div className="eyebrow">{expired(p) ? "My record / over" : "My record / open"}</div>
+          <div className="eyebrow">{expired(p) ? "My record / over" : `My record / open until ${until(p)}`}</div>
           <div className="score">{p.storage.target.toLocaleString()} pts</div>
           {expired(p) ? (
             <button className="btn primary" onClick={() => onCollect([p])}>

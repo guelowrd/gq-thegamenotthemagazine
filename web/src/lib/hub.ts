@@ -177,7 +177,7 @@ export function boards(notes: ChallengeNote[], height: number, me: AccountFelts 
   return { coins: rank(tally(coins), me), scores: rank(scores, me), defended: rank(tally(defended), me), smashed: rank(tally(smashed), me) };
 }
 
-/** A finished game's time, arcade style and local: TODAY 18:42, YESTERDAY 21:10, 08 OCT 20:14. */
+/** A time, arcade style and local: TODAY 18:42, YESTERDAY 21:10, TOMORROW 09:05, 08 OCT 20:14. */
 export function whenLabel(ms: number, now = Date.now()): string {
   const d = new Date(ms);
   const pad = (v: number) => String(v).padStart(2, "0");
@@ -186,5 +186,6 @@ export function whenLabel(ms: number, now = Date.now()): string {
   const days = Math.round((midnight(new Date(now)) - midnight(d)) / 86_400_000);
   if (days === 0) return `TODAY ${time}`;
   if (days === 1) return `YESTERDAY ${time}`;
+  if (days === -1) return `TOMORROW ${time}`;
   return `${pad(d.getDate())} ${d.toLocaleString("en", { month: "short" }).toUpperCase()} ${time}`;
 }
