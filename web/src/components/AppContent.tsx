@@ -33,7 +33,7 @@ type Mode =
   /** `track`: the music of the screen it came from, which keeps playing while it waits */
   | { kind: "busy"; text: string; back: Mode; stage: Stage; since: number; track: Track }
   /** `home`: OK leaves the record behind and goes back to the 1P World Tour (after a win) */
-  | { kind: "done"; title?: string; text: string; rows?: ReportRow[]; txId?: string; share?: { recordId: string; score: number }; retry?: () => void; home?: boolean };
+  | { kind: "done"; title?: string; text: string; rows?: ReportRow[]; txId?: string; share?: { recordId: string; score: number }; retry?: () => void; retryLabel?: string; home?: boolean };
 
 /**
  * The music each screen plays: the solo song during a 1P run, the result song from "Post your
@@ -211,6 +211,17 @@ function GqApp() {
       const records = await Promise.all(ids.map((id) => knownNote(client, id)));
       return posted ? records.every((r) => !!r) : records.every((r) => !!r?.consumed);
     };
+    // a screen with its own retry button (the claim after a win) gets the smarter retry and the
+    // error box only explains: one button, named for what it does
+    const fallBack = (e: unknown, retry: () => void) => {
+      if (back.kind === "done" && back.retry) {
+        oops(e);
+        setMode({ ...back, retry });
+      } else {
+        oops(e, retry);
+        setMode(back);
+      }
+    };
     const finish = (s: Submitted) => {
       void refresh();
       setMode(onConfirmed?.(s) ?? { kind: "done", text: outcomeText(text, true), txId: s.txId });
@@ -234,12 +245,10 @@ function GqApp() {
       if (!live()) return;
       if (seen) return finish(submitted);
       void refresh();
-      oops(new Error(NOT_FINISHED), again(submitted));
-      setMode(back);
+      fallBack(new Error(NOT_FINISHED), again(submitted));
     } catch (e) {
       if (!live()) return;
-      oops(e, again(previous));
-      setMode(back);
+      fallBack(e, again(previous));
     }
   }
 
@@ -335,7 +344,7 @@ function GqApp() {
         false,
         () => settle(client, wallet, shots, plan.claimPrize ? record : undefined, r.answers),
         // the win stands on failure: the report stays and the claim can be sent again
-        { kind: "done", title: "Record smashed!", text: plan.text, rows, retry: claim },
+        { kind: "done", title: "Record smashed!", text: plan.text, rows, retry: claim, retryLabel: plan.claimPrize ? "Claim my prize" : "Get my Geocoin back" },
         () => {
           // the prize is ours: the record card must not offer it again
           if (plan.claimPrize && record) setSharedRecord((r) => (r && r.id === record.id ? { ...r, consumed: true } : r));
@@ -589,7 +598,7 @@ function GqApp() {
           {mode.share && <ShareButtons recordId={mode.share.recordId} score={mode.share.score} />}
           {mode.retry && (
             <button className="btn primary" onClick={mode.retry}>
-              Try again
+              {mode.retryLabel ?? "Try again"}
             </button>
           )}
           <button
