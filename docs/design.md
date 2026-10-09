@@ -113,7 +113,11 @@ initial assets, not their storage contents. So the prize script:
 3. hashes the whole storage (same length as its own) with `note::compute_storage_commitment` and compares
    with `input_note::get_storage_info(i).commitment`; a lie about the deadline,
    the player, the prize or the quiz hashes differently;
-4. checks the note's initial assets hold ≥ `min_stake` of the prize's asset;
+4. checks the note's *initial* assets (`input_note::get_initial_assets`) hold ≥ `min_stake` of
+   the prize's asset. Initial, because input notes run in the order the client gives them
+   (sorted by id in practice): when the challenge script runs first it has already moved its
+   stake into the account, and `input_note::get_asset` would return an empty word
+   (verified on testnet 2026-10-09, `ERR_WRONG_ASSET`; test `claim_works_whichever_note_runs_first`);
 5. aborts if no note passes.
 
 A challenge note with altered quiz data, another player or another prize id
