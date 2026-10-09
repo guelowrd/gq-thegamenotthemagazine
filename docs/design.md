@@ -1,43 +1,51 @@
 # GQ (GeoQuizz) on Miden: design
 
-Status: approved direction, 2026-10-08. Targets **Miden testnet v0.17**
-only. Note scripts are **MASM for now**; a Rust port is planned once the
-compiler release after 0.11.0 ships (see "Why MASM").
+Status: approved direction, 2026-10-08; rules v2 and vocabulary v2 decided
+2026-10-09. Targets **Miden testnet v0.17** only. Note scripts are **MASM for
+now**; a Rust port is planned once the compiler release after 0.11.0 ships
+(see "Why MASM").
 
-Vocabulary: a **record note** is posted by the champion. A **shot note**
-is posted by a rival and bound to one record note. The reusable part is
-the *challenge mechanic*; GeoQuizz is one game plugged into it.
+Vocabulary: the **champion** posts a **record** (a *record note*: the score to
+beat and the prize). A **rival** takes a **shot** (a *shot note* holding one
+**Geocoin**, GC), bound to one record. The reusable part is the *challenge
+mechanic*; GeoQuizz is one game plugged into it.
 
 ## 1. The game (GeoQuizz)
 
-A quiz is 4 rounds. Each round shows a city name; the player clicks the map.
+A quiz is 10 rounds. Each round shows a city name; the player clicks the map.
 The client records the click as centi-degrees (`lat_cd = round((lat+90)*100)`,
 `lon_cd = round((lon+180)*100)`) and the elapsed time in 10 ms units (15 s cap).
 
-Score per round, rules version 1, all `u32` math (no sqrt, no floats):
+Score per round, rules version 2, all `u32` math (no sqrt, no floats): the
+design package's curve `exp(-km / 500)` made integer through a table.
 
 ```
 dlat  = |lat_true - lat_click|
 dlon  = min(|lon_true - lon_click|, 36000 - |lon_true - lon_click|) * cos_x100 / 100
-d2    = dlat² + dlon²                       (centi-degrees², fits u32)
-dist  = d2 <= 100²  ? 1000                   (≈ 1° ≈ 111 km)
-      : d2 <= 300²  ? 700
-      : d2 <= 800²  ? 400
-      : d2 <= 2000² ? 150 : 0
-speed = dist == 0 ? 0 : t <= 300 ? 300 : t <= 600 ? 200 : t <= 1000 ? 100 : 0
-round = dist + speed                         (max 1300, quiz max 5200)
+d2    = dlat² + dlon²                         (centi-degrees², fits u32)
+band  = first i in 0..128 with d2 <= ((i+1) * 25)²   (25 cd ≈ 27.8 km per band)
+a     = EXP_MILLI[band]                       (round(1000 * exp(-i * 25 * 1.11195 / 500)); 0 past the table)
+acc   = 850 * a / 1000
+speed = 150 * a * (1500 - min(t, 1500)) / 1 500 000
+round = acc + speed                           (max 1000, quiz max 10 000)
 ```
 
 `cos_x100 = round(cos(lat_true) * 100)` is stored per city so the script never
-computes trigonometry. One round packs into one field element:
-`felt = lat_cd * 2^32 + (lon_cd * 2048 + t_10ms)`. Four rounds = one Word,
-which is exactly the single note argument a Miden note script receives.
+computes trigonometry. The table (`EXP_MILLI`, 128 entries) is the same literal
+in `rules.rs`, `rules.ts` and `gq_score.masm`; a Rust test pins it to the
+formula and `rules/vectors.json` pins the three implementations to each other.
+One round packs into one field element:
+`felt = lat_cd * 2^32 + (lon_cd * 2048 + t_10ms)`. Ten of them do not fit the
+single Word a note script receives as argument, so the argument is their
+commitment (`note::compute_storage_commitment` over the ten felts, Poseidon2)
+and the felts travel in the advice map under that key; the script re-hashes
+them and refuses a mismatch.
 
 Quiz selection is off-chain and deterministic: `seed` (random Word chosen by the
-champion) plus the dataset pick 4 distinct city indices via SHA-256. The prize
+champion) plus the dataset pick 10 distinct city indices via SHA-256. The record
 note stores the resulting `{city_idx, lat_cd, lon_cd, cos_x100}` per round, the
 seed and the dataset hash. A rival's client re-derives the indices from the
-seed and refuses a challenge whose stored rounds don't match the bundled
+seed and refuses a shot at a record whose stored rounds don't match the bundled
 dataset. On-chain, only the stored coordinates are used.
 
 Dataset: Natural Earth populated places (public domain), ~240 cities, bundled
@@ -45,12 +53,14 @@ as `cities.json`; `dataset = SHA-256(canonical json)` folded into 4 felts.
 Map: equirectangular SVG rendered from Natural Earth 110m country outlines
 (public domain). Click to lat/lon is a linear mapping. No map library.
 
-Stake: one amount, **1 GQ**, for everyone. The champion puts it in the prize
-note (that is the prize); each rival puts the same amount in their
-shot note to play. GQ is a fungible token from a faucet we deploy on
-testnet (`geocoin` binary; Gaylord mints). The contracts only know a generic
-`min_stake` and "same asset as the prize", so another game can use another
-token or amount.
+Stake: one amount, **1 Geocoin (GC)**, for everyone. The champion puts it in
+the record note (that is the prize); each rival puts the same amount in their
+shot note to play. Geocoin is a fungible token from a faucet on testnet with
+**no authentication** (`miden::standards::auth::no_auth`): anyone may mint, the
+app's "Empty pockets? Get Geocoins now!" button does it from the browser
+(`geocoin` binary deploys and mints from the CLI; PoW or a captcha can come
+later). The contracts only know a generic `min_stake` and "same asset as the
+record", so another game can use another token or amount.
 
 ## 2. The challenge mechanic (generic)
 
@@ -58,8 +68,8 @@ token or amount.
 
 | artifact | paths | who consumes |
 |---|---|---|
-| `record.masm`     | **claim** (rival, before expiry, winning answer, with their shot note in the same tx) / **reclaim** (champion, after expiry) | prize assets go to the consumer |
-| `shot.masm` | **settle** (player, before the challenge deadline, winning answer only: stake back) / **collect** (champion, from the deadline on) | |
+| `record.masm` | **claim** (rival, before expiry, winning answer, with their shot note in the same tx) / **reclaim** (champion, after expiry) | prize assets go to the consumer |
+| `shot.masm`   | **settle** (rival, before the shot deadline, winning answer only: Geocoin back) / **collect** (champion, from the deadline on) | |
 
 Both include `challenge_core.masm` (storage layout, deadline checks, the
 "find my shot note" check, asset receipt) and call one game procedure,
@@ -71,56 +81,56 @@ file. Anything not matching a path aborts.
 
 Why two scripts and not one with a kind field: two artifacts named after the
 two concepts explain themselves, each has two paths, and a game can ship a new
-challenge script without touching the prize script. The price is that the
-prize must know the challenge script's root; it is written into the prize
+shot script without touching the record script. The price is that the
+record must know the shot script's root; it is written into the record
 storage by the champion's client and cross-checked by every client, never
 hardcoded.
 
-### Storage (40 felts, identical layout for both notes)
+### Storage (64 felts, identical layout for both notes)
 
 ```
- 0..1   champion           [suffix, prefix]  (P2ID convention)
- 2      target             champion's score to beat (strictly greater wins)
- 3      min_stake          minimum challenge amount, in the prize's asset
- 4      expiry_block       prize lifetime (~24 h = 28 800 blocks at 3 s)
- 5..6   player             [suffix, prefix]  zero in a record note
- 7      shot_deadline block by which the player must settle; zero in a record note
- 8..11  RECORD_ID           zero in a record note
-12..15  SHOT_ROOT     shot.masm script root
-16..    GAME DATA          whole words, any length; GeoQuizz: SEED(4) DATASET(4) 4×{city,lat,lon,cos} = 24
+ 0..1   champion        [suffix, prefix]  (P2ID convention)
+ 2      target          champion's score to beat (strictly greater wins)
+ 3      min_stake       minimum shot amount, in the record's asset
+ 4      expiry_block    record lifetime (~24 h = 28 800 blocks at 3 s)
+ 5..6   rival           [suffix, prefix]  zero in a record note
+ 7      shot_deadline   block by which the rival must settle; zero in a record note
+ 8..11  RECORD_ID       zero in a record note
+12..15  SHOT_ROOT       shot.masm script root
+16..    GAME DATA       whole words, any length; GeoQuizz: SEED(4) DATASET(4) 10×{city,lat,lon,cos} = 48
 ```
 
-A shot note is a copy of its record note's storage with `player`,
+A shot note is a copy of its record note's storage with `rival`,
 `shot_deadline` and `RECORD_ID` filled in. The deadline is short on purpose
-(~6 min = 120 blocks, two or three plays of the game): once the stake is down,
-the rival gets one sitting, not hours to rehearse the same four cities.
-A challenge settles before `min(shot_deadline, expiry_block)` and the
+(~6 min = 120 blocks, about two plays of the game): once the Geocoin is down,
+the rival gets one sitting, not hours to rehearse the same ten cities.
+A shot settles before `min(shot_deadline, expiry_block)` and the
 champion collects from that block on, so a rival cannot pick a deadline
-past the prize's own life. Both notes are **public**, tagged `GQ_TAG` (one u32
-for the app), and carry GQ.
+past the record's own life. Both notes are **public**, tagged `GQ_TAG` (one u32
+for the app), and carry Geocoin.
 
-### Binding a challenge to its prize (the claim check)
+### Binding a shot to its record (the claim check)
 
 The kernel exposes other input notes' script root, storage commitment and
-initial assets, not their storage contents. So the prize script:
+initial assets, not their storage contents. So the record script:
 
 1. loops `0..tx::get_num_input_notes()` for input notes whose
    `input_note::get_script_root(i) == SHOT_ROOT`;
 2. for each, reads that note's `shot_deadline` from the advice map (key =
    the note id; the claimant supplies it) and builds the storage the note must
-   have: its own storage with `player = active_account::get_id()`,
+   have: its own storage with `rival = active_account::get_id()`,
    `RECORD_ID = active_note::get_note_id()` and that deadline;
 3. hashes the whole storage (same length as its own) with `note::compute_storage_commitment` and compares
    with `input_note::get_storage_info(i).commitment`; a lie about the deadline,
-   the player, the prize or the quiz hashes differently;
+   the rival, the record or the quiz hashes differently;
 4. checks the note's *initial* assets (`input_note::get_initial_assets`) hold ≥ `min_stake` of
-   the prize's asset. Initial, because input notes run in the order the client gives them
-   (sorted by id in practice): when the challenge script runs first it has already moved its
-   stake into the account, and `input_note::get_asset` would return an empty word
+   the record's asset. Initial, because input notes run in the order the client gives them
+   (sorted by id in practice): when the shot script runs first it has already moved its
+   Geocoin into the account, and `input_note::get_asset` would return an empty word
    (verified on testnet 2026-10-09, `ERR_WRONG_ASSET`; test `claim_works_whichever_note_runs_first`);
 5. aborts if no note passes.
 
-A shot note with altered quiz data, another player or another prize id
+A shot note with altered quiz data, another rival or another record id
 hashes differently and cannot claim.
 
 ### Deadlines
@@ -129,23 +139,23 @@ hashes differently and cannot claim.
 back-dated, so every before-expiry path calls
 `tx::update_expiration_block_delta(CLAIM_FUZZ)`; a back-dated block then buys
 at most `CLAIM_FUZZ` blocks. After-expiry paths cannot be forged forward.
-The prize lives `RECORD_LIFETIME_BLOCKS` (~24 h); a challenge must be settled
+The record lives `RECORD_LIFETIME_BLOCKS` (~24 h); a shot must be settled
 within `SHOT_WINDOW_BLOCKS` (~6 min) of its creation; the client refuses
-a challenge on a prize with fewer than `MIN_SHOT_WINDOW_BLOCKS` left.
+a shot at a record with fewer than `MIN_SHOT_WINDOW_BLOCKS` left.
 
 ### Flow
 
-- Champion plays, posts a record note holding the stake, with `target`,
-  `min_stake` (= the stake), expiry and the quiz.
-- Rival posts a shot note (1 GQ) copying the prize storage, then
+- Champion plays, posts a record note holding one Geocoin, with `target`,
+  `min_stake` (= one Geocoin), expiry and the quiz.
+- Rival posts a shot note (1 GC) copying the record storage, then
   plays the same quiz.
-- Winner who is first: one transaction consumes the prize (claim) and their
-  shot note (settle, win): prize plus stake back.
+- Winner who is first: one transaction consumes the record (claim) and their
+  shot note (settle, win): prize plus Geocoin back.
 - Later winners: settle their shot note alone (refund) before its deadline.
 - Loser: nothing to sign. A losing answer cannot settle; the champion collects
-  the stake from the challenge deadline (~6 min) on. Prize closure never refunds
-  challenges.
-- Champion reclaims an unclaimed prize after expiry.
+  the Geocoin from the shot deadline (~6 min) on. Record closure never refunds
+  shots.
+- Champion reclaims an unclaimed record after expiry.
 
 ### Accounts and signer
 
@@ -162,24 +172,26 @@ explicit input notes plus per-note args. A local read-only client syncs
 ### Lightweight safeguards
 
 - Score recomputed onchain from answers; truth and target come from the note.
-- Challenge bound to one prize and one player by storage commitment.
-- `min_stake` in the prize asset checked onchain against the challenge's assets.
+- Shot bound to one record and one rival by storage commitment.
+- `min_stake` in the record's asset checked onchain against the shot's initial assets.
+- The note argument commits to the answers; the script re-hashes the advice-map felts.
 - Expiration delta bounds reference-block back-dating.
 - Client-side: seed → cities check, dataset hash, rules version, and a
-  champion's client only counts a challenge whose storage equals the prize's.
+  champion's client only counts a shot whose storage equals the record's.
 
 ### Remaining trust assumptions (honest list)
 
 1. Timing and clicks are whatever the browser submits; a modified client
-   scores 5200. Anti-cheat is deferred by the brief.
-2. A rival can play first and post the challenge only when they know they
-   won; nothing onchain orders challenge before play (no commitment stage).
+   scores 10 000. Anti-cheat is deferred by the brief.
+2. A rival can play first and post the shot only when they know they
+   won; nothing onchain orders shot before play (no commitment stage).
 3. The champion knows their own quiz. Irrelevant: they want rivals to lose.
-4. A wrong `SHOT_ROOT` in a prize makes it unclaimable until expiry; only
-   the champion is hurt (clients cross-check before challenging).
+4. A wrong `SHOT_ROOT` in a record makes it unclaimable until expiry; only
+   the champion is hurt (clients cross-check before taking a shot).
 5. Reference block can be back-dated by up to `CLAIM_FUZZ` blocks.
 6. Public notes expose scores, ids and amounts.
-7. A rival can post a challenge and never play; the champion collects after expiry.
+7. A rival can post a shot and never play; the champion collects after the deadline.
+8. Anyone can mint Geocoin: it is testnet play money by design.
 
 ## 3. Why MASM (verified 2026-10-08)
 
