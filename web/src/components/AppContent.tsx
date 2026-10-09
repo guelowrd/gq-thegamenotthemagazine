@@ -10,7 +10,7 @@ import { GEOCOIN_GRANT, useGeocoin } from "@/lib/geocoin";
 import { useSound, type Track } from "@/lib/useSound";
 import { BLOCK_SECONDS, CITIES_URL, MIN_SHOT_WINDOW_BLOCKS, RECORD_LIFETIME_BLOCKS, STAKE } from "@/config";
 import { accountFelts, fetchChallengeNote, knownNote, listChallengeNotes, loadScripts, parseAccountId, syncNotes, wordFromHex, type ChallengeNote } from "@/lib/chain";
-import { postShot, postRecord, settle, collect, reportBreadOutcome, selfCheckAuthArgs, setSubmitAttemptListener, setSubmitStageListener, waitFor, type Submitted } from "@/lib/bread";
+import { postShot, postRecord, settle, collect, reportBreadOutcome, setSubmitAttemptListener, setSubmitStageListener, waitFor, type Submitted } from "@/lib/bread";
 import { shotDeadline, type ChallengeStorage } from "@/lib/notes";
 import { claimVerdict, explain, fmtGeocoin, NOT_FINISHED, SHOT_LOST, shotRefusal, withoutRecord, withTimeout, type Trouble, myOpenShotsOn as openShotsOn, outcomeText, parseCode, reportRows, settlePlan, sharedRecordState, type ReportRow } from "@/lib/flow";
 import { datasetWord, decodeGame, encodeGame, quizCities, randomSeed, type Place, type Word4 } from "@/lib/quiz";
@@ -109,7 +109,6 @@ function GqApp() {
   const [mode, setMode] = useState<Mode>({ kind: "lobby" });
   const [trouble, setTrouble] = useState<{ t: Trouble; retry?: () => void } | null>(null);
   const [netSlow, setNetSlow] = useState(false);
-  const [authCheck, setAuthCheck] = useState<boolean | null>(null);
   const [sharedRecord, setSharedRecord] = useState<ChallengeNote | null>(null);
   const [code, setCode] = useState("");
   const [pending, setPending] = useState<Intent | null>(null);
@@ -144,7 +143,6 @@ function GqApp() {
       })
       .catch((e) => oops(e, reload));
     loadScripts().catch((e) => oops(e, reload));
-    if (import.meta.env.DEV) setAuthCheck(selfCheckAuthArgs());
     if (sharedRecordId) void loadRecord(sharedRecordId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -495,7 +493,6 @@ function GqApp() {
           onClose={() => setTrouble(null)}
         />
       )}
-      {import.meta.env.DEV && authCheck === false && <p className="error">dev: auth-args self-check MISMATCH</p>}
 
       {mode.kind === "lobby" && tab === "1p" && (
         <>

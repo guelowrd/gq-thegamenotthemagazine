@@ -62,7 +62,6 @@ vi.mock("@/lib/chain", () => ({
 
 vi.mock("@/lib/bread", () => ({
   ...bread,
-  selfCheckAuthArgs: () => true,
   reportBreadOutcome: () => undefined,
   setSubmitAttemptListener: () => undefined,
   setSubmitStageListener: () => undefined,

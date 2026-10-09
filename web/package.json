@@ -13,6 +13,9 @@
     "test:watch": "vitest",
     "test:coverage": "vitest --run --coverage"
   },
+  "engines": {
+    "node": "22.x"
+  },
   "dependencies": {
     "@miden-sdk/miden-sdk": "0.17.1",
     "@miden-sdk/miden-wallet-adapter-base": "0.17.0",

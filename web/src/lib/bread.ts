@@ -2,7 +2,7 @@
 // must carry the multisig auth args (bound block, salt, fee conversion info) and declare the bound
 // block. The SDK's fee-aware builder only does that for accounts in the dApp's own store, which a
 // private Bread account never is, so the words are rebuilt here (mirror of
-// integration/src/auth_args.rs, pinned by rules/auth_vectors.json).
+// integration/src/auth_args.rs; both pinned by rules/auth_vectors.json in the tests).
 
 import {
   AccountId,
@@ -24,7 +24,6 @@ import { SHOT_WINDOW_BLOCKS, GC_FAUCET, NETWORK_POLL_INTERVAL_MS, NETWORK_POLL_T
 import { encodeStorage, SHOT_DEADLINE_INDEX, shotStorage, ZERO_WORD, type AccountFelts, type ChallengeStorage, type GameAnswer } from "./notes";
 import { randomSeed, type Word4 } from "./quiz";
 import { fmtGeocoin, learnBreadOffset, nextDelayIndex, parseAnchorMismatch, SEND_DELAYS_MS, submitWithRetry, withTimeout } from "./flow";
-import authVectors from "../../../rules/auth_vectors.json";
 
 /** What the app needs from a signer: Bread's adapter hook, or the local test wallet. */
 export type Wallet = Pick<ReturnType<typeof useMidenFiWallet>, "address" | "requestTransaction" | "requestAssets"> & { local?: boolean };
@@ -47,17 +46,6 @@ export function authArgElements(boundBlock: number, salt: Word4, feeFaucet: { su
 export function multisigAuthArgs(boundBlock: number, salt: Word4, feeFaucet: AccountId): { elements: bigint[]; commitment: Word } {
   const elements = authArgElements(boundBlock, salt, { suffix: feeFaucet.suffix().asInt(), prefix: feeFaucet.prefix().asInt() });
   return { elements, commitment: Poseidon2.hashElements(feltArray(elements)) };
-}
-
-/** Development check: the browser-side commitment must equal the Rust reference's. */
-export function selfCheckAuthArgs(): boolean {
-  return authVectors.every((v) => {
-    const salt = v.salt.map(BigInt) as Word4;
-    const { commitment } = multisigAuthArgs(v.bound_block, salt, AccountId.fromHex(v.fee_faucet));
-    const ok = commitment.toHex() === v.commitment;
-    if (!ok) console.error("[gq] multisig auth-arg commitment differs from the Rust reference", commitment.toHex(), v.commitment);
-    return ok;
-  });
 }
 
 /** A request builder carrying the auth args Bread's multisig needs, bound to `boundBlock`. */
