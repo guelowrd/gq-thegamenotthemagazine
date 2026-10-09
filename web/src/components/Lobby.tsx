@@ -31,7 +31,7 @@ export function Lobby({ me, notes, height, onSettle, onCollect }: LobbyProps) {
 
   return (
     <div className="lobby">
-      {empty && <p className="muted">Play the World Tour and attract rivals with a Geocoin prize for who can beat your high score!</p>}
+      {empty && <p className="muted">Play the World Tour and post your record: rivals pay a Geocoin to try to beat it!</p>}
       {myRecords.map((p) => (
         <section key={p.id} className={`panel card${expired(p) ? " yellow" : ""}`}>
           <div className="eyebrow">{expired(p) ? "My record / over" : "My record / open"}</div>

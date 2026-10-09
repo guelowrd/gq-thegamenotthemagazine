@@ -49,8 +49,8 @@ cd web && yarn install && yarn dev          # http://localhost:5173
 ```
 
 0. The screens (since 2026-10-09): the welcome hero (click anywhere) → **1P World Tour** (LOCATE
-   FIRST CITY plays ten cities with no wallet; RUN COMPLETE! shows a row per city; YES connects the
-   wallet and posts the record) → **VS** (a `?record=` link lands here; "Have a code?" takes a
+   FIRST CITY plays ten cities with no wallet; RUN COMPLETE! shows a row per city; POST IT connects
+   the wallet and posts the record) → **Champion vs Rival** (a `?record=` link lands here; "Have a code?" takes a
    record link, our X share link or a bare id; INSERT GEOCOIN posts the shot and starts the quiz;
    the red rival and the shot clock sit in the HUD) → **Player Hub** (my records: TAKE IT BACK
    after expiry; my shots: PLAY; for you: TAKE IT after the deadline). SOUND OFF/ON in the toolbar
@@ -60,7 +60,7 @@ cd web && yarn install && yarn dev          # http://localhost:5173
    browser (the faucet has no key, anyone may mint); Bread auto-claims the public P2ID note.
    From the CLI: `cargo run --release --bin geocoin mint <your mtst1… address> 10`. One Geocoin per
    record, one per shot.
-3. Connect, "Play", then "Yes" to put 1 GC on your score. Another account opens the shared link
+3. Play the 1P World Tour, then "Post it" to post your record (1 GC). Another account opens the shared link
    and clicks "Play (1 GC)". A win settles (Geocoin back, plus the prize if you claimed first); a
    loss signs nothing, the champion collects the Geocoin once the shot deadline (~6 min) passes.
 4. The Player Hub only ever shows your own notes: "My record" cards ("Take it back" after expiry),

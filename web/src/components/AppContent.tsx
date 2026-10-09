@@ -435,13 +435,13 @@ function GqApp() {
             <Report rows={reportRows(mode.cities, mode.result.answers, places)} />
           </section>
           <aside className="panel yellow">
-            <div className="panel-title">Put {fmtGc(STAKE)} on it?</div>
-            <p>Whoever beats you takes it. Whoever fails pays you {fmtGc(STAKE)}.</p>
+            <div className="panel-title">Post your record?</div>
+            <p>Rivals pay 1 Geocoin to try to beat you. If they do, they take your Geocoin. Otherwise, their Geocoin is yours!</p>
             <button className="btn primary wide" onClick={() => withWallet({ kind: "post", m: mode })}>
-              Yes
+              Post it
             </button>
             <button className="btn wide" onClick={() => setMode({ kind: "lobby" })}>
-              No
+              Not now
             </button>
           </aside>
         </div>
