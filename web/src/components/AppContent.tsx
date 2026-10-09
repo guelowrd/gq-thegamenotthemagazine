@@ -36,16 +36,16 @@ type Mode =
   | { kind: "done"; title?: string; text: string; rows?: ReportRow[]; txId?: string; share?: { recordId: string; score: number }; retry?: () => void; home?: boolean };
 
 /**
- * The music each screen plays. A solo run keeps its song from the first city to the OK on
- * "Record posted!"; a shot plays the VS song, then the result song; a waiting screen keeps the
- * song of the screen it came from; everything else plays the home theme.
+ * The music each screen plays: the solo song during a 1P run, the result song from "Post your
+ * record?" until OK on "Record posted!", the VS song during a shot and the result song on its
+ * result; a waiting screen keeps the song of the screen it came from; the home theme elsewhere.
  */
 const trackOf = (m: Mode): Track =>
-  m.kind === "play-champion" || m.kind === "post-record" || (m.kind === "done" && m.share)
+  m.kind === "play-champion"
     ? "play"
     : m.kind === "play-rival"
       ? "vs"
-      : m.kind === "done" && m.rows
+      : m.kind === "post-record" || (m.kind === "done" && (m.share || m.rows))
         ? "result"
         : m.kind === "busy"
           ? m.track
