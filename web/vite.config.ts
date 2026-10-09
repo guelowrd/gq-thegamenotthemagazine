@@ -10,7 +10,17 @@ const siteUrl =
   process.env.SITE_URL ??
   (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : "https://gq-thegamenotthemagazine.vercel.app");
 
+// On iPhone (Safari and every iOS browser) the SDK runs its classic worker, which fetches
+// "assets/miden_client_web.wasm" relative to its own /assets/ URL, a path Vite never emits: a 404 there,
+// which Safari reports as a wasm MIME type error. Emit the wasm right there instead; Vercel serves every
+// asset with must-revalidate, so the missing hash costs nothing. `yarn build` fails if it goes missing.
+const assetFileNames = (a: { names?: string[] }) =>
+  (a.names?.[0] ?? "").endsWith(".wasm") ? "assets/assets/miden_client_web.wasm" : "assets/[name]-[hash][extname]";
+
 export default defineConfig({
+  // page and worker builds both emit the wasm at the one path the classic worker can find
+  build: { rollupOptions: { output: { assetFileNames } } },
+  worker: { rollupOptions: { output: { assetFileNames } } },
   plugins: [
     react(),
     midenVitePlugin({ crossOriginIsolation: true }),
