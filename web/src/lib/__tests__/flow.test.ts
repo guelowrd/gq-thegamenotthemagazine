@@ -15,6 +15,7 @@ import {
   fmtGeocoin,
   outcomeText,
   recordLinks,
+  withoutRecord,
   parseAnchorMismatch,
   parseCode,
   reportRows,
@@ -245,5 +246,13 @@ describe("errors in plain words", () => {
     vi.useRealTimers();
     expect(explain(await late.catch((e) => e)).kind).toBe("network");
     await expect(withTimeout(Promise.resolve(7), 1000, "x")).resolves.toBe(7);
+  });
+});
+
+describe("leaving a record behind", () => {
+  it("drops ?record= (and the old ?prize=) and keeps the rest", () => {
+    expect(withoutRecord("http://localhost:5173/?record=0xabc")).toBe("http://localhost:5173/");
+    expect(withoutRecord("http://localhost:5173/?local=2&record=0xabc")).toBe("http://localhost:5173/?local=2");
+    expect(withoutRecord("http://localhost:5173/?prize=0xabc")).toBe("http://localhost:5173/");
   });
 });

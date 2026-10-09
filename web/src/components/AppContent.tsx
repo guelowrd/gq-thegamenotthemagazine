@@ -7,12 +7,12 @@ import { useMidenClient, useMiden } from "@miden-sdk/react";
 import { useMidenFiWallet } from "@miden-sdk/miden-wallet-adapter-react";
 import { LOCAL_WALLET, useLocalWallet } from "@/lib/localWallet";
 import { GEOCOIN_GRANT, useGeocoin } from "@/lib/geocoin";
-import { useSound } from "@/lib/useSound";
+import { useSound, type Track } from "@/lib/useSound";
 import { CITIES_URL, MIN_SHOT_WINDOW_BLOCKS, RECORD_LIFETIME_BLOCKS, STAKE } from "@/config";
 import { accountFelts, fetchGqNote, knownNote, listGqNotes, loadScripts, parseAccountId, syncGq, wordFromHex, type GqNote } from "@/lib/chain";
 import { postShot, postRecord, settle, collect, reportBreadOutcome, selfCheckAuthArgs, setSubmitAttemptListener, setSubmitStageListener, waitFor, type Submitted } from "@/lib/bread";
 import { shotDeadline, type ChallengeStorage } from "@/lib/notes";
-import { explain, fmtGeocoin, NOT_FINISHED, shotRefusal, withTimeout, type Trouble, myOpenShotsOn as openShotsOn, outcomeText, parseCode, reportRows, settlePlan, sharedRecordState, type ReportRow } from "@/lib/flow";
+import { explain, fmtGeocoin, NOT_FINISHED, shotRefusal, withoutRecord, withTimeout, type Trouble, myOpenShotsOn as openShotsOn, outcomeText, parseCode, reportRows, settlePlan, sharedRecordState, type ReportRow } from "@/lib/flow";
 import { datasetWord, quizCities, randomSeed, type Place, type Word4 } from "@/lib/quiz";
 import { type City } from "@/lib/rules";
 import { Lobby } from "./Lobby";
@@ -30,8 +30,22 @@ type Mode =
   | { kind: "post-record"; seed: Word4; cities: City[]; result: PlayResult }
   | { kind: "play-rival"; shots: GqNote[]; record?: GqNote }
   /** `back`: where the Back button, a failure or a wallet that never finishes returns to */
-  | { kind: "busy"; text: string; back: Mode; stage: Stage; since: number }
-  | { kind: "done"; title?: string; text: string; rows?: ReportRow[]; txId?: string; share?: { recordId: string; score: number }; retry?: () => void };
+  /** `track`: the music of the screen it came from, which keeps playing while it waits */
+  | { kind: "busy"; text: string; back: Mode; stage: Stage; since: number; track: Track }
+  /** `home`: OK leaves the record behind and goes back to the 1P World Tour (after a win) */
+  | { kind: "done"; title?: string; text: string; rows?: ReportRow[]; txId?: string; share?: { recordId: string; score: number }; retry?: () => void; home?: boolean };
+
+/** The music each screen plays; a waiting screen keeps the one of the screen it came from. */
+const trackOf = (m: Mode): Track =>
+  m.kind === "play-champion"
+    ? "play"
+    : m.kind === "play-rival"
+      ? "vs"
+      : m.kind === "post-record" || (m.kind === "done" && m.rows)
+        ? "result"
+        : m.kind === "busy"
+          ? m.track
+          : "home";
 
 /** Something that needs a connected wallet; it runs once the wallet is there. */
 type Intent = { kind: "post"; m: Extract<Mode, { kind: "post-record" }> } | { kind: "shot"; record: GqNote } | { kind: "geocoins" };
@@ -92,9 +106,7 @@ function GqApp() {
   const [sharedRecord, setSharedRecord] = useState<GqNote | null>(null);
   const [code, setCode] = useState("");
   const [pending, setPending] = useState<Intent | null>(null);
-  const sound = useSound(
-    mode.kind === "play-champion" ? "play" : mode.kind === "play-rival" ? "vs" : mode.kind === "post-record" || (mode.kind === "done" && mode.rows) ? "result" : "home",
-  );
+  const sound = useSound(trackOf(mode));
   // a Back press (or a newer run) makes an older run's late answer land nowhere
   const runToken = useRef(0);
 
@@ -199,7 +211,7 @@ function GqApp() {
       setMode(onConfirmed?.(s) ?? { kind: "done", text: outcomeText(text, true), txId: s.txId });
     };
     setTrouble(null);
-    setMode({ kind: "busy", text, back, stage: previous ? "network" : "prepare", since: Date.now() });
+    setMode({ kind: "busy", text, back, stage: previous ? "network" : "prepare", since: Date.now(), track: trackOf(mode) });
     setSubmitAttemptListener((attempt) => update({ text: attempt > 1 ? `${text} (try ${attempt})` : text }));
     setSubmitStageListener((stage) => update({ stage, since: Date.now() }));
     try {
@@ -317,7 +329,11 @@ function GqApp() {
         () => settle(client, wallet, shots, plan.claimPrize ? record : undefined, r.answers),
         // the win stands on failure: the report stays and the claim can be sent again
         { kind: "done", title: "Record smashed!", text: plan.text, rows, retry: claim },
-        () => ({ kind: "done", title: "Record smashed!", text: outcomeText(plan.text, true), rows }),
+        () => {
+          // the prize is ours: the record card must not offer it again
+          if (plan.claimPrize && record) setSharedRecord((r) => (r && r.id === record.id ? { ...r, consumed: true } : r));
+          return { kind: "done", title: "Record smashed!", text: outcomeText(plan.text, true), rows, home: true };
+        },
       );
     claim();
   };
@@ -326,7 +342,7 @@ function GqApp() {
   async function getGeocoins() {
     const token = ++runToken.current;
     setTrouble(null);
-    setMode({ kind: "busy", text: "Getting Geocoins", back: { kind: "lobby" }, stage: "network", since: Date.now() });
+    setMode({ kind: "busy", text: "Getting Geocoins", back: { kind: "lobby" }, stage: "network", since: Date.now(), track: trackOf(mode) });
     try {
       const txId = await withTimeout(mintGeocoins(wallet.address!), 180_000, "Getting Geocoins");
       if (LOCAL_WALLET) await local.claim();
@@ -363,8 +379,12 @@ function GqApp() {
     </section>
   );
 
+  // the record as loaded from its link, updated by what the background sync has seen since
+  const record = sharedRecord && { ...sharedRecord, consumed: sharedRecord.consumed || notes.some((n) => n.consumed && n.id.toLowerCase() === sharedRecord.id.toLowerCase()) };
+
   const recordCard = () => {
-    if (!sharedRecord) return null;
+    if (!record) return null;
+    const sharedRecord = record;
     const state = sharedRecordState(sharedRecord, me, me ? myOpenShotsOn(sharedRecord) : [], height);
     if (state === "claimed" || state === "expired") {
       return (
@@ -565,7 +585,19 @@ function GqApp() {
               Try again
             </button>
           )}
-          <button className={mode.retry ? "btn" : "btn primary"} onClick={() => setMode({ kind: "lobby" })}>
+          <button
+            className={mode.retry ? "btn" : "btn primary"}
+            onClick={() => {
+              if (mode.home) {
+                // the record is won: nothing left to do with it, start from the 1P World Tour
+                setSharedRecord(null);
+                setCode("");
+                history.replaceState(null, "", withoutRecord(location.href));
+                setTab("1p");
+              }
+              setMode({ kind: "lobby" });
+            }}
+          >
             OK
           </button>
         </section>

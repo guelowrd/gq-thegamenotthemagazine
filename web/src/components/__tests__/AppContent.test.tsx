@@ -112,7 +112,7 @@ describe("shared record link, connected as a stranger", () => {
     const button = await screen.findByRole("button", { name: /insert geocoin/i });
     fireEvent.click(button);
     await waitFor(() => expect(bread.postShot).toHaveBeenCalledTimes(1));
-    expect(bread.postShot.mock.calls[0][2]).toBe(prize);
+    expect(bread.postShot.mock.calls[0][2]).toEqual(prize);
     await screen.findByText(/find c0!/i);
     expect(screen.getByText(/beat my record/i)).toBeInTheDocument();
   });
@@ -187,6 +187,13 @@ describe("shared record link, connected as a stranger", () => {
     } finally {
       vi.mocked(syncGq).mockResolvedValue(100);
     }
+  });
+
+  it("a record the background sync sees consumed (just won, or taken by someone) is shown as over", async () => {
+    chain.notes = [{ ...prize, consumed: true }];
+    render(<AppContent />);
+    await screen.findByText(/this one is over/i);
+    expect(screen.queryByRole("button", { name: /insert geocoin/i })).toBeNull();
   });
 
   it("shows a claimed record as gone, with no button", async () => {

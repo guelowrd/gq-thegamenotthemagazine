@@ -192,6 +192,14 @@ export function fmtGeocoin(v: bigint): string {
   return `${n.toLocaleString(undefined, { maximumFractionDigits: GC_DECIMALS })} Geocoin${n === 1 ? "" : "s"}`;
 }
 
+/** The page's address without the record it was opened for (other parameters, like ?local=, stay). */
+export function withoutRecord(href: string): string {
+  const url = new URL(href);
+  url.searchParams.delete("record");
+  url.searchParams.delete("prize");
+  return url.toString();
+}
+
 /** The shareable link to a record, and the X post that carries it. */
 export function recordLinks(recordId: string, score: number) {
   const url = `${location.origin}${location.pathname}?record=${recordId}`;
