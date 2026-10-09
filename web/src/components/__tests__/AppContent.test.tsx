@@ -94,22 +94,30 @@ beforeEach(() => {
   window.history.replaceState({}, "", "/?record=0xp");
 });
 
+/** Past the welcome screen, onto a tab. */
+async function start(tab?: RegExp) {
+  render(<AppContent />);
+  fireEvent.click(await screen.findByRole("button", { name: /click to start/i }));
+  if (tab) fireEvent.click(screen.getByRole("button", { name: tab }));
+}
+
 describe("shared record link, connected as a stranger", () => {
-  it("posts one shot on click, then starts the quiz when the note is on chain", async () => {
+  it("lands on VS, posts one shot on Insert Geocoin, then starts the quiz when the note is on chain", async () => {
     bread.postShot.mockResolvedValue({ txId: "tx", noteIds: ["0xnew"], deadline: 220 });
     render(<AppContent />);
-    const button = await screen.findByRole("button", { name: /play \(1 GC\)/i });
+    const button = await screen.findByRole("button", { name: /insert geocoin/i });
     fireEvent.click(button);
     await waitFor(() => expect(bread.postShot).toHaveBeenCalledTimes(1));
     expect(bread.postShot.mock.calls[0][2]).toBe(prize);
-    await screen.findByText(/where is c0\?/i);
+    await screen.findByText(/find c0!/i);
+    expect(screen.getByText(/beat my record/i)).toBeInTheDocument();
   });
 
   it("does not post a second shot while one is open: it goes straight to the quiz", async () => {
     chain.notes = [prize, myChallenge];
     render(<AppContent />);
     fireEvent.click(await screen.findByRole("button", { name: /^play$/i }));
-    await screen.findByText(/where is c0\?/i);
+    await screen.findByText(/find c0!/i);
     expect(bread.postShot).not.toHaveBeenCalled();
   });
 
@@ -117,7 +125,23 @@ describe("shared record link, connected as a stranger", () => {
     chain.shared = { ...prize, consumed: true };
     render(<AppContent />);
     await screen.findByText(/this one is over/i);
-    expect(screen.queryByRole("button", { name: /challenge & play|challenge for/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /insert geocoin|^play$/i })).toBeNull();
+  });
+});
+
+describe("welcome and 1P World Tour", () => {
+  it("plays before any wallet is connected; the rival sprite stays out of a solo run", async () => {
+    window.history.replaceState({}, "", "/");
+    wallet.connected = false;
+    try {
+      await start();
+      fireEvent.click(await screen.findByRole("button", { name: /locate first city/i }));
+      await screen.findByText(/find c0!/i);
+      expect(screen.queryByText(/beat my record/i)).toBeNull();
+      expect(wallet.connect).not.toHaveBeenCalled();
+    } finally {
+      wallet.connected = true;
+    }
   });
 });
 
@@ -129,7 +153,7 @@ describe("home, connected", () => {
     vi.mocked(useMidenClient).mockReturnValue({ importAccountById } as never);
     const mint = vi.fn(async () => ({ transactionId: "tx" }));
     vi.mocked(useMint).mockReturnValue({ mint, result: null, isLoading: false, stage: "idle", error: null, reset: vi.fn() } as never);
-    render(<AppContent />);
+    await start(/^vs$/i);
     fireEvent.click(await screen.findByRole("button", { name: /get geocoins/i }));
     await screen.findByText(/10 GC in your pocket/i);
     expect(importAccountById).toHaveBeenCalledTimes(1);
@@ -141,25 +165,25 @@ describe("home, connected", () => {
     window.history.replaceState({}, "", "/");
     const second = { ...myChallenge, id: "0xc2", idWord: [2n, 2n, 2n, 2n] as [bigint, bigint, bigint, bigint] };
     chain.notes = [prize, myChallenge, second];
-    render(<AppContent />);
-    await screen.findByText(/my shots/i);
-    // the top "Play" (post a record) plus one "Play" per open shot
+    await start(/player hub/i);
+    await screen.findAllByText(/my shot/i);
+    // one "Play" per open shot
     const buttons = screen.getAllByRole("button", { name: /^play$/i });
-    expect(buttons).toHaveLength(3);
-    fireEvent.click(buttons[1]);
-    await screen.findByText(/where is c0\?/i);
+    expect(buttons).toHaveLength(2);
+    fireEvent.click(buttons[0]);
+    await screen.findByText(/find c0!/i);
   });
 
   it("does not list other people's records, but opens one from a pasted code (old ?prize= links too)", async () => {
     window.history.replaceState({}, "", "/");
     chain.notes = [prize];
-    render(<AppContent />);
+    await start(/^vs$/i);
     await screen.findByText(/have a code\?/i);
-    expect(screen.queryByText(/2000/)).toBeNull();
+    expect(screen.queryByText(/2,?000/)).toBeNull();
     fireEvent.change(screen.getByPlaceholderText(/paste the link or code/i), {
       target: { value: "http://x/?prize=0x62ea91634f23d65b4bcae5eb027ea1cad37be056412618cad17de9c3171e1ee8" },
     });
     fireEvent.click(screen.getByRole("button", { name: /^go$/i }));
-    await screen.findByText(/beat 2000\?/i);
+    await screen.findByText(/2,?000 pts to beat/i);
   });
 });

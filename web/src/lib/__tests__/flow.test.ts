@@ -9,6 +9,8 @@ import {
   myOpenShotsOn,
   outcomeText,
   parseAnchorMismatch,
+  parseCode,
+  reportRows,
   settlePlan,
   sharedRecordState,
   submitWithRetry,
@@ -141,5 +143,36 @@ describe("submitting through Bread", () => {
     expect(isAnchorMismatch(mismatch)).toBe(true);
     expect(isAnchorMismatch(new Error("ChainBehindBoundBlockError: synced to block 5, below block 7"))).toBe(true);
     expect(isAnchorMismatch(new Error("insufficient balance"))).toBe(false);
+  });
+});
+
+describe("the run report", () => {
+  it("names each city with the time and the points the chain gives", () => {
+    const cities = [
+      { idx: 0, lat: 13885, lon: 18235, cos: 66 },
+      { idx: 1, lat: 6709, lon: 13683, cos: 92 },
+    ];
+    const places = [
+      { name: "Paris", country: "France", lat: 48.85, lon: 2.35 },
+      { name: "Rio", country: "Brazil", lat: -22.91, lon: -43.17 },
+    ];
+    const rows = reportRows(cities, [{ lat: 13885, lon: 18235, t: 120 }, { lat: 0, lon: 0, t: 1500 }], places);
+    expect(rows).toEqual([
+      { name: "Paris", seconds: "1.2s", points: 988 },
+      { name: "Rio", seconds: "15.0s", points: 0 },
+    ]);
+  });
+});
+
+describe("a pasted code", () => {
+  const id = "0x" + "ab".repeat(32);
+  it("finds the record id in a link, in our X share link, or bare", () => {
+    expect(parseCode(`http://localhost:5173/?record=${id}`)).toEqual({ id });
+    expect(parseCode(`https://x.com/intent/post?text=hi&url=${encodeURIComponent(`http://gq/?record=${id}`)}`)).toEqual({ id });
+    expect(parseCode(id.toUpperCase())).toEqual({ id });
+  });
+  it("cannot read a posted X status and says what to do", () => {
+    expect(parseCode("https://x.com/someone/status/1234567890")).toEqual({ hint: "Open the post and copy the GeoQuizz link." });
+    expect(parseCode("hello")).toEqual({ hint: "That is not a GeoQuizz code." });
   });
 });

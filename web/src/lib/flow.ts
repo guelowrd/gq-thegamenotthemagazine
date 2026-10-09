@@ -3,6 +3,8 @@
 
 import type { GqNote } from "./chain";
 import { shotDeadline, type AccountFelts } from "./notes";
+import type { Place } from "./quiz";
+import { roundScore, type Answer, type City } from "./rules";
 
 export const sameAccount = (a: AccountFelts | null | undefined, b: AccountFelts | null | undefined) =>
   !!a && !!b && a.suffix === b.suffix && a.prefix === b.prefix;
@@ -116,4 +118,34 @@ export async function submitWithRetry<T>(
       offset = learned === null ? expectedLag + (n % 2) : offset + learned;
     }
   }
+}
+
+export type ReportRow = { name: string; seconds: string; points: number };
+
+/** The run report: one row per city, time as the player saw it, points as the chain scores them. */
+export function reportRows(cities: City[], answers: Answer[], places: Place[]): ReportRow[] {
+  return cities.map((c, i) => ({
+    name: places[c.idx]?.name ?? `city #${c.idx}`,
+    seconds: `${(answers[i].t / 100).toFixed(1)}s`,
+    points: roundScore(c, answers[i]),
+  }));
+}
+
+/**
+ * What a pasted code means: a record id from a GeoQuizz link, from our X share link (the GeoQuizz
+ * link travels inside it, URL-encoded), or typed as is. A posted X status URL cannot be read from
+ * the browser, so it gets a hint instead.
+ */
+export function parseCode(text: string): { id: string } | { hint: string } {
+  const decoded = (() => {
+    try {
+      return decodeURIComponent(text);
+    } catch {
+      return text;
+    }
+  })();
+  const id = /0x[0-9a-f]{64}/i.exec(decoded)?.[0];
+  if (id) return { id: id.toLowerCase() };
+  if (/x\.com\/[^/]+\/status\/|twitter\.com\/[^/]+\/status\//i.test(text)) return { hint: "Open the post and copy the GeoQuizz link." };
+  return { hint: "That is not a GeoQuizz code." };
 }

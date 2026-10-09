@@ -1,21 +1,26 @@
-// GQ screens: connect Bread → lobby → play → post a record / take a shot / settle / claim.
-// The app's own Miden client only reads the chain; Bread signs everything.
+// GeoQuizz screens: welcome → 1P World Tour (play, then put a Geocoin on it) / VS (a record by
+// link or code, take a shot) / Player Hub (my records, my shots, what rivals left me).
+// The app's own Miden client only reads the chain (and mints Geocoins); the wallet signs the rest.
 
 import { useCallback, useEffect, useState } from "react";
 import { useMidenClient, useMiden } from "@miden-sdk/react";
 import { useMidenFiWallet } from "@miden-sdk/miden-wallet-adapter-react";
 import { LOCAL_WALLET, useLocalWallet } from "@/lib/localWallet";
 import { GEOCOIN_GRANT, useGeocoin } from "@/lib/geocoin";
+import { useSound } from "@/lib/useSound";
 import { CITIES_URL, MIN_SHOT_WINDOW_BLOCKS, RECORD_LIFETIME_BLOCKS, STAKE } from "@/config";
 import { accountFelts, fetchGqNote, knownNote, listGqNotes, loadScripts, parseAccountId, recordLinks, syncGq, wordFromHex, type GqNote } from "@/lib/chain";
 import { postShot, postRecord, settle, collect, selfCheckAuthArgs, setSubmitAttemptListener, waitFor, type Submitted } from "@/lib/bread";
-import { type ChallengeStorage } from "@/lib/notes";
-import { shotRefusal, myOpenShotsOn as openShotsOn, outcomeText, settlePlan, sharedRecordState } from "@/lib/flow";
+import { shotDeadline, type ChallengeStorage } from "@/lib/notes";
+import { shotRefusal, myOpenShotsOn as openShotsOn, outcomeText, parseCode, reportRows, settlePlan, sharedRecordState, type ReportRow } from "@/lib/flow";
 import { datasetWord, quizCities, randomSeed, type Place, type Word4 } from "@/lib/quiz";
 import { type City } from "@/lib/rules";
 import { Lobby, fmtGc } from "./Lobby";
 import { Play, type PlayResult } from "./Play";
-import "./AppContent.css";
+import { Shell } from "./Shell";
+import { TAB_LABEL, type Tab } from "@/lib/tabs";
+import { Welcome } from "./Welcome";
+import { WorldMap } from "./WorldMap";
 
 type Mode =
   | { kind: "lobby" }
@@ -23,16 +28,15 @@ type Mode =
   | { kind: "post-record"; seed: Word4; cities: City[]; result: PlayResult }
   | { kind: "play-rival"; shots: GqNote[]; record?: GqNote }
   | { kind: "busy"; text: string }
-  | { kind: "done"; text: string; txId?: string; share?: { url: string; x: string } };
+  | { kind: "done"; title?: string; text: string; rows?: ReportRow[]; txId?: string; share?: { url: string; x: string } };
 
 export function AppContent() {
   // `useMidenClient()` throws until the provider has created the client, so gate on readiness first.
   const { isReady } = useMiden();
   if (!isReady) {
     return (
-      <main className="gq">
-        <h1>GQ · GeoQuizz on Miden</h1>
-        <p className="muted">Initializing the Miden client…</p>
+      <main>
+        <p className="muted">Loading…</p>
       </main>
     );
   }
@@ -47,6 +51,11 @@ function GqApp() {
   const wallet = LOCAL_WALLET ? local : bread;
   const mintGeocoins = useGeocoin(client, runExclusive);
 
+  const params = new URLSearchParams(location.search);
+  const sharedRecordId = params.get("record") ?? params.get("prize"); // ?prize= is the old link form
+
+  const [started, setStarted] = useState(!!sharedRecordId);
+  const [tab, setTab] = useState<Tab>(sharedRecordId ? "vs" : "1p");
   const [places, setPlaces] = useState<Place[]>([]);
   const [dataset, setDataset] = useState<Word4 | null>(null);
   const [notes, setNotes] = useState<GqNote[]>([]);
@@ -56,26 +65,7 @@ function GqApp() {
   const [authCheck, setAuthCheck] = useState<boolean | null>(null);
   const [sharedRecord, setSharedRecord] = useState<GqNote | null>(null);
   const [code, setCode] = useState("");
-  const params = new URLSearchParams(location.search);
-  const sharedRecordId = params.get("record") ?? params.get("prize"); // ?prize= is the old link form
-
-  /** A pasted link or id opens the record exactly like the link would. */
-  const openCode = () => {
-    const id = /0x[0-9a-f]{64}/i.exec(code)?.[0];
-    if (!id) return setError("That is not a game code.");
-    setError(null);
-    fetchGqNote(id).then(setSharedRecord).catch((e) => setError(`Not found: ${e instanceof Error ? e.message : e}`));
-  };
-
-  const codeBox = (
-    <details className="code">
-      <summary className="muted">Have a code?</summary>
-      <input value={code} onChange={(e) => setCode(e.target.value)} placeholder="paste the link or code" />
-      <button className="secondary" onClick={openCode}>
-        Go
-      </button>
-    </details>
-  );
+  const sound = useSound(mode.kind === "play-champion" || mode.kind === "play-rival" ? "play" : "home");
 
   const me = wallet.connected && wallet.address ? accountFelts(parseAccountId(wallet.address)) : null;
 
@@ -110,24 +100,32 @@ function GqApp() {
     return () => clearInterval(t);
   }, [refresh]);
 
+  const fail = (e: unknown) => setError(e instanceof Error ? e.message : String(e));
+  const connect = () => wallet.connect().catch(fail);
+  /** Connects first when needed; Bread opens its popup, the test wallet creates itself. */
+  async function ensureWallet(): Promise<boolean> {
+    if (wallet.connected && wallet.address) return true;
+    try {
+      await wallet.connect();
+      return true;
+    } catch (e) {
+      fail(e);
+      return false;
+    }
+  }
+
   /**
-   * Runs a Bread transaction, then waits until the chain shows its effect (`posted`: the new note
-   * exists; otherwise: the consumed notes are gone). Bread only acknowledges the request; a
-   * transaction can still fail inside the wallet, so nothing is called committed before it shows.
+   * Runs a wallet transaction, then waits until the chain shows its effect (`posted`: the new note
+   * exists; otherwise: the consumed notes are gone). A wallet only acknowledges the request; a
+   * transaction can still fail inside it, so nothing is called done before the chain shows it.
    */
-  async function run(
-    text: string,
-    posted: boolean,
-    fn: () => Promise<Submitted>,
-    onConfirmed?: (s: Submitted) => Mode | void,
-  ) {
+  async function run(text: string, posted: boolean, fn: () => Promise<Submitted>, onConfirmed?: (s: Submitted) => Mode | void) {
     setError(null);
     setMode({ kind: "busy", text });
     setSubmitAttemptListener((attempt) => setMode({ kind: "busy", text: attempt > 1 ? `${text} (try ${attempt})` : text }));
     try {
       const submitted = await fn();
       const { txId, noteIds } = submitted;
-      setMode({ kind: "busy", text: `${text}` });
       const seen = await waitFor(client, runExclusive, async () => {
         const records = await Promise.all(noteIds.map((id) => knownNote(client, id)));
         return posted ? records.every((r) => !!r) : records.every((r) => !!r?.consumed);
@@ -136,37 +134,62 @@ function GqApp() {
       const next = seen ? onConfirmed?.(submitted) : undefined;
       setMode(next ?? { kind: "done", text: outcomeText(text, seen), txId });
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      fail(e);
       setMode({ kind: "lobby" });
     }
   }
 
   function startChampion() {
     if (!dataset || places.length === 0) return setError("Still loading the cities, try again in a second.");
+    setError(null);
     const seed = randomSeed();
     quizCities(seed, places)
-      .then((cities) => {
-        setMode({ kind: "play-champion", seed, cities });
-      })
+      .then((cities) => setMode({ kind: "play-champion", seed, cities }))
       .catch((e) => setError(`Could not start: ${e instanceof Error ? e.message : e}`));
+  }
+
+  async function postMyRecord(m: Extract<Mode, { kind: "post-record" }>) {
+    if (!(await ensureWallet()) || !dataset) return;
+    const champion = accountFelts(parseAccountId(wallet.address!));
+    await run(
+      "Posting your record",
+      true,
+      () => {
+        const storage: ChallengeStorage = {
+          expiryBlock: height + RECORD_LIFETIME_BLOCKS,
+          target: m.result.score,
+          minStake: STAKE,
+          champion,
+          rival: null,
+          recordId: [0n, 0n, 0n, 0n],
+          shotRoot: [0n, 0n, 0n, 0n], // filled from the loaded script
+          seed: m.seed,
+          dataset,
+          cities: m.cities,
+          shotDeadline: 0,
+        };
+        return postRecord(client, wallet, storage, STAKE);
+      },
+      ({ txId, noteIds }) => ({ kind: "done", title: "Record posted!", text: "Now find someone to beat you.", txId, share: recordLinks(noteIds[0], m.result.score) }),
+    );
   }
 
   const myOpenShotsOn = (record: GqNote) => openShotsOn(notes, me, record, height);
 
   /** Posts the shot note and, once it is on chain, starts the quiz right away. */
-  function takeShot(record: GqNote) {
-    if (!wallet.address || !dataset || !me) return;
+  async function takeShot(record: GqNote) {
+    if (!(await ensureWallet()) || !dataset) return;
+    const rival = accountFelts(parseAccountId(wallet.address!));
     const refusal = shotRefusal(record, height, MIN_SHOT_WINDOW_BLOCKS);
     if (refusal) return setError(refusal);
-    const open = myOpenShotsOn(record);
+    const open = openShotsOn(notes, rival, record, height);
     if (open.length > 0) {
       // one Geocoin per sitting: play the shot already on the table instead of paying again
       setMode({ kind: "play-rival", shots: open, record });
       return;
     }
-    const rival = me;
-    run(
-      "Taking your shot",
+    await run(
+      "Inserting your Geocoin",
       true,
       async () => {
         // refuse a quiz that does not come from the seed and this dataset
@@ -194,170 +217,256 @@ function GqApp() {
 
   const settleAfterPlay = (shots: GqNote[], record: GqNote | undefined) => (r: PlayResult) => {
     const plan = settlePlan(shots, record, r.score, height);
+    const rows = reportRows(shots[0].storage.cities, r.answers, places);
     if (!plan.won) {
       // nothing to sign on a loss: the Geocoin waits for the champion at the deadline
-      setMode({ kind: "done", text: plan.text });
+      setMode({ kind: "done", title: "The record stands.", text: plan.text, rows });
       return;
     }
-    run(plan.text, false, () => settle(client, wallet, shots, plan.claimPrize ? record : undefined, r.answers));
+    void run(plan.text, false, () => settle(client, wallet, shots, plan.claimPrize ? record : undefined, r.answers), () => ({
+      kind: "done",
+      title: "Record smashed!",
+      text: outcomeText(plan.text, true),
+      rows,
+    }));
   };
 
-  const sharedRecordCard = (connected: boolean) => {
+  /** Mints the grant to the connected wallet; the local wallet then claims it, Bread claims by itself. */
+  async function getGeocoins() {
+    if (!(await ensureWallet())) return;
+    setError(null);
+    setMode({ kind: "busy", text: "Getting Geocoins" });
+    try {
+      const txId = await mintGeocoins(wallet.address!);
+      if (LOCAL_WALLET) await local.claim();
+      setMode({ kind: "done", title: "Ka-ching!", text: `${fmtGc(GEOCOIN_GRANT)} in your pocket. Done!`, txId });
+    } catch (e) {
+      fail(e);
+      setMode({ kind: "lobby" });
+    }
+  }
+
+  /** A pasted link or id opens the record exactly like the link would. */
+  const openCode = () => {
+    const parsed = parseCode(code);
+    if ("hint" in parsed) return setError(parsed.hint);
+    setError(null);
+    fetchGqNote(parsed.id).then(setSharedRecord).catch((e) => setError(`Not found: ${e instanceof Error ? e.message : e}`));
+  };
+
+  const geocoinButton = (
+    <button className="btn" onClick={() => void getGeocoins()}>
+      Empty pockets? Get Geocoins now!
+    </button>
+  );
+
+  const recordCard = () => {
     if (!sharedRecord) return null;
-    const state = sharedRecordState(sharedRecord, connected ? me : null, connected ? myOpenShotsOn(sharedRecord) : [], height);
+    const state = sharedRecordState(sharedRecord, me, me ? myOpenShotsOn(sharedRecord) : [], height);
     if (state === "claimed" || state === "expired") {
       return (
-        <section className="result">
+        <section className="panel pink">
+          <div className="panel-title">Record</div>
           <h2>This one is over.</h2>
         </section>
       );
     }
     return (
-      <section className="result">
-        <h2>Beat {sharedRecord.storage.target}?</h2>
-        <p>Win {fmtGc(sharedRecord.amount)}.</p>
-        {!connected && <button onClick={connect}>Play ({fmtGc(sharedRecord.storage.minStake)})</button>}
+      <section className="panel pink">
+        <div className="panel-title">Record</div>
+        <div className="big-score">{sharedRecord.storage.target.toLocaleString()} pts to beat</div>
+        <div className="row">
+          <span>Prize</span>
+          <span className="value">{fmtGc(sharedRecord.amount)}</span>
+        </div>
+        <div className="row">
+          <span>One shot</span>
+          <span className="value">{fmtGc(sharedRecord.storage.minStake)}</span>
+        </div>
         {state === "mine" && <p className="muted">This is yours.</p>}
-        {state === "already-challenged" && <button onClick={() => takeShot(sharedRecord)}>Play</button>}
-        {state === "open" && connected && <button onClick={() => takeShot(sharedRecord)}>Play ({fmtGc(sharedRecord.storage.minStake)})</button>}
+        {state === "already-challenged" && (
+          <button className="btn primary wide" onClick={() => void takeShot(sharedRecord)}>
+            Play
+          </button>
+        )}
+        {state === "open" && (
+          <button className="btn primary wide" onClick={() => void takeShot(sharedRecord)}>
+            Insert Geocoin
+          </button>
+        )}
+        <p className="muted small" style={{ marginTop: 14 }}>
+          Win: your Geocoin back, plus the prize. Lose: your Geocoin goes to the champion.
+        </p>
       </section>
     );
   };
 
-  const connect = () => wallet.connect().catch((e) => setError(e instanceof Error ? e.message : String(e)));
+  const walletLabel = wallet.connected && wallet.address ? (LOCAL_WALLET ? `test wallet ${wallet.address.slice(0, 10)}…` : `${wallet.address.slice(0, 10)}…`) : null;
 
-  /** Mints the grant to the connected wallet; the local wallet then claims it, Bread claims by itself. */
-  async function getGeocoins() {
-    if (!wallet.address) return;
-    setError(null);
-    setMode({ kind: "busy", text: "Getting Geocoins" });
-    try {
-      const txId = await mintGeocoins(wallet.address);
-      if (LOCAL_WALLET) await local.claim();
-      setMode({ kind: "done", text: `${fmtGc(GEOCOIN_GRANT)} in your pocket. Done!`, txId });
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-      setMode({ kind: "lobby" });
-    }
-  }
-
-  if (!wallet.connected) {
-    return (
-      <main className="gq">
-        <h1>GQ</h1>
-        <p>Find the city on the map.</p>
-        {sharedRecord ? sharedRecordCard(false) : (
-          <button onClick={connect} disabled={wallet.connecting}>
-            {wallet.connecting ? (LOCAL_WALLET && local.status) || "…" : "Play"}
-          </button>
-        )}
-        {wallet.wallet?.readyState !== "Installed" && <p className="muted">You need the Bread wallet first.</p>}
-        {error && <p className="error">{error}</p>}
-        {import.meta.env.DEV && authCheck === false && <p className="error">dev: auth-args self-check MISMATCH</p>}
-        {!sharedRecord && codeBox}
-      </main>
-    );
-  }
+  if (!started) return <Welcome onStart={() => setStarted(true)} />;
 
   return (
-    <main className="gq">
-      <header className="top">
-        <h1>GQ</h1>
-        <span className="muted">{LOCAL_WALLET ? `test wallet ${wallet.address}` : `${wallet.address?.slice(0, 10)}…`}</span>
-        <button className="secondary" onClick={() => void getGeocoins()}>Empty pockets? Get Geocoins now!</button>
-        <button className="secondary" onClick={() => void wallet.disconnect()}>Leave</button>
-      </header>
+    <Shell
+      tab={tab}
+      onTab={(t) => {
+        setTab(t);
+        setMode({ kind: "lobby" });
+      }}
+      crumb={TAB_LABEL[tab]}
+      walletLabel={walletLabel}
+      onWallet={() => (wallet.connected ? void wallet.disconnect() : connect())}
+      soundOn={sound.on}
+      onSound={sound.toggle}
+    >
       {error && <p className="error">{error}</p>}
+      {import.meta.env.DEV && authCheck === false && <p className="error">dev: auth-args self-check MISMATCH</p>}
 
-      {mode.kind === "lobby" && (
+      {mode.kind === "lobby" && tab === "1p" && (
         <>
-          {sharedRecordCard(true)}
-          <section className="cta">
-            <button onClick={startChampion} disabled={!dataset || places.length === 0}>
-              Play
-            </button>
-          </section>
-          <Lobby
-            me={me}
-            notes={notes}
-            height={height}
-            onSettle={(shot, record) => {
-              const open = record ? myOpenShotsOn(record) : [];
-              setMode({ kind: "play-rival", shots: open.length > 0 ? open : [shot], record });
-            }}
-            onCollect={(note) => run("Taking it", false, () => collect(client, wallet, note))}
-          />
-          {!sharedRecord && codeBox}
+          <h1>
+            Locate. Challenge.
+            <br />
+            Win.
+          </h1>
+          <div className="cols">
+            <div className="panel map-frame">
+              <div className="panel-title">World map</div>
+              <WorldMap />
+            </div>
+            <aside className="panel">
+              <div className="panel-title">1P World Tour</div>
+              <p>10 cities, 15 seconds each.</p>
+              <p className="muted">Free to play.</p>
+              <button className="btn primary wide" onClick={startChampion} disabled={!dataset || places.length === 0}>
+                Locate first city
+              </button>
+            </aside>
+          </div>
         </>
       )}
 
-      {mode.kind === "play-champion" && (
-        <Play cities={mode.cities} places={places} onDone={(result) => setMode({ kind: "post-record", seed: mode.seed, cities: mode.cities, result })} />
+      {mode.kind === "lobby" && tab === "vs" && (
+        <div className="cols">
+          <img className="hero" src="/brand/hero-arena.webp" alt="" width={1440} height={960} />
+          <div>
+            {recordCard() ?? (
+              <section className="panel">
+                <div className="panel-title">Have a code?</div>
+                <p className="muted">Paste a record link or code.</p>
+                <input value={code} onChange={(e) => setCode(e.target.value)} placeholder="paste the link or code" aria-label="Record link or code" />
+                <button className="btn" onClick={openCode}>
+                  Go
+                </button>
+              </section>
+            )}
+            <p style={{ marginTop: 16 }}>{geocoinButton}</p>
+          </div>
+        </div>
       )}
 
+      {mode.kind === "lobby" && tab === "hub" && (
+        <>
+          <h1>Player Hub</h1>
+          {wallet.connected ? (
+            <>
+              <Lobby
+                me={me}
+                notes={notes}
+                height={height}
+                onSettle={(shot, record) => {
+                  const open = record && me ? myOpenShotsOn(record) : [];
+                  setMode({ kind: "play-rival", shots: open.length > 0 ? open : [shot], record });
+                }}
+                onCollect={(note) => void run("Taking it", false, () => collect(client, wallet, note))}
+              />
+              <p>{geocoinButton}</p>
+            </>
+          ) : (
+            <section className="panel">
+              <p>Connect your wallet to see your records and shots.</p>
+              <button className="btn primary" onClick={connect} disabled={wallet.connecting}>
+                {wallet.connecting ? (LOCAL_WALLET && local.status) || "…" : "Connect wallet"}
+              </button>
+              {!LOCAL_WALLET && wallet.wallet?.readyState !== "Installed" && <p className="muted">You need the Bread wallet first.</p>}
+            </section>
+          )}
+        </>
+      )}
+
+      {mode.kind === "play-champion" && <Play cities={mode.cities} places={places} onDone={(result) => setMode({ kind: "post-record", seed: mode.seed, cities: mode.cities, result })} />}
+
       {mode.kind === "post-record" && (
-        <section className="result">
-          <h2>{mode.result.score} points</h2>
-          <p>Put {fmtGc(STAKE)} on it? Whoever beats you takes it. Whoever fails pays you {fmtGc(STAKE)}.</p>
-          <button
-            onClick={() =>
-              run("Posting", true, () => {
-                const storage: ChallengeStorage = {
-                  expiryBlock: height + RECORD_LIFETIME_BLOCKS,
-                  target: mode.result.score,
-                  minStake: STAKE,
-                  champion: me!,
-                  rival: null,
-                  recordId: [0n, 0n, 0n, 0n],
-                  shotRoot: [0n, 0n, 0n, 0n], // filled from the loaded script
-                  seed: mode.seed,
-                  dataset: dataset!,
-                  cities: mode.cities,
-                  shotDeadline: 0,
-                };
-                return postRecord(client, wallet, storage, STAKE);
-              }, ({ txId, noteIds }) => ({
-                kind: "done",
-                text: "Now find someone to beat you.",
-                txId,
-                share: recordLinks(noteIds[0], mode.result.score),
-              }))
-            }
-          >
-            Yes
-          </button>
-          <button className="secondary" onClick={() => setMode({ kind: "lobby" })}>
-            No
-          </button>
-        </section>
+        <div className="cols">
+          <section className="panel">
+            <div className="panel-title">Run complete!</div>
+            <div className="big-score">{mode.result.score.toLocaleString()} pts</div>
+            <Report rows={reportRows(mode.cities, mode.result.answers, places)} />
+          </section>
+          <aside className="panel yellow">
+            <div className="panel-title">Put {fmtGc(STAKE)} on it?</div>
+            <p>Whoever beats you takes it. Whoever fails pays you {fmtGc(STAKE)}.</p>
+            <button className="btn primary wide" onClick={() => void postMyRecord(mode)}>
+              Yes
+            </button>
+            <button className="btn wide" onClick={() => setMode({ kind: "lobby" })}>
+              No
+            </button>
+          </aside>
+        </div>
       )}
 
       {mode.kind === "play-rival" && (
-        <Play cities={mode.shots[0].storage.cities} places={places} onDone={settleAfterPlay(mode.shots, mode.record)} />
+        <Play
+          cities={mode.shots[0].storage.cities}
+          places={places}
+          rival={{ blocksLeft: shotDeadline(mode.shots[0].storage) - height }}
+          onDone={settleAfterPlay(mode.shots, mode.record)}
+        />
       )}
 
       {mode.kind === "busy" && (
-        <section className="result">
-          <p>{mode.text}… check your wallet.</p>
+        <section className="panel">
+          <h2>{mode.text}…</h2>
+          <p className="muted">Check your wallet.</p>
         </section>
       )}
 
       {mode.kind === "done" && (
-        <section className="result">
-          <h2>{mode.text}</h2>
+        <section className="panel yellow">
+          {mode.title && <h2>{mode.title}</h2>}
+          <p>{mode.text}</p>
+          {mode.rows && <Report rows={mode.rows} />}
           {mode.share && (
             <p>
-              <a className="button" href={mode.share.x} target="_blank" rel="noreferrer">
+              <a className="btn primary" href={mode.share.x} target="_blank" rel="noreferrer">
                 Share on X
-              </a>{" "}
-              <button className="secondary" onClick={() => void navigator.clipboard.writeText(mode.share!.url)}>
+              </a>
+              <button className="btn" onClick={() => void navigator.clipboard.writeText(mode.share!.url)}>
                 Copy link
               </button>
             </p>
           )}
-          <button onClick={() => setMode({ kind: "lobby" })}>OK</button>
+          <button className="btn primary" onClick={() => setMode({ kind: "lobby" })}>
+            OK
+          </button>
         </section>
       )}
-    </main>
+    </Shell>
+  );
+}
+
+function Report({ rows }: { rows: ReportRow[] }) {
+  return (
+    <table className="report">
+      <tbody>
+        {rows.map((r, i) => (
+          <tr key={i}>
+            <td>{r.name}</td>
+            <td>{r.seconds}</td>
+            <td>{r.points}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
   );
 }

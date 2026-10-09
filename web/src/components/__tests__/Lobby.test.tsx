@@ -44,7 +44,7 @@ describe("Lobby", () => {
     const h = handlers();
     const { rerender } = render(<Lobby me={champion} notes={[prize]} height={100} {...h} />);
     expect(screen.queryByRole("button")).toBeNull();
-    expect(screen.getByText(/waiting for a rival/)).toBeInTheDocument();
+    expect(screen.getByText(/waiting for a rival/i)).toBeInTheDocument();
     rerender(<Lobby me={champion} notes={[prize]} height={1000} {...h} />);
     fireEvent.click(screen.getByRole("button", { name: /take it back/i }));
     expect(h.onCollect).toHaveBeenCalledWith(prize);

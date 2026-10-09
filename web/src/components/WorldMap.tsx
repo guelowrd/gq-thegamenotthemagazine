@@ -1,8 +1,7 @@
-// An equirectangular world map drawn from Natural Earth country outlines (public domain).
-// Click → latitude/longitude is a linear mapping, so no map library is needed.
+// An equirectangular world map: the package's pixel world (1000 × 500, Natural Earth geometry
+// quantised) as the picture, so click → latitude/longitude stays a linear mapping. No map library.
 
-import { useEffect, useState, type MouseEvent } from "react";
-import { WORLD_URL } from "@/config";
+import type { MouseEvent } from "react";
 
 export const MAP_W = 1000;
 export const MAP_H = 500;
@@ -18,9 +17,7 @@ export const latLonToPixel = (p: LatLon) => ({
   y: ((90 - p.lat) / 180) * MAP_H,
 });
 
-type Ring = [number, number][];
-let worldPromise: Promise<Ring[]> | undefined;
-const loadWorld = () => (worldPromise ??= fetch(WORLD_URL).then((r) => r.json() as Promise<Ring[]>));
+const GRID = Array.from({ length: 11 }, (_, i) => (i * MAP_W) / 12);
 
 export function WorldMap({
   onPick,
@@ -31,11 +28,6 @@ export function WorldMap({
   marks?: { at: LatLon; color: string; label?: string }[];
   disabled?: boolean;
 }) {
-  const [rings, setRings] = useState<Ring[]>([]);
-  useEffect(() => {
-    loadWorld().then(setRings).catch(() => setRings([]));
-  }, []);
-
   const handleClick = (e: MouseEvent<SVGSVGElement>) => {
     if (disabled || !onPick) return;
     const rect = e.currentTarget.getBoundingClientRect();
@@ -53,21 +45,20 @@ export function WorldMap({
       onClick={handleClick}
       style={{ cursor: disabled || !onPick ? "default" : "crosshair" }}
     >
-      <rect width={MAP_W} height={MAP_H} className="sea" />
-      {rings.map((ring, i) => (
-        <polygon
-          key={i}
-          className="land"
-          points={ring.map(([lon, lat]) => `${((lon + 180) / 360) * MAP_W},${((90 - lat) / 180) * MAP_H}`).join(" ")}
-        />
+      <image href="/brand/pixel-world.svg" width={MAP_W} height={MAP_H} />
+      {GRID.map((x) => (
+        <line key={`v${x}`} className="grid" x1={x} y1={0} x2={x} y2={MAP_H} />
+      ))}
+      {GRID.slice(0, 6).map((y) => (
+        <line key={`h${y}`} className="grid" x1={0} y1={y / 2} x2={MAP_W} y2={y / 2} />
       ))}
       {marks.map((m, i) => {
         const { x, y } = latLonToPixel(m.at);
         return (
           <g key={i}>
-            <circle cx={x} cy={y} r={6} fill={m.color} stroke="#fff" strokeWidth={2} />
+            <rect x={x - 6} y={y - 6} width={12} height={12} fill={m.color} stroke="#0c0827" strokeWidth={2} transform={`rotate(45 ${x} ${y})`} />
             {m.label && (
-              <text x={x + 9} y={y - 9} fontSize={14} fill={m.color} stroke="#fff" strokeWidth={0.5}>
+              <text x={x + 10} y={y - 10} fontSize={16} fontFamily="GeoQuizz Pixel, monospace" fill={m.color} stroke="#0c0827" strokeWidth={0.8}>
                 {m.label}
               </text>
             )}

@@ -1,4 +1,4 @@
-// The lobby: my records to take back, my shots to play, shots at my records to collect.
+// The Player Hub: my records to take back, my shots to play, lost shots at my records to collect.
 
 import { GC_DECIMALS } from "@/config";
 import type { GqNote } from "@/lib/chain";
@@ -27,53 +27,59 @@ export function Lobby({ me, notes, height, onSettle, onCollect }: LobbyProps) {
   const myRecords = records.filter(mine);
   const myShots = shots.filter((n) => sameAccount(me, n.storage.rival));
   const shotsAtMyRecords = shots.filter((n) => mine(n) && !sameAccount(me, n.storage.rival));
+  const empty = myRecords.length + myShots.length + shotsAtMyRecords.length === 0;
 
   return (
     <div className="lobby">
-      <section>
-        {myRecords.length > 0 && <h2>My records</h2>}
-        <ul>
-          {myRecords.map((p) => (
-            <li key={p.id}>
-              <strong>{p.storage.target}</strong> · {fmtGc(p.amount)}
-              {expired(p) ? <button onClick={() => onCollect(p)}>Take it back</button> : <span className="muted"> waiting for a rival</span>}
-            </li>
-          ))}
-        </ul>
-      </section>
-
-      {me && (
-        myShots.length > 0 && (
-          <section>
-            <h2>My shots</h2>
-            <ul>
-              {myShots.map((c) => {
-                const record = recordById(c.storage.recordId);
-                return (
-                  <li key={c.id}>
-                    beat <strong>{c.storage.target}</strong>
-                    {expired(c) ? <span className="muted"> too late</span> : <button onClick={() => onSettle(c, record && !record.consumed ? record : undefined)}>Play</button>}
-                  </li>
-                );
-              })}
-            </ul>
-          </section>
-        )
-      )}
-
-      {me && shotsAtMyRecords.length > 0 && (
-        <section>
-          <h2>For you</h2>
-          <ul>
-            {shotsAtMyRecords.map((c) => (
-              <li key={c.id}>
-                {fmtGc(c.amount)}
-                {expired(c) ? <button onClick={() => onCollect(c)}>Take it</button> : <span className="muted"> someone is playing…</span>}
-              </li>
-            ))}
-          </ul>
+      {empty && <p className="muted">Nothing here yet. Play the World Tour and put a Geocoin on your score.</p>}
+      {myRecords.map((p) => (
+        <section key={p.id} className={`panel card${expired(p) ? " yellow" : ""}`}>
+          <div className="eyebrow">{expired(p) ? "My record / over" : "My record / open"}</div>
+          <div className="score">{p.storage.target.toLocaleString()} pts</div>
+          <p className="muted">{fmtGc(p.amount)} on it</p>
+          {expired(p) ? (
+            <button className="btn primary wide" onClick={() => onCollect(p)}>
+              Take it back
+            </button>
+          ) : (
+            <p className="muted">Waiting for a rival…</p>
+          )}
         </section>
-      )}
+      ))}
+
+      {me &&
+        myShots.map((c) => {
+          const record = recordById(c.storage.recordId);
+          return (
+            <section key={c.id} className="panel card pink">
+              <div className="eyebrow">{expired(c) ? "My shot / too late" : "My shot / ready to play"}</div>
+              <div className="score">beat {c.storage.target.toLocaleString()}</div>
+              <p className="muted">{fmtGc(c.amount)} on the table</p>
+              {expired(c) ? (
+                <p className="muted">The champion can take it now.</p>
+              ) : (
+                <button className="btn primary wide" onClick={() => onSettle(c, record && !record.consumed ? record : undefined)}>
+                  Play
+                </button>
+              )}
+            </section>
+          );
+        })}
+
+      {me &&
+        shotsAtMyRecords.map((c) => (
+          <section key={c.id} className="panel card mint">
+            <div className="eyebrow">{expired(c) ? "For you / ready" : "For you / in play"}</div>
+            <div className="score">{fmtGc(c.amount)}</div>
+            {expired(c) ? (
+              <button className="btn primary wide" onClick={() => onCollect(c)}>
+                Take it
+              </button>
+            ) : (
+              <p className="muted">Someone is playing…</p>
+            )}
+          </section>
+        ))}
     </div>
   );
 }

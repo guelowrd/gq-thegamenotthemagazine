@@ -1,22 +1,33 @@
-// Plays one quiz: four cities, one click each, time measured in the browser.
+// Plays one quiz: ten cities, one click each, time measured in the browser. Map left, HUD right.
 
 import { useEffect, useRef, useState } from "react";
 import { WorldMap, type LatLon } from "./WorldMap";
 import { latToCd, lonToCd, quizScore, roundScore, TIME_CAP, type Answer, type City } from "@/lib/rules";
 import type { Place } from "@/lib/quiz";
+import { BLOCK_SECONDS } from "@/config";
 
 export type PlayResult = { answers: Answer[]; score: number };
 
 const cdToLatLon = (c: { lat: number; lon: number }): LatLon => ({ lat: c.lat / 100 - 90, lon: c.lon / 100 - 180 });
+const BARS = 15;
+
+/** A block count as m:ss at ~3 s per block. */
+const blocksToClock = (blocks: number) => {
+  const s = Math.max(0, blocks) * BLOCK_SECONDS;
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+};
 
 export function Play({
   cities,
   places,
   onDone,
+  rival,
 }: {
   cities: City[];
   places: Place[];
   onDone: (r: PlayResult) => void;
+  /** Playing a shot: the rival sprite and the shot clock (blocks left) show in the HUD. */
+  rival?: { blocksLeft: number };
 }) {
   const [round, setRound] = useState(0);
   const [answers, setAnswers] = useState<Answer[]>([]);
@@ -64,34 +75,69 @@ export function Play({
 
   if (finished) return null;
   const place = places[current.idx];
+  const name = place?.name ?? `city #${current.idx}`;
   const answered = lastPick ? answers[answers.length - 1] : null;
+  const points = answered ? roundScore(current, answered) : null;
+  const total = quizScore(cities.slice(0, answers.length), answers);
+  const secondsLeft = Math.max(0, TIME_CAP - elapsed) / 100;
 
   return (
     <section className="play">
-      <header className="play-header">
-        <span className="muted">
-          {round + 1} / {cities.length}
-        </span>
-        <strong>Where is {place?.name ?? `city #${current.idx}`}?</strong>
-        <span className="timer">{(elapsed / 100).toFixed(0)}</span>
-      </header>
-      <WorldMap
-        onPick={pick}
-        disabled={!!lastPick}
-        marks={
-          lastPick && answered
-            ? [
-                { at: lastPick, color: "#d33", label: "you" },
-                { at: cdToLatLon(current), color: "#2a7", label: place?.name },
-              ]
-            : []
-        }
-      />
-      {answered && (
-        <footer className="play-footer">
-          <strong>+{roundScore(current, answered)}</strong>
-        </footer>
-      )}
+      <h1>{answered ? (points ? "Nice shot!" : "Missed!") : `Find ${name}!`}</h1>
+      <div className="chips" aria-label={`Round ${round + 1} of ${cities.length}`}>
+        {cities.map((_, i) => (
+          <span key={i} className={i < round ? "done" : i === round ? "now" : ""}>
+            {i + 1}
+          </span>
+        ))}
+      </div>
+      <div className="cols">
+        <div className="panel map-frame">
+          <div className="panel-title">World map / drop your pin</div>
+          <WorldMap
+            onPick={pick}
+            disabled={!!lastPick}
+            marks={
+              lastPick && answered
+                ? [
+                    { at: lastPick, color: "#ff2c9c", label: "you" },
+                    { at: cdToLatLon(current), color: "#ffe83b", label: name },
+                  ]
+                : []
+            }
+          />
+          {answered && (
+            <div className={`banner${points ? "" : " miss"}`}>
+              {points ? "Nice shot!" : "Missed!"} +{points}
+            </div>
+          )}
+        </div>
+        <aside className={`panel hud${rival ? " pink" : ""}`}>
+          {rival && (
+            <div className="rival">
+              <img src="/brand/rival.svg" alt="" width={130} height={160} />
+              <div className="bubble">Beat my record!</div>
+            </div>
+          )}
+          <div className="eyebrow">
+            City {String(round + 1).padStart(2, "0")} / {cities.length}
+          </div>
+          <div className="city">{name}</div>
+          <div className="country">{place?.country ?? ""}</div>
+          <div className="eyebrow">Round time</div>
+          <div className="clock" aria-live="off">
+            {answered ? "Done" : `0:${String(Math.ceil(secondsLeft)).padStart(2, "0")}`}
+          </div>
+          <div className="bar" aria-hidden="true">
+            {Array.from({ length: BARS }, (_, i) => (
+              <i key={i} className={i < Math.ceil(secondsLeft) ? "on" : ""} />
+            ))}
+          </div>
+          <div className="eyebrow">Total score</div>
+          <div className="total">{total.toLocaleString()}</div>
+          {rival && <div className="deadline">Shot ends: {blocksToClock(rival.blocksLeft)}</div>}
+        </aside>
+      </div>
     </section>
   );
 }
