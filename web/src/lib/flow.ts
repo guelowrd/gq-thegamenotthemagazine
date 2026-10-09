@@ -225,7 +225,7 @@ export function withoutRecord(href: string): string {
 /** The shareable link to a record, and the X post that carries it. */
 export function recordLinks(recordId: string, score: number) {
   const url = `${location.origin}${location.pathname}?record=${recordId}`;
-  const text = `${score} points on GeoQuizz 😎\nInstall @joinbread & beat my record:`;
+  const text = `${score} points on GQ 😎\nInstall @joinbread & beat my record:`;
   return { url, x: `https://x.com/intent/post?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}` };
 }
 
