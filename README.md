@@ -72,9 +72,9 @@ check proves it.
 
 ## Deploy
 
-`vercel.json` builds `web/` with Yarn and serves `web/dist` with the two cross-origin isolation
-headers the Miden web client needs (the dev server sets the same ones). Import the repository in
-Vercel as is; no environment variables are required for testnet.
+Vercel project root directory: `web` (Vercel picks it by itself). `web/vercel.json` builds with Yarn,
+serves `dist` and sets the two cross-origin isolation headers the Miden web client needs (the dev
+server sets the same ones). No environment variables are required for testnet.
 
 ## Build and test
 

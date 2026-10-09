@@ -1,8 +1,8 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "installCommand": "cd web && yarn install --frozen-lockfile",
-  "buildCommand": "cd web && yarn build",
-  "outputDirectory": "web/dist",
+  "installCommand": "yarn install --frozen-lockfile",
+  "buildCommand": "yarn build",
+  "outputDirectory": "dist",
   "framework": null,
   "headers": [
     {
