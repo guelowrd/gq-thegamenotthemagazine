@@ -15,6 +15,23 @@ import { useMint } from "@miden-sdk/react";
 import { useCallback } from "react";
 import { GC_DECIMALS, GC_FAUCET } from "@/config";
 import type { Client } from "./chain";
+import { fmtGeocoin } from "./flow";
+
+/** The button is for empty pockets: nothing for a wallet holding more than 1 Geocoin. */
+export const GEOCOIN_MAX_HELD = 10n ** BigInt(GC_DECIMALS);
+/** A grant counts as on its way this long: Bread takes the minted note by itself, a while later. */
+export const GRANT_PENDING_MS = 5 * 60_000;
+
+/**
+ * Why a wallet gets no Geocoins now, or null.
+ * ponytail: the app asks before minting, but the faucet has no key, so one's own code can still mint;
+ * a captcha or a faucet with a server-held key enforces it for everyone.
+ */
+export function geocoinRefusal(balance: bigint, grantPending: boolean): string | null {
+  if (grantPending) return "Your Geocoins are on their way. Open your wallet to take them.";
+  if (balance > GEOCOIN_MAX_HELD) return `You still have ${fmtGeocoin(balance)}. Get more when you have 1 or less.`;
+  return null;
+}
 
 /** Runs `mintOnce` until it lands, `attempts` times at most, pausing between tries. */
 export async function retryMint<T>(

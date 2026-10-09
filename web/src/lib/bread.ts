@@ -68,14 +68,17 @@ async function blockCommitment(n: number): Promise<string | null> {
   }
 }
 
-/** Bread's view of the Geocoin balance; throws a readable error when it is below `needed`. */
-export async function requireGc(wallet: Wallet, needed: bigint): Promise<void> {
+/** The wallet's own view of its Geocoin balance. */
+export async function gcBalance(wallet: Wallet): Promise<bigint> {
   if (!wallet.requestAssets) throw new Error("Bread is not connected");
   const assets = await withTimeout(wallet.requestAssets(), 30_000, "Reading your wallet's balance");
   const faucet = AccountId.fromHex(GC_FAUCET).toString();
-  const balance = assets
-    .filter((a) => parseAccountId(a.faucetId).toString() === faucet)
-    .reduce((sum, a) => sum + BigInt(a.amount), 0n);
+  return assets.filter((a) => parseAccountId(a.faucetId).toString() === faucet).reduce((sum, a) => sum + BigInt(a.amount), 0n);
+}
+
+/** Throws a readable error when the wallet holds less than `needed` Geocoin. */
+export async function requireGc(wallet: Wallet, needed: bigint): Promise<void> {
+  const balance = await gcBalance(wallet);
   if (balance < needed) {
     throw new Error(
       `You need ${fmtGeocoin(needed)} and your wallet holds ${fmtGeocoin(balance)}. Get Geocoins first.`,

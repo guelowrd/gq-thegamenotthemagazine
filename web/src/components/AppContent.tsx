@@ -6,11 +6,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useMidenClient, useMiden } from "@miden-sdk/react";
 import { useMidenFiWallet } from "@miden-sdk/miden-wallet-adapter-react";
 import { LOCAL_WALLET, useLocalWallet } from "@/lib/localWallet";
-import { GEOCOIN_GRANT, useGeocoin } from "@/lib/geocoin";
+import { GEOCOIN_GRANT, geocoinRefusal, GRANT_PENDING_MS, useGeocoin } from "@/lib/geocoin";
 import { useSound, type Track } from "@/lib/useSound";
 import { BLOCK_SECONDS, CITIES_URL, MIN_SHOT_WINDOW_BLOCKS, RECORD_LIFETIME_BLOCKS, STAKE } from "@/config";
 import { accountFelts, fetchChallengeNote, knownNote, listChallengeNotes, loadScripts, parseAccountId, syncNotes, wordFromHex, type ChallengeNote } from "@/lib/chain";
-import { postShot, postRecord, settle, collect, reportBreadOutcome, setSubmitAttemptListener, setSubmitStageListener, waitFor, type Submitted } from "@/lib/bread";
+import { gcBalance, postShot, postRecord, settle, collect, reportBreadOutcome, setSubmitAttemptListener, setSubmitStageListener, waitFor, type Submitted } from "@/lib/bread";
 import { shotDeadline, type ChallengeStorage } from "@/lib/notes";
 import { claimVerdict, explain, fmtGeocoin, NOT_FINISHED, SHOT_LOST, shotRefusal, withoutRecord, withTimeout, type Trouble, myOpenShotsOn as openShotsOn, outcomeText, parseCode, reportRows, settlePlan, sharedRecordState, type ReportRow } from "@/lib/flow";
 import { datasetWord, decodeGame, encodeGame, quizCities, randomSeed, type Place, type Word4 } from "@/lib/quiz";
@@ -115,6 +115,8 @@ function GqApp() {
   const sound = useSound(trackOf(mode));
   // a Back press (or a newer run) makes an older run's late answer land nowhere
   const runToken = useRef(0);
+  /** The last Geocoin grant, so a second press does not mint again before Bread takes the first. */
+  const lastGrant = useRef<{ to: string; at: number } | null>(null);
 
   const me = wallet.connected && wallet.address ? accountFelts(parseAccountId(wallet.address)) : null;
 
@@ -368,7 +370,15 @@ function GqApp() {
     setTrouble(null);
     setMode({ kind: "busy", text: "Getting Geocoins", back: { kind: "lobby" }, stage: "network", since: Date.now(), track: trackOf(mode) });
     try {
+      const grant = lastGrant.current;
+      const refusal = geocoinRefusal(await gcBalance(wallet), grant?.to === wallet.address && Date.now() - grant.at < GRANT_PENDING_MS);
+      if (refusal) {
+        if (runToken.current !== token) return;
+        setMode({ kind: "lobby" });
+        return say(refusal);
+      }
       const txId = await withTimeout(mintGeocoins(wallet.address!), 180_000, "Getting Geocoins");
+      lastGrant.current = { to: wallet.address!, at: Date.now() };
       if (LOCAL_WALLET) await local.claim();
       if (runToken.current !== token) return;
       setMode({ kind: "done", text: `${fmtGeocoin(GEOCOIN_GRANT)} for you! Open your wallet to take them.`, txId });
@@ -499,7 +509,7 @@ function GqApp() {
           <h1 className="slogan">
             <span>Locate.</span> <span>Challenge.</span> <span>Win.</span>
           </h1>
-          <div className="cols">
+          <div className="cols tour">
             <div className="panel map-frame">
               <WorldMap />
             </div>

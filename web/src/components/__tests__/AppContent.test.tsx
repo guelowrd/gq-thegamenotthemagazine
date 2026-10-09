@@ -23,7 +23,7 @@ const { wallet, me, cities, chain, bread } = vi.hoisted(() => ({
   // ten cities, as the rules demand
   cities: Array.from({ length: 10 }, (_, idx) => ({ idx, lat: 9000 + idx * 100, lon: 18000 + idx * 100, cos: 100 })),
   chain: { notes: [] as unknown[], shared: null as unknown },
-  bread: { postShot: vi.fn(), postRecord: vi.fn(), settle: vi.fn(), collect: vi.fn() },
+  bread: { postShot: vi.fn(), postRecord: vi.fn(), settle: vi.fn(), collect: vi.fn(), gcBalance: vi.fn(async () => 0n) },
 }));
 vi.mock("@miden-sdk/miden-wallet-adapter-react", () => ({ useMidenFiWallet: () => wallet }));
 
@@ -219,6 +219,33 @@ describe("welcome and 1P World Tour", () => {
     expect(screen.getByText("Testnet")).toBeInTheDocument();
   });
 
+  it("on a phone turned sideways mid-quiz, the map and the city panel scroll up to fill the screen", async () => {
+    window.history.replaceState({}, "", "/");
+    let sideways = false;
+    const turns: (() => void)[] = [];
+    vi.stubGlobal("matchMedia", (q: string) => ({
+      get matches() {
+        return q.includes("landscape") && sideways;
+      },
+      addEventListener: (_: string, f: () => void) => turns.push(f),
+      removeEventListener: () => undefined,
+    }));
+    const scroll = vi.fn();
+    Element.prototype.scrollIntoView = scroll;
+    try {
+      await start();
+      fireEvent.click(await screen.findByRole("button", { name: /locate first city/i }));
+      await screen.findByText(/find c0!/i);
+      expect(scroll).not.toHaveBeenCalled();
+      sideways = true;
+      turns.forEach((f) => f());
+      expect(scroll).toHaveBeenCalledWith({ block: "start" });
+    } finally {
+      vi.unstubAllGlobals();
+      delete (Element.prototype as { scrollIntoView?: unknown }).scrollIntoView;
+    }
+  });
+
   it("plays before any wallet is connected; the rival sprite stays out of a solo run", async () => {
     window.history.replaceState({}, "", "/");
     wallet.connected = false;
@@ -249,6 +276,25 @@ describe("home, connected", () => {
     expect(mint).toHaveBeenCalledWith(expect.objectContaining({ targetAccountId: "mtst1me", amount: 10_000_000n, noteType: "public" }));
   });
 
+
+  it("gives Geocoins to empty pockets only: more than 1 held, or a grant on its way, mints nothing", async () => {
+    window.history.replaceState({}, "", "/");
+    vi.mocked(useMidenClient).mockReturnValue({ importAccountById: vi.fn(async () => undefined) } as never);
+    const mint = vi.fn(async () => ({ transactionId: "tx" }));
+    vi.mocked(useMint).mockReturnValue({ mint, result: null, isLoading: false, stage: "idle", error: null, reset: vi.fn() } as never);
+    bread.gcBalance.mockResolvedValueOnce(5_000_000n);
+    await start(/champion vs rival/i);
+    fireEvent.click(await screen.findByRole("button", { name: /get geocoins/i }));
+    await screen.findByText("You still have 5 Geocoins. Get more when you have 1 or less.");
+    expect(mint).not.toHaveBeenCalled();
+    // spent down to nothing: the grant goes through, and pressing again right after is refused
+    fireEvent.click(screen.getByRole("button", { name: /get geocoins/i }));
+    await screen.findByText(/10 Geocoins for you!/i);
+    fireEvent.click(screen.getByRole("button", { name: /^ok$/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /get geocoins/i }));
+    await screen.findByText("Your Geocoins are on their way. Open your wallet to take them.");
+    expect(mint).toHaveBeenCalledTimes(1);
+  });
 
   it("settles all my open shots at the record with one play", async () => {
     window.history.replaceState({}, "", "/");
