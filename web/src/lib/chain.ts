@@ -1,4 +1,4 @@
-// Reading the challenge notes (records and shots) with the app's local Miden client, and loading the
+// Reading the challenge notes (records and shots) from the node, and loading the
 // assembled note scripts. Signing happens in Bread (see bread.ts).
 
 import {
@@ -12,8 +12,6 @@ import {
   Note,
   NoteAssets,
   NoteFile,
-  NoteFilter,
-  NoteFilterTypes,
   NoteId,
   NoteMetadata,
   NoteRecipient,
@@ -78,9 +76,9 @@ export type ChallengeNote = {
   storage: ChallengeStorage;
   amount: bigint;
   consumed: boolean;
-  /** the block it was consumed in, when read from the node (fetchChallengeNote, withConsumedAt) */
+  /** the block it was consumed in */
   consumedAt?: number;
-  /** the block it was included in, from the local store */
+  /** the block it was included in */
   createdAt?: number;
   nullifier?: string;
 };
@@ -100,66 +98,62 @@ export async function syncNotes(client: Client): Promise<number> {
   return summary.blockNum();
 }
 
+// every GQ note the node has shown this page, decoded once: a note never changes, only whether it is used
+const known = new Map<string, ChallengeNote>();
+// the node answers the whole chain in one request (testnet 2026-10-09: 40 notes up to block 94 404)
+let scannedTo = -1;
+let scanning: Promise<ChallengeNote[]> | null = null;
+
 /**
- * Every record/shot note the local store knows, newest first. Notes posted by others arrive
- * through the note tag as input notes; notes this client's own account posted exist only as output
- * notes, so both lists are read.
+ * Every record and shot note, newest first, read from the node: the game's notes are public, under
+ * its note tag. Not from the local store: its first sync runs before the app adds the tag, so it
+ * only ever holds the notes posted after this browser first opened the game.
+ * ponytail: one nullifier request per unused note per call; fine for tens, batch them for hundreds.
  */
-export async function listChallengeNotes(client: Client): Promise<ChallengeNote[]> {
-  const scripts = await loadScripts();
-  type Located = { inclusionProof(): { location(): { blockNum(): number } } | undefined; nullifier(): string | undefined };
-  const toNote = (id: NoteId | undefined, recipient: NoteRecipient | undefined, assets: NoteAssets, consumed: boolean, r: Located): ChallengeNote | null => {
-    if (!id || !recipient) return null;
-    const kind = kindOf(recipient.script().root().toHex(), scripts);
-    if (!kind) return null;
-    let storage: ChallengeStorage;
-    try {
-      storage = decodeStorage(recipient.storage().items().map((f) => f.asInt()));
-    } catch {
-      return null; // same script, foreign layout
-    }
-    const gq = assets.fungibleAssets().find((a) => a.faucetId().toString() === GC_FAUCET);
-    const createdAt = r.inclusionProof()?.location().blockNum();
-    return { id: id.toString(), idWord: wordFromHex(id.toString()), ...kind, storage, amount: gq?.amount() ?? 0n, consumed, createdAt, nullifier: r.nullifier() };
-  };
-  const seen = new Set<string>();
-  const out: ChallengeNote[] = [];
-  const add = (n: ChallengeNote | null) => {
-    if (!n || seen.has(n.id)) return;
-    seen.add(n.id);
-    out.push(n);
-  };
-  for (const r of await client.getInputNotes(new NoteFilter(NoteFilterTypes.All))) {
-    const d = r.details();
-    add(toNote(r.id(), d.recipient(), d.assets(), r.isConsumed(), r));
-  }
-  for (const r of await client.getOutputNotes(new NoteFilter(NoteFilterTypes.All))) add(toNote(r.id(), r.recipient(), r.assets(), r.isConsumed(), r));
-  return out.reverse();
+export function listChallengeNotes(tip: number): Promise<ChallengeNote[]> {
+  return (scanning ??= scanNotes(tip).finally(() => (scanning = null)));
 }
 
-// the block a note was consumed in never changes: asked once per note per page load
-const consumedAtCache = new Map<string, number>();
-
-/**
- * Fills `consumedAt` on consumed notes from the node (the store only says whether). A note the node
- * cannot answer for yet stays without one and is asked again next time.
- * ponytail: one request at a time, ~0.1 s per consumed note on the first load; batch them when the
- * game's history grows into the hundreds.
- */
-export async function withConsumedAt(notes: ChallengeNote[]): Promise<ChallengeNote[]> {
-  const missing = notes.filter((n) => n.consumed && n.nullifier && !consumedAtCache.has(n.id));
-  if (missing.length > 0) {
-    const rpc = new RpcClient(endpoint());
-    try {
-      for (const n of missing) {
-        const at = await rpc.getNullifierCommitHeight(Word.fromHex(n.nullifier!), n.createdAt ?? 0).catch(() => undefined);
-        if (at !== undefined) consumedAtCache.set(n.id, at);
-      }
-    } finally {
-      rpc.free();
+async function scanNotes(tip: number): Promise<ChallengeNote[]> {
+  const scripts = await loadScripts();
+  const rpc = new RpcClient(endpoint());
+  try {
+    // notes posted since the last look
+    const ids: NoteId[] = [];
+    while (scannedTo < tip) {
+      const info = await rpc.syncNotes(scannedTo + 1, tip, [new NoteTag(NOTE_TAG)]);
+      for (const block of info.blocks()) for (const n of block.notes()) ids.push(n.noteId());
+      if (info.blockTo() <= scannedTo) break;
+      scannedTo = info.blockTo();
     }
+    for (let i = 0; i < ids.length; i += 50) {
+      for (const f of await rpc.getNotesById(ids.slice(i, i + 50))) {
+        const input = f.asInputNote();
+        const note = input?.note();
+        const kind = note && kindOf(note.recipient().script().root().toHex(), scripts);
+        if (!input || !note || !kind) continue;
+        let storage: ChallengeStorage;
+        try {
+          storage = decodeStorage(note.recipient().storage().items().map((x) => x.asInt()));
+        } catch {
+          continue; // same script, foreign layout
+        }
+        const id = f.noteId.toString();
+        const gq = note.assets().fungibleAssets().find((a) => a.faucetId().toString() === GC_FAUCET);
+        const createdAt = input.location()?.blockNum();
+        known.set(id, { id, idWord: wordFromHex(id), ...kind, storage, amount: gq?.amount() ?? 0n, consumed: false, createdAt, nullifier: note.nullifier().toHex() });
+      }
+    }
+    // which are used now, and since when
+    for (const n of known.values()) {
+      if (n.consumed) continue;
+      const at = await rpc.getNullifierCommitHeight(Word.fromHex(n.nullifier!), n.createdAt ?? 0).catch(() => undefined);
+      if (at !== undefined) known.set(n.id, { ...n, consumed: true, consumedAt: at });
+    }
+  } finally {
+    rpc.free();
   }
-  return notes.map((n) => (consumedAtCache.has(n.id) ? { ...n, consumedAt: consumedAtCache.get(n.id) } : n));
+  return [...known.values()].sort((a, b) => (b.createdAt ?? Infinity) - (a.createdAt ?? Infinity));
 }
 
 const blockTimeCache = new Map<number, number>();
@@ -182,12 +176,12 @@ export async function blockTime(n: number): Promise<number> {
 export const bech32Of = (a: AccountFelts) =>
   AccountId.fromPrefixSuffix(new Felt(a.prefix), new Felt(a.suffix)).toBech32(MIDEN_RPC_URL === "devnet" ? NetworkId.devnet() : NetworkId.testnet(), AccountInterface.BasicWallet);
 
-/** The store's record of a note, whether it came in (input) or went out (output); undefined if unknown. */
-export async function knownNote(client: Client, id: string): Promise<{ consumed: boolean } | undefined> {
-  const input = await client.getInputNote(id);
-  if (input) return { consumed: input.isConsumed() };
-  const output = await client.getOutputNote(id).catch(() => undefined);
-  return output ? { consumed: output.isConsumed() } : undefined;
+/** What the node says about a note: undefined while it is not on chain, else whether it is used. */
+export async function knownNote(id: string): Promise<{ consumed: boolean } | undefined> {
+  return fetchChallengeNote(id).then(
+    (n) => ({ consumed: n.consumed }),
+    () => undefined,
+  );
 }
 
 /** Builds a record or shot note exactly as the contracts expect it; `serial` fixes its id. */

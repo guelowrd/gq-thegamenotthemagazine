@@ -9,7 +9,7 @@ import { LOCAL_WALLET, useLocalWallet } from "@/lib/localWallet";
 import { GEOCOIN_GRANT, geocoinRefusal, GRANT_PENDING_MS, useGeocoin } from "@/lib/geocoin";
 import { useSound, type Track } from "@/lib/useSound";
 import { BLOCK_SECONDS, CITIES_URL, MIN_SHOT_WINDOW_BLOCKS, RECORD_LIFETIME_BLOCKS, STAKE } from "@/config";
-import { accountFelts, bech32Of, fetchChallengeNote, knownNote, listChallengeNotes, loadScripts, parseAccountId, syncNotes, withConsumedAt, wordFromHex, type ChallengeNote } from "@/lib/chain";
+import { accountFelts, bech32Of, fetchChallengeNote, knownNote, listChallengeNotes, loadScripts, parseAccountId, syncNotes, wordFromHex, type ChallengeNote } from "@/lib/chain";
 import { boards, history as pastGames, keyOf, lettersBackward, nicknames, playersInOrder } from "@/lib/hub";
 import { gcBalance, postShot, postRecord, settle, collect, reportBreadOutcome, setSubmitAttemptListener, setSubmitStageListener, waitFor, type Submitted } from "@/lib/bread";
 import { shotDeadline, type ChallengeStorage } from "@/lib/notes";
@@ -169,7 +169,7 @@ function GqApp() {
     try {
       const h = await withTimeout(runExclusive(() => syncNotes(client)), 30_000, "Syncing");
       setHeight(h);
-      setNotes(await withConsumedAt(await runExclusive(() => listChallengeNotes(client))));
+      setNotes(await listChallengeNotes(h));
       setNotesRead(true);
       setNetSlow(false);
     } catch (e) {
@@ -225,7 +225,7 @@ function GqApp() {
     const update = (patch: Partial<Extract<Mode, { kind: "busy" }>>) => setMode((m) => (live() && m.kind === "busy" ? { ...m, ...patch } : m));
     const again = (attempt?: Submitted) => () => void run(text, posted, fn, back, onConfirmed, attempt);
     const landed = async (ids: string[]) => {
-      const records = await Promise.all(ids.map((id) => knownNote(client, id)));
+      const records = await Promise.all(ids.map((id) => knownNote(id)));
       return posted ? records.every((r) => !!r) : records.every((r) => !!r?.consumed);
     };
     // a screen with its own retry button (the claim after a win) gets the smarter retry and the

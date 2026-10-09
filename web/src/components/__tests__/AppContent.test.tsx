@@ -58,7 +58,6 @@ vi.mock("@/lib/chain", () => ({
   syncNotes: vi.fn(async () => 100),
   knownNote: vi.fn(async () => undefined),
   wordFromHex: () => [0n, 0n, 0n, 0n],
-  withConsumedAt: vi.fn(async (notes: unknown[]) => notes),
   blockTime: vi.fn(async () => Date.now()),
   // every test account reads …thj9 backward: JHT, then JHN, JHL… in the order they played
   bech32Of: () => "mtst1aryq2znjyt4wqq29lxwta3sjnqlnthj9",
