@@ -94,7 +94,7 @@ p { margin: 0 0 12px; }
 .masthead nav button { background: none; border: 0; padding: 6px 0; font: 13px/1.6 var(--display); text-transform: uppercase; color: var(--white); }
 .masthead nav button.active { color: var(--yellow); text-shadow: 2px 2px 0 var(--pink); }
 .masthead nav button.active::before { content: "▶ "; color: var(--pink); }
-.masthead .wallet { margin: 0; min-height: 44px; padding: 8px 12px; font-size: 12px; max-width: 280px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.masthead .wallet { display: block; margin: 0; min-height: 44px; padding: 10px 12px; font-size: 12px; max-width: 280px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .toolbar { display: flex; align-items: center; gap: 20px; padding: 10px 4%; background: #0f0c2e; border-bottom: 2px solid var(--rule); font: 12px/1.6 var(--display); text-transform: uppercase; color: var(--cyan); }
 .toolbar .crumb { flex: 1; }
 .toolbar button { background: none; border: 0; color: var(--white); font: inherit; text-transform: inherit; }
