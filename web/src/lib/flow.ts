@@ -2,60 +2,60 @@
 // Every rule here was once a bug in the component.
 
 import type { GqNote } from "./chain";
-import { challengeDeadline, type AccountFelts } from "./notes";
+import { shotDeadline, type AccountFelts } from "./notes";
 
 export const sameAccount = (a: AccountFelts | null | undefined, b: AccountFelts | null | undefined) =>
   !!a && !!b && a.suffix === b.suffix && a.prefix === b.prefix;
 
 export const isOpen = (n: GqNote, height: number) =>
-  !n.consumed && height < (n.kind === "challenge" ? challengeDeadline(n.storage) : n.storage.expiryBlock);
+  !n.consumed && height < (n.kind === "shot" ? shotDeadline(n.storage) : n.storage.expiryBlock);
 
-/** My unconsumed, unexpired challenge notes on `prize`: one play settles all of them. */
-export function myOpenChallengesOn(notes: GqNote[], me: AccountFelts | null, prize: GqNote, height: number): GqNote[] {
+/** My unconsumed, unexpired shot notes at `record`: one play settles all of them. */
+export function myOpenShotsOn(notes: GqNote[], me: AccountFelts | null, record: GqNote, height: number): GqNote[] {
   if (!me) return [];
   return notes.filter(
     (n) =>
-      n.kind === "challenge" &&
-      sameAccount(me, n.storage.player) &&
-      n.storage.prizeId.every((f, i) => f === prize.idWord[i]) &&
+      n.kind === "shot" &&
+      sameAccount(me, n.storage.rival) &&
+      n.storage.recordId.every((f, i) => f === record.idWord[i]) &&
       isOpen(n, height),
   );
 }
 
-export type SharedPrizeState = "open" | "claimed" | "expired" | "mine" | "already-challenged";
+export type SharedRecordState = "open" | "claimed" | "expired" | "mine" | "already-challenged";
 
-/** What a `?prize=<id>` landing page should offer. */
-export function sharedPrizeState(prize: GqNote, me: AccountFelts | null, myOpen: GqNote[], height: number): SharedPrizeState {
-  if (prize.consumed) return "claimed";
-  if (height >= prize.storage.expiryBlock) return "expired";
-  if (sameAccount(me, prize.storage.champion)) return "mine";
+/** What a `?record=<id>` landing page should offer. */
+export function sharedRecordState(record: GqNote, me: AccountFelts | null, myOpen: GqNote[], height: number): SharedRecordState {
+  if (record.consumed) return "claimed";
+  if (height >= record.storage.expiryBlock) return "expired";
+  if (sameAccount(me, record.storage.champion)) return "mine";
   if (myOpen.length > 0) return "already-challenged";
   return "open";
 }
 
-/** Why a challenge cannot be posted right now, or null when it can. */
-export function challengeRefusal(prize: GqNote, height: number, minWindow: number): string | null {
-  if (prize.consumed || prize.legacy) return "This one is over.";
-  if (prize.storage.expiryBlock - height < minWindow) return "Too late for this one.";
+/** Why a shot cannot be taken right now, or null when it can. */
+export function shotRefusal(record: GqNote, height: number, minWindow: number): string | null {
+  if (record.consumed) return "This one is over.";
+  if (record.storage.expiryBlock - height < minWindow) return "Too late for this one.";
   return null;
 }
 
 export type SettlePlan = { won: boolean; claimPrize: boolean; text: string };
 
 /**
- * After a play: a win settles the open challenges (and claims the prize if it is still there);
- * a loss sends nothing to the chain, the stake waits for the champion at the deadline.
+ * After a play: a win settles the open shots (and claims the prize if it is still there);
+ * a loss sends nothing to the chain, the Geocoin waits for the champion at the deadline.
  */
-export function settlePlan(challenges: GqNote[], prize: GqNote | undefined, score: number, height: number): SettlePlan {
-  if (challenges.length === 0) throw new Error("no challenge note to settle");
-  const target = challenges[0].storage.target;
+export function settlePlan(shots: GqNote[], record: GqNote | undefined, score: number, height: number): SettlePlan {
+  if (shots.length === 0) throw new Error("no shot note to settle");
+  const target = shots[0].storage.target;
   const won = score > target;
-  const claimPrize = won && !!prize && !prize.consumed && prize.storage.expiryBlock > height;
+  const claimPrize = won && !!record && !record.consumed && record.storage.expiryBlock > height;
   const text = claimPrize
     ? `${score} points. You win!`
     : won
-      ? `${score} points. You beat it, but the prize is gone. Your stake comes back.`
-      : `${score} points. Not enough. Your stake goes to the champion.`;
+      ? `${score} points. You beat it, but the prize is gone. Your Geocoin comes back.`
+      : `${score} points. Not enough. Your Geocoin goes to the champion.`;
   return { won, claimPrize, text };
 }
 

@@ -1,26 +1,26 @@
-// GQ screens: connect Bread → lobby → play → post a prize / challenge / settle / claim.
+// GQ screens: connect Bread → lobby → play → post a record / take a shot / settle / claim.
 // The app's own Miden client only reads the chain; Bread signs everything.
 
 import { useCallback, useEffect, useState } from "react";
 import { useMidenClient, useMiden } from "@miden-sdk/react";
 import { useMidenFiWallet } from "@miden-sdk/miden-wallet-adapter-react";
 import { LOCAL_WALLET, useLocalWallet } from "@/lib/localWallet";
-import { CITIES_URL, MIN_CHALLENGE_WINDOW_BLOCKS, PRIZE_LIFETIME_BLOCKS, STAKE } from "@/config";
-import { accountFelts, fetchGqNote, knownNote, listGqNotes, loadScripts, parseAccountId, prizeLinks, syncGq, wordFromHex, type GqNote } from "@/lib/chain";
-import { postChallenge, postPrize, settle, collect, selfCheckAuthArgs, setSubmitAttemptListener, waitFor, type Submitted } from "@/lib/bread";
-import { answerWord, type ChallengeStorage } from "@/lib/notes";
-import { challengeRefusal, myOpenChallengesOn as openChallengesOn, outcomeText, settlePlan, sharedPrizeState } from "@/lib/flow";
+import { CITIES_URL, MIN_SHOT_WINDOW_BLOCKS, RECORD_LIFETIME_BLOCKS, STAKE } from "@/config";
+import { accountFelts, fetchGqNote, knownNote, listGqNotes, loadScripts, parseAccountId, recordLinks, syncGq, wordFromHex, type GqNote } from "@/lib/chain";
+import { postShot, postRecord, settle, collect, selfCheckAuthArgs, setSubmitAttemptListener, waitFor, type Submitted } from "@/lib/bread";
+import { type ChallengeStorage } from "@/lib/notes";
+import { shotRefusal, myOpenShotsOn as openShotsOn, outcomeText, settlePlan, sharedRecordState } from "@/lib/flow";
 import { datasetWord, quizCities, randomSeed, type Place, type Word4 } from "@/lib/quiz";
 import { type City } from "@/lib/rules";
-import { Lobby, fmtGq } from "./Lobby";
+import { Lobby, fmtGc } from "./Lobby";
 import { Play, type PlayResult } from "./Play";
 import "./AppContent.css";
 
 type Mode =
   | { kind: "lobby" }
   | { kind: "play-champion"; seed: Word4; cities: City[] }
-  | { kind: "post-prize"; seed: Word4; cities: City[]; result: PlayResult }
-  | { kind: "play-challenger"; challenges: GqNote[]; prize?: GqNote }
+  | { kind: "post-record"; seed: Word4; cities: City[]; result: PlayResult }
+  | { kind: "play-rival"; shots: GqNote[]; record?: GqNote }
   | { kind: "busy"; text: string }
   | { kind: "done"; text: string; txId?: string; share?: { url: string; x: string } };
 
@@ -30,7 +30,7 @@ export function AppContent() {
   if (!isReady) {
     return (
       <main className="gq">
-        <h1>GQ · GeoQuiz on Miden</h1>
+        <h1>GQ · GeoQuizz on Miden</h1>
         <p className="muted">Initializing the Miden client…</p>
       </main>
     );
@@ -52,16 +52,17 @@ function GqApp() {
   const [mode, setMode] = useState<Mode>({ kind: "lobby" });
   const [error, setError] = useState<string | null>(null);
   const [authCheck, setAuthCheck] = useState<boolean | null>(null);
-  const [sharedPrize, setSharedPrize] = useState<GqNote | null>(null);
+  const [sharedRecord, setSharedRecord] = useState<GqNote | null>(null);
   const [code, setCode] = useState("");
-  const sharedPrizeId = new URLSearchParams(location.search).get("prize");
+  const params = new URLSearchParams(location.search);
+  const sharedRecordId = params.get("record") ?? params.get("prize"); // ?prize= is the old link form
 
-  /** A pasted link or id opens the prize exactly like the link would. */
+  /** A pasted link or id opens the record exactly like the link would. */
   const openCode = () => {
     const id = /0x[0-9a-f]{64}/i.exec(code)?.[0];
     if (!id) return setError("That is not a game code.");
     setError(null);
-    fetchGqNote(id).then(setSharedPrize).catch((e) => setError(`Not found: ${e instanceof Error ? e.message : e}`));
+    fetchGqNote(id).then(setSharedRecord).catch((e) => setError(`Not found: ${e instanceof Error ? e.message : e}`));
   };
 
   const codeBox = (
@@ -86,7 +87,7 @@ function GqApp() {
       .catch((e) => setError(String(e)));
     loadScripts().catch((e) => setError(String(e)));
     if (import.meta.env.DEV) setAuthCheck(selfCheckAuthArgs());
-    if (sharedPrizeId) fetchGqNote(sharedPrizeId).then(setSharedPrize).catch((e) => setError(`Shared prize: ${e instanceof Error ? e.message : e}`));
+    if (sharedRecordId) fetchGqNote(sharedRecordId).then(setSharedRecord).catch((e) => setError(`Shared record: ${e instanceof Error ? e.message : e}`));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -148,40 +149,40 @@ function GqApp() {
       .catch((e) => setError(`Could not start: ${e instanceof Error ? e.message : e}`));
   }
 
-  const myOpenChallengesOn = (prize: GqNote) => openChallengesOn(notes, me, prize, height);
+  const myOpenShotsOn = (record: GqNote) => openShotsOn(notes, me, record, height);
 
-  /** Posts the challenge note and, once it is on chain, starts the quiz right away. */
-  function challengePrize(prize: GqNote) {
+  /** Posts the shot note and, once it is on chain, starts the quiz right away. */
+  function takeShot(record: GqNote) {
     if (!wallet.address || !dataset || !me) return;
-    const refusal = challengeRefusal(prize, height, MIN_CHALLENGE_WINDOW_BLOCKS);
+    const refusal = shotRefusal(record, height, MIN_SHOT_WINDOW_BLOCKS);
     if (refusal) return setError(refusal);
-    const open = myOpenChallengesOn(prize);
+    const open = myOpenShotsOn(record);
     if (open.length > 0) {
-      // one stake per sitting: play the challenge already on the table instead of paying again
-      setMode({ kind: "play-challenger", challenges: open, prize });
+      // one Geocoin per sitting: play the shot already on the table instead of paying again
+      setMode({ kind: "play-rival", shots: open, record });
       return;
     }
-    const player = me;
+    const rival = me;
     run(
-      "Posting your challenge",
+      "Taking your shot",
       true,
       async () => {
         // refuse a quiz that does not come from the seed and this dataset
-        const expected = await quizCities(prize.storage.seed, places);
-        const same = expected.every((c, i) => JSON.stringify(c) === JSON.stringify(prize.storage.cities[i]));
-        if (!same || prize.storage.dataset.some((f, i) => f !== dataset[i])) throw new Error("This prize's quiz does not match the dataset.");
-        return postChallenge(client, wallet, prize, player);
+        const expected = await quizCities(record.storage.seed, places);
+        const same = expected.every((c, i) => JSON.stringify(c) === JSON.stringify(record.storage.cities[i]));
+        if (!same || record.storage.dataset.some((f, i) => f !== dataset[i])) throw new Error("This record's quiz does not match the dataset.");
+        return postShot(client, wallet, record, rival);
       },
       (submitted) => ({
-        kind: "play-challenger",
-        prize,
-        challenges: [
+        kind: "play-rival",
+        record,
+        shots: [
           {
             id: submitted.noteIds[0],
             idWord: wordFromHex(submitted.noteIds[0]),
-            kind: "challenge",
-            storage: { ...prize.storage, player, prizeId: prize.idWord, challengeDeadline: (submitted as Submitted & { deadline: number }).deadline },
-            amount: prize.storage.minStake,
+            kind: "shot",
+            storage: { ...record.storage, rival, recordId: record.idWord, shotDeadline: (submitted as Submitted & { deadline: number }).deadline },
+            amount: record.storage.minStake,
             consumed: false,
           },
         ],
@@ -189,19 +190,19 @@ function GqApp() {
     );
   }
 
-  const settleAfterPlay = (challenges: GqNote[], prize: GqNote | undefined) => (r: PlayResult) => {
-    const plan = settlePlan(challenges, prize, r.score, height);
+  const settleAfterPlay = (shots: GqNote[], record: GqNote | undefined) => (r: PlayResult) => {
+    const plan = settlePlan(shots, record, r.score, height);
     if (!plan.won) {
-      // nothing to sign on a loss: the stake waits for the champion at the deadline
+      // nothing to sign on a loss: the Geocoin waits for the champion at the deadline
       setMode({ kind: "done", text: plan.text });
       return;
     }
-    run(plan.text, false, () => settle(client, wallet, challenges, plan.claimPrize ? prize : undefined, answerWord(r.answers)));
+    run(plan.text, false, () => settle(client, wallet, shots, plan.claimPrize ? record : undefined, r.answers));
   };
 
-  const sharedPrizeCard = (connected: boolean) => {
-    if (!sharedPrize) return null;
-    const state = sharedPrizeState(sharedPrize, connected ? me : null, connected ? myOpenChallengesOn(sharedPrize) : [], height);
+  const sharedRecordCard = (connected: boolean) => {
+    if (!sharedRecord) return null;
+    const state = sharedRecordState(sharedRecord, connected ? me : null, connected ? myOpenShotsOn(sharedRecord) : [], height);
     if (state === "claimed" || state === "expired") {
       return (
         <section className="result">
@@ -211,12 +212,12 @@ function GqApp() {
     }
     return (
       <section className="result">
-        <h2>Beat {sharedPrize.storage.target}?</h2>
-        <p>Win {fmtGq(sharedPrize.amount)}.</p>
-        {!connected && <button onClick={connect}>Play ({fmtGq(sharedPrize.storage.minStake)})</button>}
+        <h2>Beat {sharedRecord.storage.target}?</h2>
+        <p>Win {fmtGc(sharedRecord.amount)}.</p>
+        {!connected && <button onClick={connect}>Play ({fmtGc(sharedRecord.storage.minStake)})</button>}
         {state === "mine" && <p className="muted">This is yours.</p>}
-        {state === "already-challenged" && <button onClick={() => challengePrize(sharedPrize)}>Play</button>}
-        {state === "open" && connected && <button onClick={() => challengePrize(sharedPrize)}>Play ({fmtGq(sharedPrize.storage.minStake)})</button>}
+        {state === "already-challenged" && <button onClick={() => takeShot(sharedRecord)}>Play</button>}
+        {state === "open" && connected && <button onClick={() => takeShot(sharedRecord)}>Play ({fmtGc(sharedRecord.storage.minStake)})</button>}
       </section>
     );
   };
@@ -228,7 +229,7 @@ function GqApp() {
       <main className="gq">
         <h1>GQ</h1>
         <p>Find the city on the map.</p>
-        {sharedPrize ? sharedPrizeCard(false) : (
+        {sharedRecord ? sharedRecordCard(false) : (
           <button onClick={connect} disabled={wallet.connecting}>
             {wallet.connecting ? (LOCAL_WALLET && local.status) || "…" : "Play"}
           </button>
@@ -236,7 +237,7 @@ function GqApp() {
         {wallet.wallet?.readyState !== "Installed" && <p className="muted">You need the Bread wallet first.</p>}
         {error && <p className="error">{error}</p>}
         {import.meta.env.DEV && authCheck === false && <p className="error">dev: auth-args self-check MISMATCH</p>}
-        {!sharedPrize && codeBox}
+        {!sharedRecord && codeBox}
       </main>
     );
   }
@@ -252,7 +253,7 @@ function GqApp() {
 
       {mode.kind === "lobby" && (
         <>
-          {sharedPrizeCard(true)}
+          {sharedRecordCard(true)}
           <section className="cta">
             <button onClick={startChampion} disabled={!dataset || places.length === 0}>
               Play
@@ -262,46 +263,46 @@ function GqApp() {
             me={me}
             notes={notes}
             height={height}
-            onSettle={(challenge, prize) => {
-              const open = prize ? myOpenChallengesOn(prize) : [];
-              setMode({ kind: "play-challenger", challenges: open.length > 0 ? open : [challenge], prize });
+            onSettle={(shot, record) => {
+              const open = record ? myOpenShotsOn(record) : [];
+              setMode({ kind: "play-rival", shots: open.length > 0 ? open : [shot], record });
             }}
             onCollect={(note) => run("Taking it", false, () => collect(client, wallet, note))}
           />
-          {!sharedPrize && codeBox}
+          {!sharedRecord && codeBox}
         </>
       )}
 
       {mode.kind === "play-champion" && (
-        <Play cities={mode.cities} places={places} onDone={(result) => setMode({ kind: "post-prize", seed: mode.seed, cities: mode.cities, result })} />
+        <Play cities={mode.cities} places={places} onDone={(result) => setMode({ kind: "post-record", seed: mode.seed, cities: mode.cities, result })} />
       )}
 
-      {mode.kind === "post-prize" && (
+      {mode.kind === "post-record" && (
         <section className="result">
           <h2>{mode.result.score} points</h2>
-          <p>Put {fmtGq(STAKE)} on it? Whoever beats you takes it. Whoever fails pays you {fmtGq(STAKE)}.</p>
+          <p>Put {fmtGc(STAKE)} on it? Whoever beats you takes it. Whoever fails pays you {fmtGc(STAKE)}.</p>
           <button
             onClick={() =>
               run("Posting", true, () => {
                 const storage: ChallengeStorage = {
-                  expiryBlock: height + PRIZE_LIFETIME_BLOCKS,
+                  expiryBlock: height + RECORD_LIFETIME_BLOCKS,
                   target: mode.result.score,
                   minStake: STAKE,
                   champion: me!,
-                  player: null,
-                  prizeId: [0n, 0n, 0n, 0n],
-                  challengeRoot: [0n, 0n, 0n, 0n], // filled from the loaded script
+                  rival: null,
+                  recordId: [0n, 0n, 0n, 0n],
+                  shotRoot: [0n, 0n, 0n, 0n], // filled from the loaded script
                   seed: mode.seed,
                   dataset: dataset!,
                   cities: mode.cities,
-                  challengeDeadline: 0,
+                  shotDeadline: 0,
                 };
-                return postPrize(client, wallet, storage, STAKE);
+                return postRecord(client, wallet, storage, STAKE);
               }, ({ txId, noteIds }) => ({
                 kind: "done",
                 text: "Now find someone to beat you.",
                 txId,
-                share: prizeLinks(noteIds[0], mode.result.score),
+                share: recordLinks(noteIds[0], mode.result.score),
               }))
             }
           >
@@ -313,8 +314,8 @@ function GqApp() {
         </section>
       )}
 
-      {mode.kind === "play-challenger" && (
-        <Play cities={mode.challenges[0].storage.cities} places={places} onDone={settleAfterPlay(mode.challenges, mode.prize)} />
+      {mode.kind === "play-rival" && (
+        <Play cities={mode.shots[0].storage.cities} places={places} onDone={settleAfterPlay(mode.shots, mode.record)} />
       )}
 
       {mode.kind === "busy" && (

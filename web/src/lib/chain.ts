@@ -20,25 +20,27 @@ import {
   NoteStorage,
   NoteTag,
   NoteType,
+  Poseidon2,
   RpcClient,
   Word,
 } from "@miden-sdk/miden-sdk";
 import type { useMidenClient } from "@miden-sdk/react";
-import { CHALLENGE_SCRIPT_URL, GQ_FAUCET, LEGACY_PRIZE_ROOTS, MIDEN_RPC_URL, PRIZE_SCRIPT_URL } from "@/config";
+import { GC_FAUCET, MIDEN_RPC_URL, RECORD_SCRIPT_URL, SHOT_SCRIPT_URL } from "@/config";
 import { decodeStorage, GQ_TAG, type AccountFelts, type ChallengeStorage } from "./notes";
+import { packAnswers, type Answer } from "./rules";
 import type { Word4 } from "./quiz";
 
 /** The app's local wasm client, as `useMidenClient()` returns it. */
 export type Client = ReturnType<typeof useMidenClient>;
 
-export type Scripts = { prize: NoteScript; challenge: NoteScript; prizeRoot: string; challengeRoot: string };
+export type Scripts = { record: NoteScript; shot: NoteScript; recordRoot: string; shotRoot: string };
 
 let scriptsPromise: Promise<Scripts> | undefined;
 /** The two note scripts, assembled by `cargo run --bin build_scripts`. */
 export function loadScripts(): Promise<Scripts> {
   scriptsPromise ??= (async () => {
     const [p, c] = await Promise.all(
-      [PRIZE_SCRIPT_URL, CHALLENGE_SCRIPT_URL].map(async (url) => {
+      [RECORD_SCRIPT_URL, SHOT_SCRIPT_URL].map(async (url) => {
         const buf = await fetch(url).then((r) => {
           if (!r.ok) throw new Error(`${url}: HTTP ${r.status}`);
           return r.arrayBuffer();
@@ -46,7 +48,7 @@ export function loadScripts(): Promise<Scripts> {
         return NoteScript.deserialize(new Uint8Array(buf));
       }),
     );
-    return { prize: p, challenge: c, prizeRoot: p.root().toHex(), challengeRoot: c.root().toHex() };
+    return { record: p, shot: c, recordRoot: p.root().toHex(), shotRoot: c.root().toHex() };
   })();
   return scriptsPromise;
 }
@@ -72,20 +74,25 @@ export function parseAccountId(s: string): AccountId {
 export type GqNote = {
   id: string;
   idWord: Word4;
-  kind: "prize" | "challenge";
+  kind: "record" | "shot";
   storage: ChallengeStorage;
   amount: bigint;
   consumed: boolean;
-  /** Posted with a prize script this app has since replaced: collect and reclaim only. */
-  legacy?: boolean;
 };
 
 /** What a note script root means to this app, or null for a foreign note. */
-function kindOf(root: string, { prizeRoot, challengeRoot }: Scripts): Pick<GqNote, "kind" | "legacy"> | null {
-  if (root === prizeRoot) return { kind: "prize" };
-  if (root === challengeRoot) return { kind: "challenge" };
-  if (LEGACY_PRIZE_ROOTS.includes(root)) return { kind: "prize", legacy: true };
+function kindOf(root: string, { recordRoot, shotRoot }: Scripts): Pick<GqNote, "kind"> | null {
+  if (root === recordRoot) return { kind: "record" };
+  if (root === shotRoot) return { kind: "shot" };
   return null;
+}
+
+/**
+ * The note argument for settling or claiming: the commitment to the ten packed answers, the hash
+ * a note storage of those felts would have. The felts themselves go in the advice map under it.
+ */
+export function answerCommitment(answers: Answer[]): Word {
+  return Poseidon2.hashElements(feltArray(packAnswers(answers)));
 }
 
 /** Registers the GQ tag (idempotent) and syncs. */
@@ -97,7 +104,7 @@ export async function syncGq(client: Client): Promise<number> {
 }
 
 /**
- * Every prize/challenge note the local store knows, newest first. Notes posted by others arrive
+ * Every record/shot note the local store knows, newest first. Notes posted by others arrive
  * through the GQ tag as input notes; notes this client's own account posted exist only as output
  * notes, so both lists are read.
  */
@@ -113,7 +120,7 @@ export async function listGqNotes(client: Client): Promise<GqNote[]> {
     } catch {
       return null; // same script, foreign layout
     }
-    const gq = assets.fungibleAssets().find((a) => a.faucetId().toString() === GQ_FAUCET);
+    const gq = assets.fungibleAssets().find((a) => a.faucetId().toString() === GC_FAUCET);
     return { id: id.toString(), idWord: wordFromHex(id.toString()), ...kind, storage, amount: gq?.amount() ?? 0n, consumed };
   };
   const seen = new Set<string>();
@@ -139,11 +146,11 @@ export async function knownNote(client: Client, id: string): Promise<{ consumed:
   return output ? { consumed: output.isConsumed() } : undefined;
 }
 
-/** Builds a prize or challenge note exactly as the contracts expect it; `serial` fixes its id. */
+/** Builds a record or shot note exactly as the contracts expect it; `serial` fixes its id. */
 export function buildGqNote(sender: AccountId, script: NoteScript, storageFelts: bigint[], amount: bigint, serial: Word4): Note {
   const recipient = new NoteRecipient(wordFromFelts(serial), script, new NoteStorage(feltArray(storageFelts)));
   const metadata = new NoteMetadata(sender, NoteType.Public, new NoteTag(GQ_TAG));
-  const assets = new NoteAssets([new FungibleAsset(AccountId.fromHex(GQ_FAUCET), amount)]);
+  const assets = new NoteAssets([new FungibleAsset(AccountId.fromHex(GC_FAUCET), amount)]);
   return new Note(assets, metadata, recipient);
 }
 
@@ -191,9 +198,9 @@ export async function fetchGqNote(id: string): Promise<GqNote> {
   const { inputs } = await fetchNotesWithProof([id]);
   const note = inputs[0].note();
   const kind = kindOf(note.recipient().script().root().toHex(), scripts);
-  if (!kind) throw new Error("This note is not a GQ prize or challenge.");
+  if (!kind) throw new Error("This note is not a GeoQuizz record or shot.");
   const storage = decodeStorage(note.recipient().storage().items().map((f) => f.asInt()));
-  const gq = note.assets().fungibleAssets().find((a) => a.faucetId().toString() === GQ_FAUCET);
+  const gq = note.assets().fungibleAssets().find((a) => a.faucetId().toString() === GC_FAUCET);
   const rpc = new RpcClient(endpoint());
   let consumed = false;
   try {
@@ -205,9 +212,9 @@ export async function fetchGqNote(id: string): Promise<GqNote> {
   return { id, idWord: wordFromHex(id), ...kind, storage, amount: gq?.amount() ?? 0n, consumed };
 }
 
-/** The shareable link to a prize, and the X post that carries it. */
-export function prizeLinks(prizeId: string, score: number) {
-  const url = `${location.origin}${location.pathname}?prize=${prizeId}`;
-  const text = `I scored ${score} on GQ, a GeoQuiz on @0xMiden. Beat my score and take my prize:`;
+/** The shareable link to a record, and the X post that carries it. */
+export function recordLinks(recordId: string, score: number) {
+  const url = `${location.origin}${location.pathname}?record=${recordId}`;
+  const text = `${score} points on GeoQuizz (@0xMiden). Beat my record:`;
   return { url, x: `https://x.com/intent/post?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}` };
 }

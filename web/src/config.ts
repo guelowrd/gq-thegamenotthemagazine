@@ -1,33 +1,27 @@
-// GQ (GeoQuiz) on Miden testnet v0.17.
+// GQ (GeoQuizz) on Miden testnet v0.17.
 
-export const APP_NAME = "GQ GeoQuiz";
+export const APP_NAME = "GQ GeoQuizz";
 
-// The GQ token: a fungible faucet we deployed on testnet (`cargo run --bin gq_faucet deploy`).
-export const GQ_FAUCET = import.meta.env.VITE_GQ_FAUCET ?? "0x02a14387adb68f516e57cc5aa65891";
-export const GQ_DECIMALS = 6;
+// Geocoin (GC): a fungible faucet on testnet anyone may mint from (`cargo run --bin geocoin deploy`).
+export const GC_FAUCET = import.meta.env.VITE_GC_FAUCET ?? "0x02a14387adb68f516e57cc5aa65891";
+export const GC_DECIMALS = 6;
 
-// The stake of the GeoQuiz UI: the champion puts it in the prize note, each challenger puts the
-// same amount in their challenge note. The contracts only know `min_stake`.
-export const STAKE: bigint = BigInt(import.meta.env.VITE_GQ_STAKE ?? "1000000"); // 1 GQ
+// The stake of the GeoQuizz UI: the champion puts it in the record note, each rival puts the
+// same amount in their shot note. The contracts only know `min_stake`.
+export const STAKE: bigint = BigInt(import.meta.env.VITE_GC_STAKE ?? "1000000"); // 1 GC
 // Testnet makes a block about every 3 s.
 export const BLOCK_SECONDS = 3;
-// A prize stays open about a day: time for people to see the post and come play.
-export const PRIZE_LIFETIME_BLOCKS = Math.round((24 * 3600) / BLOCK_SECONDS); // 28 800
-// A challenge must be settled within ~2-3 plays of the game (4 rounds x 15 s, plus proving),
-// so a challenger cannot sit on a stake and rehearse the same four cities.
-export const CHALLENGE_WINDOW_BLOCKS = Math.round((6 * 60) / BLOCK_SECONDS); // 120
-// Refuse to challenge a prize that will expire before the challenge window ends.
-export const MIN_CHALLENGE_WINDOW_BLOCKS = CHALLENGE_WINDOW_BLOCKS + 20;
+// A record stays open about a day: time for people to see the post and come play.
+export const RECORD_LIFETIME_BLOCKS = Math.round((24 * 3600) / BLOCK_SECONDS); // 28 800
+// A shot must be settled within ~2 plays of the game (10 cities x 15 s, plus proving), so a
+// rival cannot sit on a stake and rehearse the same ten cities.
+export const SHOT_WINDOW_BLOCKS = Math.round((6 * 60) / BLOCK_SECONDS); // 120
+// Refuse a shot at a record that will expire before the shot window ends.
+export const MIN_SHOT_WINDOW_BLOCKS = SHOT_WINDOW_BLOCKS + 20;
 
 // Where the assembled note scripts live (written by `cargo run --bin build_scripts`).
-export const PRIZE_SCRIPT_URL = "/scripts/prize.bin";
-export const CHALLENGE_SCRIPT_URL = "/scripts/challenge.bin";
-/**
- * Prize scripts this app no longer posts but still recognises, so a champion can take an old
- * prize back after expiry and collect its failed challenges. Claims against them are not offered.
- * 0x320f36…: before 2026-10-09 (read the challenge's current assets instead of its initial ones).
- */
-export const LEGACY_PRIZE_ROOTS = ["0x320f3695342f5e8d67c54f685c448713ff8a8efee3d90cc2b3ffa9e33487bba2"];
+export const RECORD_SCRIPT_URL = "/scripts/record.bin";
+export const SHOT_SCRIPT_URL = "/scripts/shot.bin";
 export const CITIES_URL = "/cities.json";
 export const WORLD_URL = "/world.json";
 

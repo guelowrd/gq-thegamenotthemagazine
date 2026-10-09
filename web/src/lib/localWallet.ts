@@ -15,7 +15,7 @@ import { requestFaucetTokens } from "./funding";
 
 const LOCAL = typeof location !== "undefined" ? new URLSearchParams(location.search).get("local") : null;
 export const LOCAL_WALLET = LOCAL !== null;
-// `?local=1` is the first wallet, `?local=2` a second one: a champion and a challenger in two tabs
+// `?local=1` is the first wallet, `?local=2` a second one: a champion and a rival in two tabs
 const KEY = LOCAL === "1" || LOCAL === "" ? "gq:local-wallet" : `gq:local-wallet:${LOCAL}`;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const b64 = (s: string) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
@@ -74,15 +74,15 @@ export function useLocalWallet(client: Client | null, runExclusive: <T>(fn: () =
         const r = await consume({ accountId: hex, notes: [noteId] });
         log("claimed", r.transactionId);
       }
-      // 3. whatever was sent to this account (GQ mints, prizes won): claim it, as Bread does by itself.
+      // 3. whatever was sent to this account (Geocoin mints, prizes won): claim it, as Bread does by itself.
       //    GQ notes are left alone, they need arguments and the app consumes them.
-      const { prizeRoot, challengeRoot } = await loadScripts();
+      const { recordRoot, shotRoot } = await loadScripts();
       const pending = await runExclusive(async () =>
         (await client.getConsumableNotes(AccountId.fromHex(hex!)))
-          .map((n) => n.inputNoteRecord())
+          .flatMap((n) => n.inputNoteRecord() ?? [])
           .filter((r) => {
             const root = r.details().recipient().script().root().toHex();
-            return root !== prizeRoot && root !== challengeRoot;
+            return root !== recordRoot && root !== shotRoot;
           })
           .map((r) => r.id().toString()),
       );

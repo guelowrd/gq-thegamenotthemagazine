@@ -1,58 +1,58 @@
-// The lobby: open prizes to challenge, my challenges to settle, my prizes to collect.
+// The lobby: my records to take back, my shots to play, shots at my records to collect.
 
-import { GQ_DECIMALS } from "@/config";
+import { GC_DECIMALS } from "@/config";
 import type { GqNote } from "@/lib/chain";
-import { challengeDeadline, type AccountFelts } from "@/lib/notes";
+import { shotDeadline, type AccountFelts } from "@/lib/notes";
 
-export const fmtGq = (v: bigint) => `${(Number(v) / 10 ** GQ_DECIMALS).toLocaleString(undefined, { maximumFractionDigits: GQ_DECIMALS })} GQ`;
+export const fmtGc = (v: bigint) => `${(Number(v) / 10 ** GC_DECIMALS).toLocaleString(undefined, { maximumFractionDigits: GC_DECIMALS })} GC`;
 const sameAccount = (a: AccountFelts | null, b: AccountFelts | null) => !!a && !!b && a.suffix === b.suffix && a.prefix === b.prefix;
 
 export type LobbyProps = {
   me: AccountFelts | null;
   notes: GqNote[];
   height: number;
-  onSettle: (challenge: GqNote, prize: GqNote | undefined) => void;
+  onSettle: (shot: GqNote, record: GqNote | undefined) => void;
   onCollect: (note: GqNote) => void;
 };
 
 export function Lobby({ me, notes, height, onSettle, onCollect }: LobbyProps) {
-  const prizes = notes.filter((n) => n.kind === "prize" && !n.consumed);
-  const challenges = notes.filter((n) => n.kind === "challenge" && !n.consumed);
-  const prizeById = (idWord: bigint[]) => notes.find((n) => n.kind === "prize" && n.idWord.every((f, i) => f === idWord[i]));
-  const deadline = (n: GqNote) => (n.kind === "challenge" ? challengeDeadline(n.storage) : n.storage.expiryBlock);
+  const records = notes.filter((n) => n.kind === "record" && !n.consumed);
+  const shots = notes.filter((n) => n.kind === "shot" && !n.consumed);
+  const recordById = (idWord: bigint[]) => notes.find((n) => n.kind === "record" && n.idWord.every((f, i) => f === idWord[i]));
+  const deadline = (n: GqNote) => (n.kind === "shot" ? shotDeadline(n.storage) : n.storage.expiryBlock);
   const expired = (n: GqNote) => height >= deadline(n);
 
   const mine = (n: GqNote) => sameAccount(me, n.storage.champion);
-  // prizes are shared by link only; the app never lists other people's
-  const myPrizes = prizes.filter(mine);
-  const myChallenges = challenges.filter((n) => sameAccount(me, n.storage.player));
-  const challengesOnMyPrizes = challenges.filter((n) => mine(n) && !sameAccount(me, n.storage.player));
+  // records are shared by link only; the app never lists other people's
+  const myRecords = records.filter(mine);
+  const myShots = shots.filter((n) => sameAccount(me, n.storage.rival));
+  const shotsAtMyRecords = shots.filter((n) => mine(n) && !sameAccount(me, n.storage.rival));
 
   return (
     <div className="lobby">
       <section>
-        {myPrizes.length > 0 && <h2>Yours</h2>}
+        {myRecords.length > 0 && <h2>My records</h2>}
         <ul>
-          {myPrizes.map((p) => (
+          {myRecords.map((p) => (
             <li key={p.id}>
-              <strong>{p.storage.target}</strong> · {fmtGq(p.amount)}
-              {expired(p) ? <button onClick={() => onCollect(p)}>Take it back</button> : <span className="muted"> waiting for a challenger</span>}
+              <strong>{p.storage.target}</strong> · {fmtGc(p.amount)}
+              {expired(p) ? <button onClick={() => onCollect(p)}>Take it back</button> : <span className="muted"> waiting for a rival</span>}
             </li>
           ))}
         </ul>
       </section>
 
       {me && (
-        myChallenges.length > 0 && (
+        myShots.length > 0 && (
           <section>
-            <h2>Finish your game</h2>
+            <h2>My shots</h2>
             <ul>
-              {myChallenges.map((c) => {
-                const prize = prizeById(c.storage.prizeId);
+              {myShots.map((c) => {
+                const record = recordById(c.storage.recordId);
                 return (
                   <li key={c.id}>
                     beat <strong>{c.storage.target}</strong>
-                    {expired(c) ? <span className="muted"> too late</span> : <button onClick={() => onSettle(c, prize && !prize.consumed ? prize : undefined)}>Play</button>}
+                    {expired(c) ? <span className="muted"> too late</span> : <button onClick={() => onSettle(c, record && !record.consumed ? record : undefined)}>Play</button>}
                   </li>
                 );
               })}
@@ -61,13 +61,13 @@ export function Lobby({ me, notes, height, onSettle, onCollect }: LobbyProps) {
         )
       )}
 
-      {me && challengesOnMyPrizes.length > 0 && (
+      {me && shotsAtMyRecords.length > 0 && (
         <section>
           <h2>For you</h2>
           <ul>
-            {challengesOnMyPrizes.map((c) => (
+            {shotsAtMyRecords.map((c) => (
               <li key={c.id}>
-                {fmtGq(c.amount)}
+                {fmtGc(c.amount)}
                 {expired(c) ? <button onClick={() => onCollect(c)}>Take it</button> : <span className="muted"> someone is playing…</span>}
               </li>
             ))}

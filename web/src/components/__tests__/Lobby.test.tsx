@@ -13,20 +13,20 @@ const base: ChallengeStorage = {
   target: 2000,
   minStake: 1_000_000n,
   champion,
-  player: null,
-  prizeId: [0n, 0n, 0n, 0n],
-  challengeRoot: [1n, 1n, 1n, 1n],
+  rival: null,
+  recordId: [0n, 0n, 0n, 0n],
+  shotRoot: [1n, 1n, 1n, 1n],
   seed: [0n, 0n, 0n, 0n],
   dataset: [0n, 0n, 0n, 0n],
   cities: [],
-  challengeDeadline: 0,
+  shotDeadline: 0,
 };
-const prize: GqNote = { id: "0xp", idWord: [9n, 9n, 9n, 9n], kind: "prize", storage: base, amount: 1_000_000n, consumed: false };
+const prize: GqNote = { id: "0xp", idWord: [9n, 9n, 9n, 9n], kind: "record", storage: base, amount: 1_000_000n, consumed: false };
 const myChallenge: GqNote = {
   id: "0xc",
   idWord: [1n, 1n, 1n, 1n],
-  kind: "challenge",
-  storage: { ...base, player: me, prizeId: [9n, 9n, 9n, 9n], challengeDeadline: 200 },
+  kind: "shot",
+  storage: { ...base, rival: me, recordId: [9n, 9n, 9n, 9n], shotDeadline: 200 },
   amount: 1_000_000n,
   consumed: false,
 };
@@ -34,23 +34,23 @@ const myChallenge: GqNote = {
 const handlers = () => ({ onSettle: vi.fn(), onCollect: vi.fn() });
 
 describe("Lobby", () => {
-  it("never lists other people's prizes: they travel by link only", () => {
+  it("never lists other people's records: they travel by link only", () => {
     render(<Lobby me={me} notes={[prize]} height={100} {...handlers()} />);
     expect(screen.queryByText(/3750|2000/)).toBeNull();
     expect(screen.queryByRole("button")).toBeNull();
   });
 
-  it("shows the champion their own prize, and take-it-back only once expired", () => {
+  it("shows the champion their own record, and take-it-back only once expired", () => {
     const h = handlers();
     const { rerender } = render(<Lobby me={champion} notes={[prize]} height={100} {...h} />);
     expect(screen.queryByRole("button")).toBeNull();
-    expect(screen.getByText(/waiting for a challenger/)).toBeInTheDocument();
+    expect(screen.getByText(/waiting for a rival/)).toBeInTheDocument();
     rerender(<Lobby me={champion} notes={[prize]} height={1000} {...h} />);
     fireEvent.click(screen.getByRole("button", { name: /take it back/i }));
     expect(h.onCollect).toHaveBeenCalledWith(prize);
   });
 
-  it("offers Play & settle on my open challenge with its prize, and nothing once its deadline passed", () => {
+  it("offers Play & settle on my open shot with its record, and nothing once its deadline passed", () => {
     const h = handlers();
     const { rerender } = render(<Lobby me={me} notes={[prize, myChallenge]} height={100} {...h} />);
     fireEvent.click(screen.getByRole("button", { name: /^play$/i }));
@@ -59,7 +59,7 @@ describe("Lobby", () => {
     expect(screen.queryByRole("button", { name: /^play$/i })).toBeNull();
   });
 
-  it("lets the champion collect a challenge only from its deadline on", () => {
+  it("lets the champion collect a shot only from its deadline on", () => {
     const h = handlers();
     const { rerender } = render(<Lobby me={champion} notes={[prize, myChallenge]} height={199} {...h} />);
     expect(screen.queryByRole("button", { name: /take it/i })).toBeNull();
