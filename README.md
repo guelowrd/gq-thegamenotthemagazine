@@ -18,8 +18,8 @@ transactions, the pitfalls, and a six-line example game that runs through the sa
 - Look and feel: `web/src/theme.css` is the one stylesheet, built from the retro3 design package's
   `tokens.json` (GeoQuizz Pixel face, palette, hard pixel frames). Art, font and the four music tracks
   live in `web/public/brand/`; the package itself (boards, prototype, handoff notes) stays out of
-  git. Screens: welcome hero → 1P World Tour (free, no wallet) → Champion vs Rival (a record by link
-  or code) → Player Hub (my records, my shots, what rivals left me, my past games) → Leaderboards
+  git. Screens: welcome hero → 1P World Tour (free, no wallet) → Champion vs Rival (a record by link,
+  code or the list of open challenges) → Player Hub (my records, my shots, what rivals left me, my past games) → Leaderboards
   (Geocoins won, best records, records defended and smashed, a loserboard). History and boards are read from the
   public notes alone (`web/src/lib/hub.ts`): no server, players named by three letters of their address.
 - Design, verified capabilities, blockers and trust assumptions: [`docs/design.md`](docs/design.md)

@@ -1,8 +1,9 @@
 // GeoQuizz screens: welcome → 1P World Tour (play, then put a Geocoin on it) / VS (a record by
-// link or code, take a shot) / Player Hub (my records, my shots, what rivals left me).
+// link, code or from the open list, take a shot) / Player Hub (my records, my shots, what rivals left me).
 // The app's own Miden client only reads the chain (and mints Geocoins); the wallet signs the rest.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { useMidenClient, useMiden } from "@miden-sdk/react";
 import { useMidenFiWallet } from "@miden-sdk/miden-wallet-adapter-react";
 import { LOCAL_WALLET, useLocalWallet } from "@/lib/localWallet";
@@ -149,7 +150,8 @@ function GqApp() {
   const loadRecord = (id: string) =>
     withTimeout(fetchChallengeNote(id), 30_000, "Loading the record")
       .then((r) => {
-        setSharedRecord(r);
+        // a slower answer for a record picked before the current one stays out
+        setSharedRecord((cur) => (cur && cur.id !== r.id ? cur : r));
         setTrouble(null);
       })
       .catch((e) => oops(e, () => void loadRecord(id)));
@@ -451,6 +453,38 @@ function GqApp() {
     </section>
   );
 
+  // funded records a rival can still take a shot at, newest first
+  const openRecords = publicNotes.filter((n) => n.kind === "record" && n.amount > 0n && !shotRefusal(n, height, MIN_SHOT_WINDOW_BLOCKS));
+  const cardRef = useRef<HTMLElement>(null);
+  /** Opens a listed record like its link would, fresh from the node: the list may be a while old. */
+  const viewChallenge = (n: ChallengeNote) => {
+    flushSync(() => setSharedRecord(n));
+    cardRef.current?.focus(); // the card opens above the list: bring it into view
+    void loadRecord(n.id);
+  };
+  const openList = (
+    <section className="panel open-challenges">
+      <div className="panel-title">Open challenges</div>
+      {!notesRead ? (
+        <p className="muted">Loading…</p>
+      ) : openRecords.length === 0 ? (
+        <p className="muted">No open challenges yet.</p>
+      ) : (
+        openRecords.map((n) => (
+          <div key={n.id} className="row">
+            <div>
+              <div className="value">{n.storage.target.toLocaleString()} pts</div>
+              <div className="small muted">Prize: {fmtGeocoin(n.amount)}</div>
+            </div>
+            <button className="btn" onClick={() => viewChallenge(n)} aria-label={`View challenge, ${n.storage.target.toLocaleString()} pts`}>
+              View challenge
+            </button>
+          </div>
+        ))
+      )}
+    </section>
+  );
+
   // the record as loaded from its link, updated by what the background sync has seen since
   const record = sharedRecord && { ...sharedRecord, consumed: sharedRecord.consumed || notes.some((n) => n.consumed && n.id.toLowerCase() === sharedRecord.id.toLowerCase()) };
 
@@ -460,14 +494,14 @@ function GqApp() {
     const state = sharedRecordState(sharedRecord, me, me ? myOpenShotsOn(sharedRecord) : [], height);
     if (state === "claimed" || state === "expired") {
       return (
-        <section className="panel pink">
+        <section className="panel pink" ref={cardRef} tabIndex={-1}>
           <div className="panel-title">Record</div>
           <h2>This one is over.</h2>
         </section>
       );
     }
     return (
-      <section className="panel pink">
+      <section className="panel pink" ref={cardRef} tabIndex={-1}>
         <div className="panel-title">Record</div>
         <div className="big-score">{sharedRecord.storage.target.toLocaleString()} pts to beat</div>
         <div className="row">
@@ -498,6 +532,12 @@ function GqApp() {
     );
   };
 
+  const openTab = (t: Tab) => {
+    setTab(t);
+    setTrouble(null);
+    setMode({ kind: "lobby" });
+  };
+
   const goHome = () => {
     runToken.current++;
     setTrouble(null);
@@ -513,11 +553,7 @@ function GqApp() {
   return (
     <Shell
       tab={tab}
-      onTab={(t) => {
-        setTab(t);
-        setTrouble(null);
-        setMode({ kind: "lobby" });
-      }}
+      onTab={openTab}
       onHome={goHome}
       walletLabel={walletLabel}
       netSlow={netSlow}
@@ -553,14 +589,19 @@ function GqApp() {
             <div className="panel map-frame">
               <WorldMap />
             </div>
-            <aside className="panel">
-              <div className="panel-title">1P World Tour</div>
-              <p>10 cities, 15 seconds each.</p>
-              <p className="muted">Free to play.</p>
-              <button className="btn primary wide" onClick={startChampion} disabled={!dataset || places.length === 0}>
-                Locate first city
+            <div>
+              <aside className="panel">
+                <div className="panel-title">1P World Tour</div>
+                <p>10 cities, 15 seconds each.</p>
+                <p className="muted">Free to play. Once you’re happy with your score, post it on X to challenge your rivals.</p>
+                <button className="btn primary wide" onClick={startChampion} disabled={!dataset || places.length === 0}>
+                  Locate first city
+                </button>
+              </aside>
+              <button className="text-link" onClick={() => openTab("vs")}>
+                Find a challenge in CHAMPION VS RIVAL mode →
               </button>
-            </aside>
+            </div>
           </div>
         </>
       )}
@@ -570,6 +611,7 @@ function GqApp() {
           <img className="hero" src="/brand/hero-arena.webp" alt="" width={1440} height={960} />
           <div className="overlay">
             {recordCard() ?? codeBox}
+            {openList}
             {geocoinButton}
           </div>
         </div>

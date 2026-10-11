@@ -125,6 +125,12 @@ main { max-width: 1440px; margin: 0 auto; padding: 28px 4% 56px; }
 .cols.wide-aside { grid-template-columns: minmax(0, 1fr) 420px; }
 /* one row per sentence: smaller type rather than a wrap */
 .terms { font-size: clamp(10px, 3.2vw, 14px); line-height: 1.7; }
+/* a small text link under a panel, for a way to another tab */
+.text-link { display: block; margin: 14px 0 0; padding: 4px 0; background: none; border: 0; color: var(--cyan); font-size: 13px; text-align: left; text-decoration: underline; }
+.text-link:hover { color: var(--yellow); }
+.open-challenges .row { align-items: center; }
+.open-challenges .btn { margin: 0; }
+.open-challenges .value { white-space: nowrap; }
 .hero { width: 100%; height: auto; border: 4px solid var(--cyan); outline: 4px solid var(--pink); outline-offset: -8px; }
 /* the slogan: one line where it fits, one word per line on narrow screens */
 .slogan span { white-space: nowrap; }
@@ -137,6 +143,9 @@ main { max-width: 1440px; margin: 0 auto; padding: 28px 4% 56px; }
 .arena .overlay .big-score { font-size: 26px; margin-bottom: 10px; }
 .arena .overlay .panel { padding: 16px; }
 .arena .overlay .panel-title { margin: -16px -16px 12px; padding: 8px 16px; }
+/* the panels stay inside the hero: past its height the open challenges scroll */
+.arena .overlay { max-height: 90%; }
+.arena .open-challenges { min-height: 0; overflow-y: auto; }
 
 /* the world map */
 .map-frame { padding: 10px; }

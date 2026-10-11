@@ -83,6 +83,7 @@ import { useMidenClient, useMint } from "@miden-sdk/react";
 import { waitFor as waitForMock } from "@/lib/bread";
 import { fetchChallengeNote, hexOf, knownNote, listChallengeNotes, syncNotes } from "@/lib/chain";
 import { encodeGame } from "@/lib/quiz";
+import { MIN_SHOT_WINDOW_BLOCKS } from "@/config";
 import { AppContent } from "../AppContent";
 
 beforeEach(() => {
@@ -348,6 +349,76 @@ describe("welcome and 1P World Tour", () => {
   });
 });
 
+describe("open challenges in Champion vs Rival", () => {
+  const listed = (id: string, target: number, more: Partial<ChallengeNote> = {}, expiryBlock = 30_000): ChallengeNote => ({
+    ...prize,
+    id,
+    createdAt: 5,
+    ...more,
+    storage: { ...prize.storage, target, expiryBlock, ...more.storage },
+  });
+
+  it("lists funded, unclaimed records a rival can still take a shot at, under the code box", async () => {
+    window.history.replaceState({}, "", "/");
+    chain.notes = [
+      listed("0xo", 3100),
+      listed("0xclaimed", 3200, { consumed: true }),
+      listed("0xempty", 3300, { amount: 0n }),
+      listed("0xover", 3400, {}, 100),
+      listed("0xlate", 3500, {}, 100 + MIN_SHOT_WINDOW_BLOCKS - 1),
+      { ...myChallenge, storage: { ...myChallenge.storage, target: 3600 } },
+      listed("0xtest", 3700, { storage: { ...prize.storage, champion: me } }),
+    ];
+    vi.mocked(hexOf).mockImplementation((a) => (a === me ? "0x071d3da3ad56d88175b628f76073cb" : "0xreal"));
+    await start(/^champion vs rival$/i);
+    expect(await screen.findByText("3,100 pts")).toBeInTheDocument();
+    expect(screen.getByText(/have a code\?/i)).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: /view challenge/i })).toHaveLength(1);
+    expect(screen.queryByText(/3,[2-7]00/)).toBeNull();
+  });
+
+  it("says so when there is none", async () => {
+    window.history.replaceState({}, "", "/");
+    await start(/^champion vs rival$/i);
+    expect(await screen.findByText("No open challenges yet.")).toBeInTheDocument();
+  });
+
+  it("View challenge opens the record card at once, in focus, then as the node has it now", async () => {
+    window.history.replaceState({}, "", "/");
+    chain.notes = [listed("0xo", 3100)];
+    chain.shared = listed("0xo", 3100, { consumed: true }); // taken since the list was read
+    await start(/^champion vs rival$/i);
+    fireEvent.click(await screen.findByRole("button", { name: "View challenge, 3,100 pts" }));
+    expect(document.activeElement).toBe(screen.getByText("3,100 pts to beat").closest("section"));
+    expect(fetchChallengeNote).toHaveBeenCalledWith("0xo");
+    expect(await screen.findByText(/this one is over/i)).toBeInTheDocument();
+  });
+
+  it("a slow answer for an earlier pick never replaces the later one", async () => {
+    window.history.replaceState({}, "", "/");
+    chain.notes = [listed("0xa", 3100), listed("0xb", 3200)];
+    let answerA: (n: ChallengeNote) => void = () => {};
+    vi.mocked(fetchChallengeNote)
+      .mockImplementationOnce(() => new Promise((r) => (answerA = r)))
+      .mockImplementationOnce(async () => listed("0xb", 3200));
+    await start(/^champion vs rival$/i);
+    fireEvent.click(await screen.findByRole("button", { name: "View challenge, 3,100 pts" }));
+    fireEvent.click(screen.getByRole("button", { name: "View challenge, 3,200 pts" }));
+    await act(async () => answerA(listed("0xa", 3100)));
+    expect(screen.getByText("3,200 pts to beat")).toBeInTheDocument();
+    expect(screen.queryByText("3,100 pts to beat")).toBeNull();
+  });
+
+  it("the 1P box says how to challenge rivals and links to Champion vs Rival", async () => {
+    window.history.replaceState({}, "", "/");
+    await start();
+    expect(screen.getByText("Free to play. Once you’re happy with your score, post it on X to challenge your rivals.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Find a challenge in CHAMPION VS RIVAL mode →" }));
+    expect(await screen.findByText("Open challenges")).toBeInTheDocument();
+    expect(screen.getByText(/have a code\?/i)).toBeInTheDocument();
+  });
+});
+
 describe("home, connected", () => {
   it("mints ten Geocoins to the connected wallet from the faucet nobody holds a key to", async () => {
     window.history.replaceState({}, "", "/");
@@ -356,7 +427,7 @@ describe("home, connected", () => {
     vi.mocked(useMidenClient).mockReturnValue({ importAccountById } as never);
     const mint = vi.fn(async () => ({ transactionId: "tx" }));
     vi.mocked(useMint).mockReturnValue({ mint, result: null, isLoading: false, stage: "idle", error: null, reset: vi.fn() } as never);
-    await start(/champion vs rival/i);
+    await start(/^champion vs rival$/i);
     fireEvent.click(await screen.findByRole("button", { name: /get geocoins/i }));
     await screen.findByText(/10 Geocoins for you! Open your wallet to take them/i);
     expect(importAccountById).toHaveBeenCalledTimes(1);
@@ -370,7 +441,7 @@ describe("home, connected", () => {
     const mint = vi.fn(async () => ({ transactionId: "tx" }));
     vi.mocked(useMint).mockReturnValue({ mint, result: null, isLoading: false, stage: "idle", error: null, reset: vi.fn() } as never);
     bread.gcBalance.mockResolvedValueOnce(5_000_000n);
-    await start(/champion vs rival/i);
+    await start(/^champion vs rival$/i);
     fireEvent.click(await screen.findByRole("button", { name: /get geocoins/i }));
     await screen.findByText("You still have 5 Geocoins. Get more when you have 1 or less.");
     expect(mint).not.toHaveBeenCalled();
@@ -396,12 +467,10 @@ describe("home, connected", () => {
     await screen.findByText(/find c0!/i);
   });
 
-  it("does not list other people's records, but opens one from a pasted code (old ?prize= links too)", async () => {
+  it("opens a record from a pasted code (old ?prize= links too)", async () => {
     window.history.replaceState({}, "", "/");
-    chain.notes = [prize];
-    await start(/champion vs rival/i);
+    await start(/^champion vs rival$/i);
     await screen.findByText(/have a code\?/i);
-    expect(screen.queryByText(/2,?000/)).toBeNull();
     fireEvent.change(screen.getByPlaceholderText(/paste the link or code/i), {
       target: { value: "http://x/?prize=0x62ea91634f23d65b4bcae5eb027ea1cad37be056412618cad17de9c3171e1ee8" },
     });

@@ -26,7 +26,7 @@ export function Lobby({ me, notes, height, onSettle, onCollect }: LobbyProps) {
   const until = (n: ChallengeNote) => whenLabel(Date.now() + (deadline(n) - height) * BLOCK_SECONDS * 1000);
 
   const mine = (n: ChallengeNote) => sameAccount(me, n.storage.champion);
-  // records are shared by link only; the app never lists other people's
+  // only mine here: other people's open records are listed in Champion vs Rival
   const myRecords = records.filter(mine);
   const myShots = shots.filter((n) => sameAccount(me, n.storage.rival));
   const shotsAtMyRecords = shots.filter((n) => mine(n) && !sameAccount(me, n.storage.rival));

@@ -32,7 +32,7 @@ const myChallenge: ChallengeNote = {
 const handlers = () => ({ onSettle: vi.fn(), onCollect: vi.fn() });
 
 describe("Lobby", () => {
-  it("never lists other people's records: they travel by link only", () => {
+  it("never lists other people's records: those are in Champion vs Rival", () => {
     render(<Lobby me={me} notes={[prize]} height={100} {...handlers()} />);
     expect(screen.queryByText(/3750|2000/)).toBeNull();
     expect(screen.queryByRole("button")).toBeNull();
