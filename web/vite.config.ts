@@ -8,7 +8,7 @@ import { midenVitePlugin } from "@miden-sdk/vite-plugin";
 // otherwise the vercel.app address.
 const siteUrl =
   process.env.SITE_URL ??
-  (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : "https://gq-thegamenotthemagazine.vercel.app");
+  (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : "https://gq-thegamenotthemagazine.app");
 
 // On iPhone (Safari and every iOS browser) the SDK runs its classic worker, which fetches
 // "assets/miden_client_web.wasm" relative to its own /assets/ URL, a path Vite never emits: a 404 there,

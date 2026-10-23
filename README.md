@@ -1,6 +1,6 @@
 # GQ · GeoQuizz on Miden
 
-**Play:** https://gq-thegamenotthemagazine.vercel.app
+**Play:** https://gq-thegamenotthemagazine.app
 
 A small, complete reference for a **challenge mechanic** on Miden v0.17 (mainnet; testnet for development): a champion posts a
 **record note** with a score to beat; rivals take a **shot** (a shot note holding one Gamecoin), play
