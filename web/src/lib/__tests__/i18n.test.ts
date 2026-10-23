@@ -39,7 +39,7 @@ describe.each((Object.keys(DICTS) as (keyof typeof DICTS)[]).filter((l) => !l.st
       "This one is rigged.",
       (parseCode("https://x.com/a/status/1") as { hint: string }).hint,
       (parseCode("nope") as { hint: string }).hint,
-      ...["NOT_GRANTED", "NETWORK_NOT_GRANTED", "WalletNotReady", "WalletNotConnected", "You need 1 Gamecoin", "You need 1 USDCx", "SummaryAnchorMismatch", "already consumed", "deadline has passed", "dataset", "Not found", "assertion failed", "timed out", "???"].map((raw) => explain(new Error(raw)).title),
+      ...["NOT_GRANTED", "NETWORK_NOT_GRANTED", "WalletNotReady", "WalletNotConnected", "SummaryAnchorMismatch", "already consumed", "deadline has passed", "dataset", "Not found", "assertion failed", "timed out", "???"].map((raw) => explain(new Error(raw)).title),
     ];
     expect(fromLibs.filter((k) => !(k in D))).toEqual([]);
   });

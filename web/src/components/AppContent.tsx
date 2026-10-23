@@ -178,13 +178,21 @@ function GqApp({ onStarted }: { onStarted?: () => void }) {
   const runToken = useRef(0);
   /** The last Gamecoin grant, so a second press does not mint again before Bread takes the first. */
   const [buyGc, setBuyGc] = useState("10");
-  // what the wallet holds, read when a shop comes on screen (Bread confirms each read); null while unknown, so after a transaction until the next shop visit
+  // the wallet's Gamecoin: read once a session (Bread confirms each read), when a shop first comes on
+  // screen or a post first needs it; it then follows the game's own transactions. null while unknown.
   const [held, setHeld] = useState<bigint | null>(null);
   const walletRef = useRef(wallet);
   useEffect(() => {
     walletRef.current = wallet;
   });
-  const readBalance = useCallback(() => gcBalance(walletRef.current).then(setHeld, () => setHeld(null)), []);
+  /** One wallet read; which wallet it was for, so a shop visit never asks twice. */
+  const readFor = useRef<string | null>(null);
+  const readBalance = useCallback(async (key: string) => {
+    readFor.current = key;
+    const balance = await gcBalance(walletRef.current);
+    setHeld(balance);
+    return balance;
+  }, []);
   const [sellGc, setSellGc] = useState("1000");
 
   const me = wallet.connected && wallet.address ? accountFelts(parseAccountId(wallet.address)) : null;
@@ -192,8 +200,21 @@ function GqApp({ onStarted }: { onStarted?: () => void }) {
   const shopOnScreen = tab === "vs" || tab === "hub";
   useEffect(() => {
     setHeld(null);
-    if (meKey && shopOnScreen) void readBalance();
+  }, [meKey]);
+  useEffect(() => {
+    if (meKey && shopOnScreen && readFor.current !== meKey) readBalance(meKey).catch(() => setHeld(null));
   }, [meKey, shopOnScreen, readBalance]);
+  /** Enough Gamecoin for `needed`? The number on hand answers yes on its own; short or unknown, one wallet read decides. */
+  async function enoughGc(needed: bigint): Promise<boolean> {
+    try {
+      const balance = held !== null && held >= needed ? held : await readBalance(meKey!);
+      if (balance >= needed) return true;
+      setTrouble({ t: { kind: "funds", title: "Not enough Gamecoins in your wallet. Get Gamecoins first." } });
+    } catch (e) {
+      oops(e);
+    }
+    return false;
+  }
   // the boards and the nickname order leave the development wallets' test rounds out
   const publicNotes = useMemo(() => {
     const test = (a: AccountFelts | null) => !!a && TEST_ACCOUNTS.includes(hexOf(a));
@@ -338,7 +359,7 @@ function GqApp({ onStarted }: { onStarted?: () => void }) {
     };
     const finish = (s: S) => {
       void refresh();
-      setHeld(null);
+      setHeld((h) => (h === null ? null : h + s.gc));
       setMode(onConfirmed?.(s) ?? { kind: "done", text: outcomeText(text, true, t), txId: s.txId });
     };
     setTrouble(null);
@@ -379,6 +400,7 @@ function GqApp({ onStarted }: { onStarted?: () => void }) {
     const dataset = datasets[m.stage.id]?.word;
     if (!dataset) return;
     const champion = accountFelts(parseAccountId(wallet.address!));
+    if (!(await enoughGc(STAKE))) return;
     await run(
       t("Posting your record"),
       true,
@@ -410,14 +432,13 @@ function GqApp({ onStarted }: { onStarted?: () => void }) {
     if (refusal) return say(refusal);
     const recordStage = gameStage(record.storage.game);
     if (!recordStage) return say(t("This record uses another city list. It can't be played here."));
-    // the shop's own balance line stands in for a wallet read (one Bread popup less)
-    if (held !== null && held < STAKE) return setTrouble({ t: { kind: "funds", title: "Not enough Gamecoins in your wallet. Get Gamecoins first." } });
     const open = openShotsOn(notes, rival, record, height);
     if (open.length > 0) {
       // one Gamecoin per sitting: play the shot already on the table instead of paying again
       setMode({ kind: "play-rival", shots: open, record });
       return;
     }
+    if (!(await enoughGc(record.storage.minStake))) return;
     await run(
       t("Inserting your Gamecoin"),
       true,
@@ -465,7 +486,7 @@ function GqApp({ onStarted }: { onStarted?: () => void }) {
           // ask the chain first: a claim that already landed (or a shot already taken) needs no wallet
           const now = await Promise.all(shots.map((s) => withTimeout(fetchChallengeNote(s.id), 30_000, "Checking your shot")));
           const verdict = claimVerdict(now.map((s) => ({ consumedAt: s.consumedAt, deadline: shotDeadline(s.storage) })));
-          if (verdict === "claimed") return { txId: "", noteIds: shots.map((s) => s.id) };
+          if (verdict === "claimed") return { txId: "", noteIds: shots.map((s) => s.id), gc: [...(plan.claimPrize && record ? [record] : []), ...shots].reduce((sum, n) => sum + n.amount, 0n) };
           if (verdict === "lost") throw new Error(SHOT_LOST);
           return settle(client, wallet, shots, plan.claimPrize ? record : undefined, gqAnswer(r.answers));
         },

@@ -200,7 +200,7 @@ describe("1P stages", () => {
     const game = encodeGame({ seed: [0n, 0n, 0n, 0n], dataset: [9n, 9n, 9n, 9n], cities });
     chain.shared = { ...prize, storage: { ...storage, game } };
     chain.notes = [chain.shared, { ...prize, id: "0xmine", createdAt: 5, storage: { ...storage, champion: me, target: 6500 } }];
-    bread.postShot.mockResolvedValue({ txId: "tx", noteIds: ["0xnew"], deadline: 220 });
+    bread.postShot.mockResolvedValue({ txId: "tx", noteIds: ["0xnew"], gc: -1_000_000n, deadline: 220 });
     window.history.replaceState({}, "", "/?record=0xp");
     render(<AppContent />);
     fireEvent.click(await screen.findByRole("button", { name: /insert gamecoin/i }));
@@ -212,7 +212,7 @@ describe("1P stages", () => {
     const game = encodeGame({ seed: [0n, 0n, 0n, 0n], dataset: [9n, 9n, 9n, 9n], cities });
     chain.shared = { ...prize, storage: { ...storage, game } };
     chain.notes = [chain.shared];
-    bread.postShot.mockResolvedValue({ txId: "tx", noteIds: ["0xnew"], deadline: 220 });
+    bread.postShot.mockResolvedValue({ txId: "tx", noteIds: ["0xnew"], gc: -1_000_000n, deadline: 220 });
     window.history.replaceState({}, "", "/?record=0xp");
     render(<AppContent />);
     expect(await screen.findByText("Asia", { selector: ".value" })).toBeInTheDocument();
@@ -227,7 +227,7 @@ describe("shared record link, connected as a stranger", () => {
   beforeEach(() => window.history.replaceState({}, "", "/?record=0xp"));
 
   it("lands on VS, posts one shot on Insert Gamecoin, then starts the quiz when the note is on chain", async () => {
-    bread.postShot.mockResolvedValue({ txId: "tx", noteIds: ["0xnew"], deadline: 220 });
+    bread.postShot.mockResolvedValue({ txId: "tx", noteIds: ["0xnew"], gc: -1_000_000n, deadline: 220 });
     render(<AppContent />);
     const button = await screen.findByRole("button", { name: /insert gamecoin/i });
     fireEvent.click(button);
@@ -237,15 +237,15 @@ describe("shared record link, connected as a stranger", () => {
     expect(screen.getByText(/beat my record/i)).toBeInTheDocument();
   });
 
-  it("with fewer Gamecoins than the stake on the shop's own line, Insert Gamecoin says so and asks the wallet nothing more", async () => {
-    bread.gcBalance.mockResolvedValueOnce(500_000n);
+  it("when the balance on the shop line says short, Insert Gamecoin asks the wallet once more before saying so", async () => {
+    bread.gcBalance.mockResolvedValue(500_000n);
     render(<AppContent />);
     expect(await screen.findByText(/^You have 0\.5 Gamecoins\./)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /insert gamecoin/i }));
     expect(await screen.findByText(/Not enough Gamecoins/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^buy gamecoins$/i })).toBeInTheDocument();
     expect(bread.postShot).not.toHaveBeenCalled();
-    expect(bread.gcBalance).toHaveBeenCalledTimes(1);
+    expect(bread.gcBalance).toHaveBeenCalledTimes(2);
   });
 
   it("does not post a second shot while one is open: it goes straight to the quiz", async () => {
@@ -257,7 +257,7 @@ describe("shared record link, connected as a stranger", () => {
   });
 
   it("comes back to the record, error shown, when the wallet never finishes (Bread fails after approval)", async () => {
-    bread.postShot.mockResolvedValue({ txId: "tx", noteIds: ["0xnew"], deadline: 220 });
+    bread.postShot.mockResolvedValue({ txId: "tx", noteIds: ["0xnew"], gc: -1_000_000n, deadline: 220 });
     vi.mocked(waitForMock).mockResolvedValueOnce(false);
     render(<AppContent />);
     fireEvent.click(await screen.findByRole("button", { name: /insert gamecoin/i }));
@@ -275,7 +275,7 @@ describe("shared record link, connected as a stranger", () => {
 
   it("saying no in the wallet keeps the record on screen, says so plainly, and Try again asks again", async () => {
     bread.postShot.mockRejectedValueOnce(Object.assign(new Error("NOT_GRANTED"), { name: "WalletTransactionError" }));
-    bread.postShot.mockResolvedValueOnce({ txId: "tx", noteIds: ["0xnew"], deadline: 220 });
+    bread.postShot.mockResolvedValueOnce({ txId: "tx", noteIds: ["0xnew"], gc: -1_000_000n, deadline: 220 });
     render(<AppContent />);
     fireEvent.click(await screen.findByRole("button", { name: /insert gamecoin/i }));
     await screen.findByText(/you said no in your wallet/i);
@@ -287,7 +287,7 @@ describe("shared record link, connected as a stranger", () => {
   });
 
   it("Try again after a wallet that did not finish first checks the chain: no second Gamecoin", async () => {
-    bread.postShot.mockResolvedValue({ txId: "tx", noteIds: ["0xnew"], deadline: 220 });
+    bread.postShot.mockResolvedValue({ txId: "tx", noteIds: ["0xnew"], gc: -1_000_000n, deadline: 220 });
     vi.mocked(waitForMock).mockResolvedValueOnce(false);
     render(<AppContent />);
     fireEvent.click(await screen.findByRole("button", { name: /insert gamecoin/i }));
@@ -411,8 +411,29 @@ describe("welcome and 1P World Tour", () => {
     expect(await screen.findByRole("button", { name: /sound off/i })).toBeInTheDocument();
   });
 
+  it("reads the balance once a session: the first post asks the wallet, the shop then shows the number minus the stake without asking again", async () => {
+    bread.postRecord.mockResolvedValue({ txId: "tx", noteIds: ["0xnew"], gc: -1_000_000n });
+    vi.useFakeTimers({ shouldAdvanceTime: true, toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      await start();
+      fireEvent.click(await screen.findByRole("button", { name: /locate first city/i }));
+      await playRound();
+      expect(bread.gcBalance).not.toHaveBeenCalled();
+      fireEvent.click(await screen.findByRole("button", { name: /post it/i }));
+      await screen.findByText(/record posted!/i);
+      expect(bread.gcBalance).toHaveBeenCalledTimes(1);
+      fireEvent.click(screen.getByRole("button", { name: /^ok$/i }));
+      fireEvent.click(await screen.findByRole("button", { name: /click to start/i }));
+      fireEvent.click(screen.getByRole("button", { name: /^champion vs rival$/i }));
+      expect(await screen.findByText(/^You have 11 Gamecoins\./)).toBeInTheDocument();
+      expect(bread.gcBalance).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("OK after a round goes back to the splash screen: after posting a record, after losing a shot", async () => {
-    bread.postRecord.mockResolvedValue({ txId: "tx", noteIds: ["0xnew"] });
+    bread.postRecord.mockResolvedValue({ txId: "tx", noteIds: ["0xnew"], gc: -1_000_000n });
     vi.useFakeTimers({ shouldAdvanceTime: true, toFake: ["setTimeout", "clearTimeout"] });
     try {
       await start();
@@ -631,23 +652,23 @@ describe("home, connected", () => {
     vi.mocked(useMidenClient).mockReturnValue({ feeFaucetId: async () => ({ toString: () => "0xpay" }) } as never);
     // 10 GC for 0.01 (the price) and 10 GC for 0.005: the cheaper one sells
     shop.openSales.mockResolvedValue([sale("0xfull", 10_000_000n, 10_000n), sale("0xcheap", 10_000_000n, 5_000n)]);
-    bread.buyGamecoin.mockResolvedValue({ txId: "0xt", noteIds: ["0xcheap"] });
+    bread.buyGamecoin.mockResolvedValue({ txId: "0xt", noteIds: ["0xcheap"], gc: 2_000_000n });
     vi.mocked(knownNote).mockResolvedValue({ consumed: true });
     await start(/^champion vs rival$/i);
     fireEvent.change(screen.getByRole("spinbutton", { name: /how many/i }), { target: { value: "2" } });
     fireEvent.click(screen.getByRole("button", { name: /^buy$/i }));
     await screen.findByText("2 Gamecoins in your wallet.");
     expect(bread.buyGamecoin).toHaveBeenCalledWith(expect.anything(), wallet, expect.objectContaining({ id: "0xcheap" }), 2_000_000n);
-    // the balance line is not read again (one more Bread popup): it goes quiet until the next shop visit
+    // the balance line follows the buy instead of asking the wallet again (one more Bread popup)
     fireEvent.click(screen.getByRole("button", { name: /^ok$/i }));
-    expect(screen.queryByText(/^You have /)).toBeNull();
+    expect(screen.getByText(/^You have 14 Gamecoins\./)).toBeInTheDocument();
     expect(bread.gcBalance).toHaveBeenCalledTimes(1);
   });
 
   it("buys 1 to 100 at a time, whatever is typed", async () => {
     vi.mocked(useMidenClient).mockReturnValue({ feeFaucetId: async () => ({ toString: () => "0xpay" }) } as never);
     shop.openSales.mockResolvedValue([sale("0xbig", 1_000_000_000n, 1_000_000n)]);
-    bread.buyGamecoin.mockResolvedValue({ txId: "0xt", noteIds: ["0xbig"] });
+    bread.buyGamecoin.mockResolvedValue({ txId: "0xt", noteIds: ["0xbig"], gc: 100_000_000n });
     vi.mocked(knownNote).mockResolvedValue({ consumed: true });
     await start(/^champion vs rival$/i);
     fireEvent.change(screen.getByRole("spinbutton", { name: /how many/i }), { target: { value: "500" } });

@@ -20,7 +20,7 @@ import { buildChallengeNote, fetchNotesWithProof, feltArray, loadScripts, parseA
 import { SHOT_WINDOW_BLOCKS, GC_DECIMALS, GC_FAUCET, NETWORK_POLL_INTERVAL_MS, NETWORK_POLL_TIMEOUT_MS } from "@/config";
 import { encodeStorage, SHOT_DEADLINE_INDEX, shotStorage, ZERO_WORD, type AccountFelts, type ChallengeStorage, type GameAnswer } from "./notes";
 import { randomSeed, type Word4 } from "./quiz";
-import { fmtGamecoin, submitWithRetry, withTimeout } from "./flow";
+import { submitWithRetry, withTimeout } from "./flow";
 import { payFor, type Sale } from "./shop";
 
 /** What the app needs from a signer: Bread's adapter hook, or the local test wallet. */
@@ -69,16 +69,6 @@ export async function gcBalance(wallet: Wallet): Promise<bigint> {
 }
 
 /**
- * Throws a readable error (flow.ts explain) when the wallet holds less than `needed` Gamecoin. One
- * Bread popup of its own, so only the record post asks: a shot is guarded by the balance the shop
- * already shows, a buy by the chain.
- */
-async function requireGc(wallet: Wallet, needed: bigint): Promise<void> {
-  const balance = balanceOf(await walletAssets(wallet), GC_FAUCET);
-  if (balance < needed) throw new Error(`You need ${fmtGamecoin(needed)} and your wallet holds ${fmtGamecoin(balance)}. Get Gamecoins first.`);
-}
-
-/**
  * Polls the local client until `check` holds or the network timeout passes. A sync that fails on a
  * slow or busy network is just a missed look: the next one tries again.
  */
@@ -96,7 +86,8 @@ export async function waitFor(client: Client, runExclusive: <T>(fn: () => Promis
   return false;
 }
 
-export type Submitted = { txId: string; noteIds: string[] };
+/** `gc`: how the wallet's Gamecoin moves once the transaction lands (the shop line follows it instead of asking the wallet again). */
+export type Submitted = { txId: string; noteIds: string[]; gc: bigint };
 
 const RETRIES = 3;
 
@@ -141,7 +132,6 @@ async function submit(
 
 /** Champion: post a record note. `storage.shotRoot` is filled from the loaded script. */
 export async function postRecord(client: Client, wallet: Wallet, storage: ChallengeStorage, amount: bigint): Promise<Submitted> {
-  await requireGc(wallet, amount);
   const { record, shot } = await loadScripts();
   const root = shot.root().toFelts().map((f) => f.asInt()) as Word4;
   const felts = encodeStorage({ ...storage, shotRoot: root });
@@ -155,7 +145,7 @@ export async function postRecord(client: Client, wallet: Wallet, storage: Challe
     notes.push(make());
     return b.withOwnOutputNotes(notes).build();
   });
-  return { txId, noteIds: [noteId] };
+  return { txId, noteIds: [noteId], gc: -amount };
 }
 
 /** Rival: post a shot note at `record`, staking `record.storage.minStake`. */
@@ -172,7 +162,7 @@ export async function postShot(client: Client, wallet: Wallet, record: Challenge
     notes.push(make());
     return b.withOwnOutputNotes(notes).build();
   });
-  return { txId, noteIds: [noteId], deadline };
+  return { txId, noteIds: [noteId], gc: -record.storage.minStake, deadline };
 }
 
 /**
@@ -201,7 +191,8 @@ export async function settle(client: Client, wallet: Wallet, shots: ChallengeNot
     }
     return b.extendAdviceMap(advice).build();
   };
-  return { txId: await submit(client, wallet, build, ids, files), noteIds: ids };
+  const gc = [...(record ? [record] : []), ...shots].reduce((sum, n) => sum + n.amount, 0n);
+  return { txId: await submit(client, wallet, build, ids, files), noteIds: ids, gc };
 }
 
 /** Champion after expiry: reclaim records and collect lost shots' stakes, all in one transaction. */
@@ -213,9 +204,8 @@ export async function collect(client: Client, wallet: Wallet, notes: ChallengeNo
     for (const input of inputs) b = b.withExplicitInputNote(input, wordFromFelts(ZERO_WORD));
     return b.build();
   };
-  return { txId: await submit(client, wallet, build, ids, files), noteIds: ids };
+  return { txId: await submit(client, wallet, build, ids, files), noteIds: ids, gc: notes.reduce((sum, n) => sum + n.amount, 0n) };
 }
-
 
 /**
  * Admin: put `gc` Gamecoin (base units) on sale in one public PSWAP note, asking `pricePerGc` base
@@ -233,7 +223,7 @@ export async function openSale(client: Client, wallet: Wallet, gc: bigint, price
     notes.push(request.expectedOutputOwnNotes()[0]);
     return b.withOwnOutputNotes(notes).build();
   });
-  return { txId, noteIds: [noteId] };
+  return { txId, noteIds: [noteId], gc: -gc };
 }
 
 /** Player: buy `gc` Gamecoin (base units) from `sale`, paying its price in the pay asset (shop.ts payFor). */
@@ -251,5 +241,5 @@ export async function buyGamecoin(client: Client, wallet: Wallet, sale: Sale, gc
     [sale.id],
     files,
   );
-  return { txId, noteIds: [sale.id] };
+  return { txId, noteIds: [sale.id], gc };
 }

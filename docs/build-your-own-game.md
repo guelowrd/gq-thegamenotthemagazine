@@ -108,8 +108,9 @@ the trust list in [design.md](design.md).
   (`multisigAuthArgs` in `bread.ts`), and Bread 1.17.2 refuses a request whose bound block is
   above its own sync height: bind the node's tip (`submit` in `bread.ts`).
 - **Bread confirms reads too.** Every wallet request opens its popup, a balance read included, and
-  Bread accounts are private, so the node cannot answer instead. Ask for the balance only while the
-  player is looking at it.
+  Bread accounts are private, so the node cannot answer instead. Read the balance once a session,
+  when the game first needs it, then follow your own transactions (`gc` in `Submitted`); read again
+  only when the number says short.
 - **Your local store misses earlier notes.** The SDK syncs before your tag is added, so a browser only
   holds tagged notes posted after its first visit. Read public notes by tag straight from the node
   (`tagScanner` in `web/src/lib/chain.ts`).

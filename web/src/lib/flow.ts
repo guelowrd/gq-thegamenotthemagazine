@@ -156,8 +156,6 @@ export function explain(e: unknown): Trouble {
   if (/NOT_GRANTED|reject|declin|denied|cancel/i.test(raw)) return trouble("said-no", "You said no in your wallet. Nothing was sent.");
   if (/WalletNotReady|not installed/i.test(raw)) return trouble("no-wallet", "We can't find the Bread wallet. Install it, then try again.");
   if (/WalletNotConnected|not connected|WalletDisconnected/i.test(raw)) return trouble("no-wallet", "Connect your wallet first.");
-  if (/^(\w+: )?You need .*Gamecoin/.test(raw)) return trouble("funds", "Not enough Gamecoins in your wallet. Get Gamecoins first.");
-  if (/^(\w+: )?You need .*USDCx/.test(raw)) return trouble("refused", "Not enough USDCx in your wallet.");
   if (/SummaryAnchorMismatch|chain anchor|ChainBehindBoundBlock|block header for block \d+ not found/i.test(raw))
     return trouble("out-of-step", "Your wallet was out of step with the network. Try again.");
   if (/^Too late: /.test(raw)) return trouble("too-late", raw, false);
