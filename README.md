@@ -61,7 +61,7 @@ shot at it must have and compares the storage hash.
 | 0-1   | champion       | [suffix, prefix]                                | copied from the record      |
 | 2     | target         | champion's score to beat                        | copied                      |
 | 3     | min_stake      | the stake (one Gamecoin)                         | copied                      |
-| 4     | expiry_block   | record's end (~24 h)                            | copied                      |
+| 4     | expiry_block   | record's end (~64 h)                            | copied                      |
 | 5-6   | rival          | 0, 0                                            | rival [suffix, prefix]      |
 | 7     | shot_deadline  | 0                                               | shot's end (~3 min)         |
 | 8-11  | RECORD_ID      | 0                                               | the record note's id        |

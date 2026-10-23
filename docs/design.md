@@ -100,7 +100,7 @@ hardcoded.
  0..1   champion        [suffix, prefix]  (P2ID convention)
  2      target          champion's score to beat (strictly greater wins)
  3      min_stake       minimum shot amount, in the record's asset
- 4      expiry_block    record lifetime (~24 h = 28 800 blocks at 3 s)
+ 4      expiry_block    record lifetime (~64 h = 76 800 blocks at 3 s)
  5..6   rival           [suffix, prefix]  zero in a record note
  7      shot_deadline   block by which the rival must settle; zero in a record note
  8..11  RECORD_ID       zero in a record note
@@ -151,7 +151,7 @@ They open `CLAIM_FUZZ` (64) blocks after the deadline or expiry, not at it: a
 claim proved just before the deadline may land up to `CLAIM_FUZZ` blocks later,
 so the block a note was consumed in tells a win (up to deadline + `CLAIM_FUZZ`)
 from a take-back (after it).
-The record lives `RECORD_LIFETIME_BLOCKS` (~24 h); a shot must be settled
+The record lives `RECORD_LIFETIME_BLOCKS` (~64 h); a shot must be settled
 within `SHOT_WINDOW_BLOCKS` (~3 min) of its creation; the client refuses
 a shot at a record with fewer than `MIN_SHOT_WINDOW_BLOCKS` left.
 

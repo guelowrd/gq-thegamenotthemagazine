@@ -19,8 +19,8 @@ export const ADMIN = MAINNET ? "mm1azntuhzd3lwqxs2mmeny202ljy3fxnpm_qr7qqq9wr6w"
 export const STAKE = 1_000_000n; // 1 GC
 // Testnet makes a block about every 3 s, mainnet every 3.25 s.
 export const BLOCK_SECONDS = MAINNET ? 3.25 : 3;
-// A record stays open about a day: time for people to see the post and come play.
-export const RECORD_LIFETIME_BLOCKS = Math.round((24 * 3600) / BLOCK_SECONDS); // 28 800 on testnet
+// A record stays open 64 hours: time for people to see the post and come play.
+export const RECORD_LIFETIME_BLOCKS = Math.round((64 * 3600) / BLOCK_SECONDS); // 76 800 on testnet
 // A shot must be settled within ~1 play of the game (10 cities x 15 s, plus proving), so a
 // rival cannot sit on a stake and rehearse the same ten cities.
 export const SHOT_WINDOW_BLOCKS = Math.round((3 * 60) / BLOCK_SECONDS); // 60 on testnet
