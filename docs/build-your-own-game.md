@@ -71,7 +71,8 @@ A losing answer cannot consume anything, so a loss needs no transaction.
 Code to copy:
 
 - Rust: `integration/tests/challenge_test.rs` (every path, on MockChain),
-  `integration/src/bin/testnet_flow.rs` (post, consume with advice, on testnet) and
+  `integration/src/bin/testnet_flow.rs` (post, consume with advice, on testnet; `GQ_NETWORK=mainnet` for
+  mainnet) and
   `integration::deadline_advice(shot_root, notes)`.
 - Web: `web/src/lib/bread.ts` (`postRecord`, `postShot`, `settle(…, answer)`, `collect`) with
   `GameAnswer = { arg, advice }` from `notes.ts`; GeoQuizz's is `gqAnswer` in `rules.ts`.
@@ -106,6 +107,17 @@ the trust list in [design.md](design.md).
 - **Bread (Guardian multisig) accounts** need the multisig auth args in every request
   (`multisigAuthArgs` in `bread.ts`), and Bread 1.17.2 refuses a request whose bound block is
   above its own sync height: bind the node's tip (`submit` in `bread.ts`).
+- **Bread confirms reads too.** Every wallet request opens its popup, a balance read included, and
+  Bread accounts are private, so the node cannot answer instead. Ask for the balance only while the
+  player is looking at it.
+- **Your local store misses earlier notes.** The SDK syncs before your tag is added, so a browser only
+  holds tagged notes posted after its first visit. Read public notes by tag straight from the node
+  (`tagScanner` in `web/src/lib/chain.ts`).
+- **Mainnet transactions expire 20 blocks (about 65 s) after their reference block.** The USDCx fee
+  note caps them and no request delta widens it; a wallet pipeline that runs longer dies with
+  "transaction expired".
+- **iPhone needs the wasm at `assets/assets/miden_client_web.wasm`.** The SDK's classic worker fetches
+  it there; emit it at that path or the app never starts (`web/vite.config.ts`).
 
 ## 6. Test it
 
@@ -114,7 +126,8 @@ the trust list in [design.md](design.md).
   `another_game_plugs_into_the_same_core` and the deadline tests.
 - Mirror your scoring host side and pin both to shared vectors, as GeoQuizz does with
   `rules/vectors.json` (Rust, MASM and TypeScript all read it).
-- On testnet, `?local=1` and `?local=2` give the web app two wallets of its own, no extension needed.
+- `?local=1` and `?local=2` give the web app two wallets of its own, no extension needed; on testnet
+  (`VITE_MIDEN_NETWORK=testnet`) the faucet funds them.
 
 ## Checklist
 
