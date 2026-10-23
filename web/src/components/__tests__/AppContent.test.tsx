@@ -237,6 +237,17 @@ describe("shared record link, connected as a stranger", () => {
     expect(screen.getByText(/beat my record/i)).toBeInTheDocument();
   });
 
+  it("with fewer Gamecoins than the stake on the shop's own line, Insert Gamecoin says so and asks the wallet nothing more", async () => {
+    bread.gcBalance.mockResolvedValueOnce(500_000n);
+    render(<AppContent />);
+    expect(await screen.findByText(/^You have 0\.5 Gamecoins\./)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /insert gamecoin/i }));
+    expect(await screen.findByText(/Not enough Gamecoins/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^buy gamecoins$/i })).toBeInTheDocument();
+    expect(bread.postShot).not.toHaveBeenCalled();
+    expect(bread.gcBalance).toHaveBeenCalledTimes(1);
+  });
+
   it("does not post a second shot while one is open: it goes straight to the quiz", async () => {
     chain.notes = [prize, myShot];
     render(<AppContent />);
@@ -552,7 +563,7 @@ describe("open challenges in Champion vs Rival", () => {
     const rows = await screen.findAllByRole("button", { name: /view challenge/i });
     expect(rows.map((b) => b.getAttribute("aria-label"))).toEqual(["View challenge, 3,100 pts, World", "View challenge, 3,300 pts, World"]);
     expect(screen.getByText(/Ends in 1:00:0[0-6]/)).toBeInTheDocument();
-    expect(screen.getByText(/Ends in 23:\d\d:\d\d/)).toBeInTheDocument();
+    expect(screen.getByText(/Ends in 63:\d\d:\d\d/)).toBeInTheDocument();
     expect(screen.queryByText(/prize/i)).toBeNull();
   });
 
@@ -627,6 +638,10 @@ describe("home, connected", () => {
     fireEvent.click(screen.getByRole("button", { name: /^buy$/i }));
     await screen.findByText("2 Gamecoins in your wallet.");
     expect(bread.buyGamecoin).toHaveBeenCalledWith(expect.anything(), wallet, expect.objectContaining({ id: "0xcheap" }), 2_000_000n);
+    // the balance line is not read again (one more Bread popup): it goes quiet until the next shop visit
+    fireEvent.click(screen.getByRole("button", { name: /^ok$/i }));
+    expect(screen.queryByText(/^You have /)).toBeNull();
+    expect(bread.gcBalance).toHaveBeenCalledTimes(1);
   });
 
   it("buys 1 to 100 at a time, whatever is typed", async () => {

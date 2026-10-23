@@ -178,7 +178,7 @@ function GqApp({ onStarted }: { onStarted?: () => void }) {
   const runToken = useRef(0);
   /** The last Gamecoin grant, so a second press does not mint again before Bread takes the first. */
   const [buyGc, setBuyGc] = useState("10");
-  // what the wallet holds, read when a shop comes on screen and after each transaction (Bread confirms each read); null while unknown
+  // what the wallet holds, read when a shop comes on screen (Bread confirms each read); null while unknown, so after a transaction until the next shop visit
   const [held, setHeld] = useState<bigint | null>(null);
   const walletRef = useRef(wallet);
   useEffect(() => {
@@ -338,7 +338,7 @@ function GqApp({ onStarted }: { onStarted?: () => void }) {
     };
     const finish = (s: S) => {
       void refresh();
-      if (shopOnScreen) void readBalance();
+      setHeld(null);
       setMode(onConfirmed?.(s) ?? { kind: "done", text: outcomeText(text, true, t), txId: s.txId });
     };
     setTrouble(null);
@@ -410,6 +410,8 @@ function GqApp({ onStarted }: { onStarted?: () => void }) {
     if (refusal) return say(refusal);
     const recordStage = gameStage(record.storage.game);
     if (!recordStage) return say(t("This record uses another city list. It can't be played here."));
+    // the shop's own balance line stands in for a wallet read (one Bread popup less)
+    if (held !== null && held < STAKE) return setTrouble({ t: { kind: "funds", title: "Not enough Gamecoins in your wallet. Get Gamecoins first." } });
     const open = openShotsOn(notes, rival, record, height);
     if (open.length > 0) {
       // one Gamecoin per sitting: play the shot already on the table instead of paying again

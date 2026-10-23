@@ -20,7 +20,7 @@ import { buildChallengeNote, fetchNotesWithProof, feltArray, loadScripts, parseA
 import { SHOT_WINDOW_BLOCKS, GC_DECIMALS, GC_FAUCET, NETWORK_POLL_INTERVAL_MS, NETWORK_POLL_TIMEOUT_MS } from "@/config";
 import { encodeStorage, SHOT_DEADLINE_INDEX, shotStorage, ZERO_WORD, type AccountFelts, type ChallengeStorage, type GameAnswer } from "./notes";
 import { randomSeed, type Word4 } from "./quiz";
-import { fmtGamecoin, submitWithRetry, toGc as toPay, withTimeout } from "./flow";
+import { fmtGamecoin, submitWithRetry, withTimeout } from "./flow";
 import { payFor, type Sale } from "./shop";
 
 /** What the app needs from a signer: Bread's adapter hook, or the local test wallet. */
@@ -68,7 +68,11 @@ export async function gcBalance(wallet: Wallet): Promise<bigint> {
   return balanceOf(await walletAssets(wallet), GC_FAUCET);
 }
 
-/** Throws a readable error (flow.ts explain) when the wallet holds less than `needed` Gamecoin. */
+/**
+ * Throws a readable error (flow.ts explain) when the wallet holds less than `needed` Gamecoin. One
+ * Bread popup of its own, so only the record post asks: a shot is guarded by the balance the shop
+ * already shows, a buy by the chain.
+ */
 async function requireGc(wallet: Wallet, needed: bigint): Promise<void> {
   const balance = balanceOf(await walletAssets(wallet), GC_FAUCET);
   if (balance < needed) throw new Error(`You need ${fmtGamecoin(needed)} and your wallet holds ${fmtGamecoin(balance)}. Get Gamecoins first.`);
@@ -156,7 +160,6 @@ export async function postRecord(client: Client, wallet: Wallet, storage: Challe
 
 /** Rival: post a shot note at `record`, staking `record.storage.minStake`. */
 export async function postShot(client: Client, wallet: Wallet, record: ChallengeNote, me: AccountFelts): Promise<Submitted & { deadline: number }> {
-  await requireGc(wallet, record.storage.minStake);
   const { shot } = await loadScripts();
   const deadline = (await client.getSyncHeight()) + SHOT_WINDOW_BLOCKS;
   const storage = shotStorage(record.storage, me, record.idWord, deadline);
@@ -236,8 +239,6 @@ export async function openSale(client: Client, wallet: Wallet, gc: bigint, price
 /** Player: buy `gc` Gamecoin (base units) from `sale`, paying its price in the pay asset (shop.ts payFor). */
 export async function buyGamecoin(client: Client, wallet: Wallet, sale: Sale, gc: bigint): Promise<Submitted> {
   const pay = payFor(gc, sale);
-  const held = balanceOf(await walletAssets(wallet), sale.payFaucet);
-  if (held < pay) throw new Error(`You need ${toPay(pay)} USDCx and your wallet holds ${toPay(held)}.`);
   const { files } = await fetchNotesWithProof([sale.id]);
   const txId = await submit(
     client,
