@@ -98,7 +98,7 @@ export function Waiting({ text, stage, since, local, onBack }: { text: string; s
   const now = useNow();
   const seconds = Math.max(0, Math.floor((now - since) / 1000));
   const step =
-    stage === "prepare" ? t("Getting ready…") : stage === "wallet" ? (local ? t("Signing…") : t("Approve it in your wallet.")) : t("Sending it to the Miden network… {s} s", { s: seconds });
+    stage === "prepare" ? t("Getting ready…") : stage === "wallet" ? (local ? t("Signing…") : t("Approve it in your wallet.")) : t("Sending it… {s} s", { s: seconds });
   return (
     <section className="panel waiting" aria-live="polite">
       <h2>{text}</h2>

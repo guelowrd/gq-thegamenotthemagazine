@@ -61,7 +61,7 @@ export function Shell({
           ))}
         </nav>
         {netSlow && (
-          <span className="net" title={t("The last sync with the Miden network failed; it retries by itself.")}>
+          <span className="net" title={t("The game couldn't refresh. It retries by itself.")}>
             {t("Network slow")}
           </span>
         )}
@@ -78,9 +78,11 @@ export function Shell({
               {walletLabel ?? t("Connect wallet")}
             </button>
           )}
-          <span className="testnet" title={MAINNET ? undefined : t("Miden testnet: Gamecoins are play money.")}>
-            {MAINNET ? t("Mainnet") : t("Testnet")}
-          </span>
+          {!MAINNET && (
+            <span className="testnet" title={t("Testnet: Gamecoins are play money.")}>
+              {t("Testnet")}
+            </span>
+          )}
         </div>
       </header>
       <main>

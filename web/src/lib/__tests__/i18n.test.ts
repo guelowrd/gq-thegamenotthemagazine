@@ -45,6 +45,11 @@ describe.each((Object.keys(DICTS) as (keyof typeof DICTS)[]).filter((l) => !l.st
   });
 });
 
+it("never names Miden to a player, in what the code hands to t() or in a trouble title", () => {
+  const titles = ["fetch failed", "WalletNotReady", "NETWORK_NOT_GRANTED", "SummaryAnchorMismatch", "boom"].map((raw) => explain(new Error(raw)).title);
+  expect([...literals, ...titles].filter((s) => /Miden/.test(s))).toEqual([]);
+});
+
 describe("a translator", () => {
   it("translates whole sentences, fills placeholders after, and falls back to English", () => {
     const zh = translator("zh-Hans");

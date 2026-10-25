@@ -303,10 +303,10 @@ describe("shared record link, connected as a stranger", () => {
   it("a record that fails to load says why and loads on Try again", async () => {
     vi.mocked(fetchChallengeNote).mockRejectedValueOnce(new TypeError("Failed to fetch"));
     render(<AppContent />);
-    await screen.findByText(/network is slow or busy/i);
+    await screen.findByText(/the game is slow right now/i);
     fireEvent.click(screen.getByRole("button", { name: /try again/i }));
     expect(await screen.findByRole("button", { name: /insert gamecoin/i })).toBeInTheDocument();
-    expect(screen.queryByText(/network is slow or busy/i)).toBeNull();
+    expect(screen.queryByText(/the game is slow right now/i)).toBeNull();
   });
 
   it("a failing background sync only shows a NETWORK SLOW tag, never an error box", async () => {
@@ -541,9 +541,9 @@ describe("welcome and 1P World Tour", () => {
     expect(await screen.findByRole("button", { name: "Wallet / JHT" })).toBeInTheDocument();
   });
 
-  it("the ribbon says the game runs on mainnet", async () => {
+  it("the ribbon names no network on the live game: players need the game, Bread and Gamecoins, nothing under them", async () => {
     await start();
-    expect(screen.getByText("Mainnet")).toBeInTheDocument();
+    expect(screen.queryByText(/mainnet/i)).toBeNull();
   });
 
   it("on a phone turned sideways mid-quiz, the map and the city panel scroll up to fill the screen", async () => {

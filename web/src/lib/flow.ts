@@ -165,7 +165,7 @@ export function explain(e: unknown): Trouble {
   if (/not found on chain|is not public|not a record or shot|not GeoQuizz game data|Not found/i.test(raw)) return trouble("not-found", "We can't find that record. Check the link.");
   if (/assertion failed|error code/i.test(raw)) return trouble("refused", "The game said no to this move.");
   if (/fetch|network|timed out|timeout|deadline exceeded|unavailable|transport|ECONN|50[234]|load failed|faucet|mempool/i.test(raw))
-    return trouble("network", "The Miden network is slow or busy right now. Try again in a moment.");
+    return trouble("network", "The game is slow right now. Try again in a moment.");
   return trouble("unknown", "Something went wrong.");
 }
 
