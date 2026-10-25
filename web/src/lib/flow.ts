@@ -164,7 +164,7 @@ export function explain(e: unknown): Trouble {
   if (/quiz does not match|dataset/i.test(raw)) return trouble("other-cities", "This record uses another city list. It can't be played here.");
   if (/not found on chain|is not public|not a record or shot|not GeoQuizz game data|Not found/i.test(raw)) return trouble("not-found", "We can't find that record. Check the link.");
   if (/assertion failed|error code/i.test(raw)) return trouble("refused", "The game said no to this move.");
-  if (/fetch|network|timed out|timeout|deadline exceeded|unavailable|transport|ECONN|50[234]|load failed|faucet|mempool/i.test(raw))
+  if (/fetch|network|timed out|timeout|deadline exceeded|unavailable|transport|ECONN|50[234]|load failed|faucet|mempool|transaction expired|expired at block/i.test(raw)) // expired: a mainnet transaction has about 65 s to land
     return trouble("network", "The game is slow right now. Try again in a moment.");
   return trouble("unknown", "Something went wrong.");
 }

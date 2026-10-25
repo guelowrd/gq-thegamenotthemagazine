@@ -294,6 +294,8 @@ describe("errors in plain words", () => {
     [new Error("Loading the record timed out after 30 s"), "network"],
     [new Error("The faucet note never arrived."), "network"],
     [new Error("transaction conflicts with current mempool state\ncaused by: output notes already exist: [NoteId(1)]"), "network"],
+    [new Error("transaction expired"), "network"], // mainnet: about 65 s to land, and Bread ran late (2026-10-22)
+    [new Error("transaction 0xab expired at block 223750"), "network"],
     [new Error("some notes were not found on chain"), "not-found"],
     [new Error("This note is not a record or shot of this game."), "not-found"],
     [new Error("failed to execute transaction kernel program: assertion failed with error code: 14434107113890732517"), "refused"],
