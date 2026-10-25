@@ -802,10 +802,18 @@ function GqApp({ onStarted }: { onStarted?: () => void }) {
               !wallet.connected && (
                 <section className="panel">
                   <p>{t("Connect to see your games.")}</p>
-                  <button className="btn primary" onClick={connect} disabled={wallet.connecting}>
-                    {wallet.connecting ? (LOCAL_WALLET && local.status) || "…" : t("Connect wallet")}
-                  </button>
-                  {openInBread && <p className="muted">{t("You need the Bread wallet first.")}</p>}
+                  {openInBread ? (
+                    <>
+                      <p className="muted">{t("Bread is the wallet that inserts your Gamecoin to post a record or take a shot.")}</p>
+                      <a className="btn primary" href={openInBread}>
+                        {t("Open in Bread")}
+                      </a>
+                    </>
+                  ) : (
+                    <button className="btn primary" onClick={connect} disabled={wallet.connecting}>
+                      {wallet.connecting ? (LOCAL_WALLET && local.status) || "…" : t("Connect wallet")}
+                    </button>
+                  )}
                 </section>
               )
             }

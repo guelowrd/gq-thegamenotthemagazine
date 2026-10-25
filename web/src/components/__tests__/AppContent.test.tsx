@@ -354,9 +354,17 @@ describe("shared record link without Bread (a phone's browser, a laptop without 
     render(<AppContent />);
     fireEvent.click(await screen.findByRole("button", { name: /insert gamecoin/i }));
     const alert = await screen.findByRole("alert");
-    expect(alert).toHaveTextContent(/can't find the Bread wallet/i);
+    expect(alert).toHaveTextContent("Bread is the wallet that inserts your Gamecoin to post a record or take a shot.");
     opensHere(within(alert).getByRole("link", { name: /open in bread/i }));
     expect(within(alert).queryByRole("button", { name: /try again/i })).toBeNull();
+  });
+
+  it("the Player Hub says what Bread is for, then offers Open in Bread instead of Connect wallet", async () => {
+    window.history.replaceState({}, "", "/");
+    await start(/player hub/i);
+    expect(await screen.findByText("Bread is the wallet that inserts your Gamecoin to post a record or take a shot.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /connect wallet/i })).toBeNull();
+    expect(screen.getAllByRole("link", { name: /open in bread/i })).toHaveLength(2);
   });
 });
 
