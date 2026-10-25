@@ -153,6 +153,7 @@ export const TR: Record<string, string> = {
   "Taking them": "Alınıyor",
   "Connect to see your games.": "Oyunlarını görmek için bağlan.",
   "You need the Bread wallet first.": "Önce Bread cüzdanı gerekli.",
+  "Open in Bread": "Bread'de aç",
   Refresh: "Yenile",
   "Refreshing…": "Yenileniyor…",
   History: "Geçmiş",

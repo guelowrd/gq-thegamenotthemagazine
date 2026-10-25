@@ -9,11 +9,14 @@ export function ErrorBox({
   trouble,
   onRetry,
   onGamecoins,
+  openInBread,
   onClose,
 }: {
   trouble: Trouble;
   onRetry?: () => void;
   onGamecoins?: () => void;
+  /** Bread is not on this device: a missing wallet is fixed there, not by trying again */
+  openInBread?: string;
   onClose: () => void;
 }) {
   const t = useT();
@@ -27,10 +30,16 @@ export function ErrorBox({
         </details>
       )}
       <div className="actions">
-        {onRetry && (
-          <button className="btn primary" onClick={onRetry}>
-            {t("Try again")}
-          </button>
+        {trouble.kind === "no-wallet" && openInBread ? (
+          <a className="btn primary" href={openInBread}>
+            {t("Open in Bread")}
+          </a>
+        ) : (
+          onRetry && (
+            <button className="btn primary" onClick={onRetry}>
+              {t("Try again")}
+            </button>
+          )
         )}
         {trouble.kind === "funds" && onGamecoins && (
           <button className="btn primary" onClick={onGamecoins}>

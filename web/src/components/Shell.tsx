@@ -13,6 +13,7 @@ export function Shell({
   netSlow,
   hubAlert,
   onWallet,
+  openInBread,
   soundOn,
   onSound,
   children,
@@ -31,6 +32,8 @@ export function Shell({
   /** the connected wallet has Gamecoins to take in the Player Hub */
   hubAlert?: boolean;
   onWallet: () => void;
+  /** Bread is not on this device: the wallet button opens this page in Bread's phone app instead */
+  openInBread?: string;
   soundOn: boolean;
   onSound: () => void;
   children: ReactNode;
@@ -66,9 +69,15 @@ export function Shell({
           {soundOn ? t("Sound on") : t("Sound off")}
         </button>
         <div className="account">
-          <button className="btn wallet" onClick={onWallet}>
-            {walletLabel ?? t("Connect wallet")}
-          </button>
+          {openInBread ? (
+            <a className="btn wallet" href={openInBread}>
+              {t("Open in Bread")}
+            </a>
+          ) : (
+            <button className="btn wallet" onClick={onWallet}>
+              {walletLabel ?? t("Connect wallet")}
+            </button>
+          )}
           <span className="testnet" title={MAINNET ? undefined : t("Miden testnet: Gamecoins are play money.")}>
             {MAINNET ? t("Mainnet") : t("Testnet")}
           </span>

@@ -18,6 +18,7 @@ import {
   fmtGamecoin,
   outcomeText,
   recordLinks,
+  breadLink,
   withoutRecord,
   parseCode,
   reportRows,
@@ -246,6 +247,12 @@ describe("Gamecoin in words", () => {
     // the link on its own line after a full stop: X swaps it for the card, so no colon is left hanging
     expect(text).toMatch(new RegExp(`\\.\n${url.replace(/[?.]/g, "\\$&")}$`));
     expect(new URL(x).searchParams.get("url")).toBeNull();
+  });
+  it("opens a page in Bread's phone app through Bread's open link, the page in the fragment", () => {
+    const page = "https://gq-thegamenotthemagazine.app/?record=0xabc";
+    const link = new URL(breadLink(page));
+    expect(link.origin + link.pathname).toBe("https://bread.miden.xyz/open");
+    expect(new URLSearchParams(link.hash.slice(1)).get("url")).toBe(page);
   });
   it("names the map of a stage record: GQ Asia in the X post, the Chinese name in the Weibo post", () => {
     const at = Date.UTC(2026, 9, 13, 14, 5);

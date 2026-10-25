@@ -153,6 +153,7 @@ export const JA: Record<string, string> = {
   "Taking them": "受け取り中",
   "Connect to see your games.": "接続して、あなたのゲームを見る。",
   "You need the Bread wallet first.": "まず Bread ウォレットが必要です。",
+  "Open in Bread": "Bread で開く",
   Refresh: "更新",
   "Refreshing…": "更新中…",
   History: "履歴",

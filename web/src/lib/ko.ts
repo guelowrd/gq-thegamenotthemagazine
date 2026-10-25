@@ -153,6 +153,7 @@ export const KO: Record<string, string> = {
   "Taking them": "받는 중",
   "Connect to see your games.": "연결하면 내 게임을 볼 수 있습니다.",
   "You need the Bread wallet first.": "먼저 Bread 지갑이 필요합니다.",
+  "Open in Bread": "Bread에서 열기",
   Refresh: "새로고침",
   "Refreshing…": "새로고침 중…",
   History: "기록 내역",

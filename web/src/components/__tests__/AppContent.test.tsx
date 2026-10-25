@@ -1,6 +1,6 @@
 // The screens, wired to mocked hooks, a fake chain and a fake Bread: the template's way of testing
 // Miden components without WASM. One scenario per incident from the first Bread session.
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ChallengeNote } from "@/lib/chain";
 import type { ChallengeStorage } from "@/lib/notes";
@@ -97,6 +97,7 @@ beforeEach(() => {
   chain.shared = prize;
   wallet.connected = true;
   wallet.connecting = false;
+  wallet.wallet = { readyState: "Installed" };
   localStorage.clear();
   sessionStorage.clear();
   vi.stubGlobal(
@@ -327,6 +328,35 @@ describe("shared record link, connected as a stranger", () => {
     render(<AppContent />);
     await screen.findByText(/this one is over/i);
     expect(screen.queryByRole("button", { name: /insert gamecoin|^play$/i })).toBeNull();
+  });
+});
+
+describe("shared record link without Bread (a phone's browser, a laptop without the extension)", () => {
+  beforeEach(() => {
+    window.history.replaceState({}, "", "/?record=0xp");
+    wallet.connected = false;
+    wallet.wallet = { readyState: "NotDetected" };
+  });
+  const opensHere = (link: HTMLElement) => {
+    const href = new URL(link.getAttribute("href")!);
+    expect(href.origin + href.pathname).toBe("https://bread.miden.xyz/open");
+    expect(new URLSearchParams(href.hash.slice(1)).get("url")).toBe(location.href);
+  };
+
+  it("the wallet button opens this page, record included, in Bread's phone app", async () => {
+    render(<AppContent />);
+    opensHere(await screen.findByRole("link", { name: /open in bread/i }));
+    expect(screen.queryByRole("button", { name: /connect wallet/i })).toBeNull();
+  });
+
+  it("Insert Gamecoin says Bread is missing and offers Open in Bread instead of Try again", async () => {
+    wallet.connect.mockRejectedValue(new Error("WalletNotReadyError"));
+    render(<AppContent />);
+    fireEvent.click(await screen.findByRole("button", { name: /insert gamecoin/i }));
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(/can't find the Bread wallet/i);
+    opensHere(within(alert).getByRole("link", { name: /open in bread/i }));
+    expect(within(alert).queryByRole("button", { name: /try again/i })).toBeNull();
   });
 });
 

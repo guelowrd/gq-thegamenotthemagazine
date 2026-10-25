@@ -153,6 +153,7 @@ export const ID: Record<string, string> = {
   "Taking them": "Mengambil",
   "Connect to see your games.": "Hubungkan untuk melihat permainanmu.",
   "You need the Bread wallet first.": "Kamu perlu dompet Bread dulu.",
+  "Open in Bread": "Buka di Bread",
   Refresh: "Segarkan",
   "Refreshing…": "Menyegarkan…",
   History: "Riwayat",

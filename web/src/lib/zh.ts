@@ -169,6 +169,7 @@ export const ZH: Record<string, string> = {
   "Taking them": "领取中",
   "Connect to see your games.": "连接钱包，查看你的游戏记录。",
   "You need the Bread wallet first.": "你需要先安装 Bread 钱包。",
+  "Open in Bread": "在 Bread 中打开",
   Refresh: "刷新",
   "Refreshing…": "刷新中…",
 

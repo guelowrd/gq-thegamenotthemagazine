@@ -253,6 +253,9 @@ const WEIBO_POST = (score: number, map?: string) => `我在 GeoQuizz ${map ?? ""
  * played on (a region names the game: "GQ Europe", in Chinese on Weibo). A hard city gets bragged
  * about, an easy one teased with.
  */
+/** The page inside Bread's phone app: Bread opens it from this link. The page rides in the fragment, which no server sees. */
+export const breadLink = (page: string) => `https://bread.miden.xyz/open#url=${encodeURIComponent(page)}`;
+
 export function recordLinks(recordId: string, score: number, expiresAt: number, cities: string[] = [], stage?: Stage) {
   const url = `${location.origin}${location.pathname}?record=${recordId}`;
   const pick = [...recordId].reduce((sum, c) => sum + c.charCodeAt(0), 0);

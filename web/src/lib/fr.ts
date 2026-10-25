@@ -171,6 +171,7 @@ export const FR_FR: Record<string, string> = {
   "Taking them": "Récupération",
   "Connect to see your games.": "Connectez-vous pour voir vos parties.",
   "You need the Bread wallet first.": "Il vous faut d'abord le wallet Bread.",
+  "Open in Bread": "Ouvrir dans Bread",
   Refresh: "Actualiser",
   "Refreshing…": "Actualisation…",
 

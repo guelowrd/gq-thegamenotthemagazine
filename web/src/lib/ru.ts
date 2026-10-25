@@ -153,6 +153,7 @@ export const RU: Record<string, string> = {
   "Taking them": "Забираем",
   "Connect to see your games.": "Подключись, чтобы видеть свои игры.",
   "You need the Bread wallet first.": "Сначала нужен кошелёк Bread.",
+  "Open in Bread": "Открыть в Bread",
   Refresh: "Обновить",
   "Refreshing…": "Обновляем…",
   History: "История",

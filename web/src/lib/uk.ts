@@ -153,6 +153,7 @@ export const UK: Record<string, string> = {
   "Taking them": "Забираємо",
   "Connect to see your games.": "Підключись, щоб бачити свої ігри.",
   "You need the Bread wallet first.": "Спочатку потрібен гаманець Bread.",
+  "Open in Bread": "Відкрити в Bread",
   Refresh: "Оновити",
   "Refreshing…": "Оновлюємо…",
   History: "Історія",

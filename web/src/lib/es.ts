@@ -169,6 +169,7 @@ const ES: Record<string, string> = {
   "Taking them": "Recogiendo",
   "Connect to see your games.": "Conéctate para ver tus partidas.",
   "You need the Bread wallet first.": "Primero necesitas la billetera Bread.",
+  "Open in Bread": "Abrir en Bread",
   Refresh: "Actualizar",
   "Refreshing…": "Actualizando…",
 

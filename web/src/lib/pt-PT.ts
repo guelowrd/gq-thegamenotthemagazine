@@ -153,6 +153,7 @@ export const PT_PT: Record<string, string> = {
   "Taking them": "A recolher",
   "Connect to see your games.": "Liga-te para veres os teus jogos.",
   "You need the Bread wallet first.": "Precisas primeiro da carteira Bread.",
+  "Open in Bread": "Abrir no Bread",
   Refresh: "Atualizar",
   "Refreshing…": "A atualizar…",
   History: "Histórico",

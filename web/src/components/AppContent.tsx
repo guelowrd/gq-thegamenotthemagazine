@@ -14,7 +14,7 @@ import { accountFelts, bech32Of, fetchChallengeNote, hexOf, knownNote, listChall
 import { boards, history as pastGames, keyOf, lettersBackward, nicknames, owed, playersInOrder, stageTag } from "@/lib/hub";
 import { postShot, postRecord, settle, collect, setSubmitAttemptListener, setSubmitStageListener, waitFor, type Submitted, openSale, buyGamecoin, gcBalance } from "@/lib/bread";
 import { shotDeadline, shotStorage, ZERO_WORD, type AccountFelts, type ChallengeStorage } from "@/lib/notes";
-import { blockToMs, claimVerdict, explain, fmtGamecoin, NOT_FINISHED, sameAccount, SHOT_LOST, shotRefusal, withoutRecord, withTimeout, type Trouble, myOpenShotsOn as openShotsOn, outcomeText, parseCode, reportRows, settlePlan, sharedRecordState, type ReportRow } from "@/lib/flow";
+import { blockToMs, breadLink, claimVerdict, explain, fmtGamecoin, NOT_FINISHED, sameAccount, SHOT_LOST, shotRefusal, withoutRecord, withTimeout, type Trouble, myOpenShotsOn as openShotsOn, outcomeText, parseCode, reportRows, settlePlan, sharedRecordState, type ReportRow } from "@/lib/flow";
 import { cityNames, datasetWord, decodeGame, encodeGame, gameStage, quizCities, randomSeed, type Place, type Word4 } from "@/lib/quiz";
 import { registerDataset, STAGES, stageById, WORLD, type Stage as GameStage, type StageId } from "@/lib/stages";
 import { LANGS, LangContext, PIXEL12, storedLang, storeLang, useLang, useT, type Lang } from "@/lib/i18n";
@@ -687,6 +687,7 @@ function GqApp({ onStarted }: { onStarted?: () => void }) {
   };
 
   const walletLabel = me ? `${LOCAL_WALLET ? t("Test wallet") : t("Wallet")} / ${nameOf(me)}` : null;
+  const openInBread = !LOCAL_WALLET && wallet.wallet?.readyState !== "Installed" ? breadLink(location.href) : undefined;
   const title1p = stage.id === "world" ? t("1P World Tour") : t("1P {stage}", { stage: t(stage.name) });
 
   if (!started) return <Welcome onStart={() => setStarted(true)} />;
@@ -701,12 +702,14 @@ function GqApp({ onStarted }: { onStarted?: () => void }) {
       netSlow={netSlow}
       hubAlert={owed(notes, height, me).length > 0}
       onWallet={() => (wallet.connected ? void wallet.disconnect() : connect())}
+      openInBread={openInBread}
       soundOn={sound.on}
       onSound={sound.toggle}
     >
       {trouble && (
         <ErrorBox
           trouble={trouble.t}
+          openInBread={openInBread}
           onRetry={
             trouble.retry &&
             (() => {
@@ -802,7 +805,7 @@ function GqApp({ onStarted }: { onStarted?: () => void }) {
                   <button className="btn primary" onClick={connect} disabled={wallet.connecting}>
                     {wallet.connecting ? (LOCAL_WALLET && local.status) || "…" : t("Connect wallet")}
                   </button>
-                  {!LOCAL_WALLET && wallet.wallet?.readyState !== "Installed" && <p className="muted">{t("You need the Bread wallet first.")}</p>}
+                  {openInBread && <p className="muted">{t("You need the Bread wallet first.")}</p>}
                 </section>
               )
             }

@@ -132,6 +132,8 @@ p { margin: 0 0 12px; }
 .masthead nav button.active { color: var(--yellow); text-shadow: 2px 2px 0 var(--pink); }
 .masthead nav button.active::before { content: "▶ "; color: var(--pink); }
 .masthead .wallet { display: block; margin: 0; min-height: 44px; padding: 10px 12px; font-size: 12px; max-width: 280px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Open in Bread, a link: centred like the button it replaces (its words are short, no ellipsis needed) */
+.masthead a.wallet { display: flex; }
 .masthead .sound { background: none; border: 0; padding: 6px 0; font: 12px/1.6 var(--display); text-transform: uppercase; color: var(--cyan); white-space: nowrap; }
 .share { display: flex; flex-wrap: wrap; gap: 4px 0; margin-top: 8px; }
 
