@@ -137,7 +137,7 @@ export const ZH: Record<string, string> = {
   "It did not go through yet. Nothing is spent until it does, so try again.": "还没有完成。完成前不会花费任何东西，请重试。",
   "You said no in your wallet. Nothing was sent.": "你在钱包中拒绝了。什么也没发送。",
   "Your wallet is on another network.": "你的钱包在另一个网络上。",
-  "Bread is the wallet that inserts your Gamecoin to post a record or take a shot.": "Bread 是为你投入游戏币的钱包：发布纪录或发起挑战都要用它。",
+  "Bread is your wallet: it inserts your Gamecoin to post a record or take a shot, and keeps track of your games.": "Bread 是你的钱包：它投入游戏币来发布纪录或发起挑战，还会记下你的游戏记录。",
   "Connect your wallet first.": "请先连接钱包。",
   "Not enough Gamecoins in your wallet. Get Gamecoins first.": "钱包里的游戏币不够。请先领取游戏币。",
   "Your wallet was out of step with the network. Try again.": "你的钱包与网络不同步。请重试。",

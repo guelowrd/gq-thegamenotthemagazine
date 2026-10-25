@@ -123,7 +123,7 @@ export const TR: Record<string, string> = {
   "It did not go through yet. Nothing is spent until it does, so try again.": "Henüz geçmedi. Geçene kadar hiçbir şey harcanmaz, o yüzden tekrar dene.",
   "You said no in your wallet. Nothing was sent.": "Cüzdanında hayır dedin. Hiçbir şey gönderilmedi.",
   "Your wallet is on another network.": "Cüzdanın başka bir ağda.",
-  "Bread is the wallet that inserts your Gamecoin to post a record or take a shot.": "Bread, rekor paylaşmak ya da deneme yapmak için Gamecoin'ini atan cüzdandır.",
+  "Bread is your wallet: it inserts your Gamecoin to post a record or take a shot, and keeps track of your games.": "Bread senin cüzdanın: rekor paylaşmak ya da deneme yapmak için Gamecoin'ini atar ve oyunlarının kaydını tutar.",
   "Connect your wallet first.": "Önce cüzdanını bağla.",
   "Not enough Gamecoins in your wallet. Get Gamecoins first.": "Cüzdanında yeterli Gamecoin yok. Önce Gamecoin al.",
   "Your wallet was out of step with the network. Try again.": "Cüzdanın ağla uyumsuzdu. Tekrar dene.",

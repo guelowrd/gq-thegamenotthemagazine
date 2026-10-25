@@ -136,7 +136,7 @@ export const PT_BR: Record<string, string> = {
   "It did not go through yet. Nothing is spent until it does, so try again.": "Ainda não passou. Nada é gasto até passar, então tente de novo.",
   "You said no in your wallet. Nothing was sent.": "Você recusou na carteira. Nada foi enviado.",
   "Your wallet is on another network.": "Sua carteira está em outra rede.",
-  "Bread is the wallet that inserts your Gamecoin to post a record or take a shot.": "Bread é a carteira que insere seu Gamecoin para publicar um recorde ou fazer uma tentativa.",
+  "Bread is your wallet: it inserts your Gamecoin to post a record or take a shot, and keeps track of your games.": "Bread é sua carteira: insere seu Gamecoin para publicar um recorde ou fazer uma tentativa, e acompanha suas partidas.",
   "Connect your wallet first.": "Conecte sua carteira primeiro.",
   "Not enough Gamecoins in your wallet. Get Gamecoins first.": "Gamecoins insuficientes na carteira. Pegue Gamecoins primeiro.",
   "Your wallet was out of step with the network. Try again.": "Sua carteira estava fora de sincronia com a rede. Tente de novo.",

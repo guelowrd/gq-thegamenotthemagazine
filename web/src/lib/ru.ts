@@ -123,7 +123,7 @@ export const RU: Record<string, string> = {
   "It did not go through yet. Nothing is spent until it does, so try again.": "Ещё не прошло. Пока не пройдёт, ничего не тратится, так что попробуй ещё раз.",
   "You said no in your wallet. Nothing was sent.": "Ты отказал в кошельке. Ничего не отправлено.",
   "Your wallet is on another network.": "Ваш кошелёк в другой сети.",
-  "Bread is the wallet that inserts your Gamecoin to post a record or take a shot.": "Кошелёк Bread вставляет твой Gamecoin, чтобы опубликовать рекорд или сделать попытку.",
+  "Bread is your wallet: it inserts your Gamecoin to post a record or take a shot, and keeps track of your games.": "Bread: твой кошелёк. Он вставляет твой Gamecoin, чтобы опубликовать рекорд или сделать попытку, и хранит историю твоих игр.",
   "Connect your wallet first.": "Сначала подключи кошелёк.",
   "Not enough Gamecoins in your wallet. Get Gamecoins first.": "В кошельке мало Gamecoin. Сначала получи Gamecoin.",
   "Your wallet was out of step with the network. Try again.": "Кошелёк разошёлся с сетью. Попробуй ещё раз.",

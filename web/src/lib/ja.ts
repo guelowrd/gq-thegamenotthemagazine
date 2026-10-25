@@ -123,7 +123,7 @@ export const JA: Record<string, string> = {
   "It did not go through yet. Nothing is spent until it does, so try again.": "まだ通っていません。通るまで何も消費されないので、もう一度。",
   "You said no in your wallet. Nothing was sent.": "ウォレットで拒否しました。何も送信されていません。",
   "Your wallet is on another network.": "ウォレットが別のネットワークにあります。",
-  "Bread is the wallet that inserts your Gamecoin to post a record or take a shot.": "Bread は Gamecoin を投入するウォレット。記録の投稿にも挑戦にも使います。",
+  "Bread is your wallet: it inserts your Gamecoin to post a record or take a shot, and keeps track of your games.": "Bread はあなたのウォレット。Gamecoin を投入して記録の投稿や挑戦ができ、あなたのゲームも記録します。",
   "Connect your wallet first.": "先にウォレットを接続してください。",
   "Not enough Gamecoins in your wallet. Get Gamecoins first.": "ウォレットの Gamecoin が足りません。先に Gamecoin をもらってください。",
   "Your wallet was out of step with the network. Try again.": "ウォレットがネットワークとずれていました。もう一度。",

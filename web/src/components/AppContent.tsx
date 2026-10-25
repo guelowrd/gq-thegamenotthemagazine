@@ -804,7 +804,7 @@ function GqApp({ onStarted }: { onStarted?: () => void }) {
                   <p>{t("Connect to see your games.")}</p>
                   {openInBread ? (
                     <>
-                      <p className="muted">{t("Bread is the wallet that inserts your Gamecoin to post a record or take a shot.")}</p>
+                      <p className="muted">{t("Bread is your wallet: it inserts your Gamecoin to post a record or take a shot, and keeps track of your games.")}</p>
                       <a className="btn primary" href={openInBread}>
                         {t("Open in Bread")}
                       </a>

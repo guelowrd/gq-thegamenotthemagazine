@@ -137,7 +137,7 @@ const ES: Record<string, string> = {
   "It did not go through yet. Nothing is spent until it does, so try again.": "Aún no ha salido. No se gasta nada hasta que salga, así que reintenta.",
   "You said no in your wallet. Nothing was sent.": "Dijiste que no en tu billetera. No se envió nada.",
   "Your wallet is on another network.": "Tu wallet está en otra red.",
-  "Bread is the wallet that inserts your Gamecoin to post a record or take a shot.": "Bread es la billetera que inserta tu Gamecoin para publicar un récord o hacer un intento.",
+  "Bread is your wallet: it inserts your Gamecoin to post a record or take a shot, and keeps track of your games.": "Bread es tu billetera: inserta tu Gamecoin para publicar un récord o hacer un intento, y lleva la cuenta de tus partidas.",
   "Connect your wallet first.": "Conecta tu billetera primero.",
   "Not enough Gamecoins in your wallet. Get Gamecoins first.": "No hay suficientes Gamecoins en tu billetera. Consigue Gamecoins primero.",
   "Your wallet was out of step with the network. Try again.": "Tu billetera iba desfasada con la red. Reintenta.",

@@ -154,7 +154,7 @@ export function explain(e: unknown): Trouble {
   if (raw.includes(NOT_FINISHED)) return trouble("not-finished", NOT_FINISHED, false);
   if (/NETWORK_NOT_GRANTED/.test(raw)) return trouble("refused", "Your wallet is on another network.");
   if (/NOT_GRANTED|reject|declin|denied|cancel/i.test(raw)) return trouble("said-no", "You said no in your wallet. Nothing was sent.");
-  if (/WalletNotReady|not installed/i.test(raw)) return trouble("no-wallet", "Bread is the wallet that inserts your Gamecoin to post a record or take a shot.");
+  if (/WalletNotReady|not installed/i.test(raw)) return trouble("no-wallet", "Bread is your wallet: it inserts your Gamecoin to post a record or take a shot, and keeps track of your games.");
   if (/WalletNotConnected|not connected|WalletDisconnected/i.test(raw)) return trouble("no-wallet", "Connect your wallet first.");
   if (/SummaryAnchorMismatch|chain anchor|ChainBehindBoundBlock|block header for block \d+ not found/i.test(raw))
     return trouble("out-of-step", "Your wallet was out of step with the network. Try again.");

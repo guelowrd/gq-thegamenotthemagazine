@@ -70,7 +70,7 @@ export function Shell({
         </button>
         <div className="account">
           {openInBread ? (
-            <a className="btn wallet" href={openInBread} title={t("Bread is the wallet that inserts your Gamecoin to post a record or take a shot.")}>
+            <a className="btn wallet" href={openInBread} title={t("Bread is your wallet: it inserts your Gamecoin to post a record or take a shot, and keeps track of your games.")}>
               {t("Open in Bread")}
             </a>
           ) : (

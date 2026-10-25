@@ -123,7 +123,7 @@ export const ID: Record<string, string> = {
   "It did not go through yet. Nothing is spent until it does, so try again.": "Belum berhasil. Tidak ada yang terpakai sampai berhasil, jadi coba lagi.",
   "You said no in your wallet. Nothing was sent.": "Kamu menolak di dompetmu. Tidak ada yang dikirim.",
   "Your wallet is on another network.": "Dompetmu ada di jaringan lain.",
-  "Bread is the wallet that inserts your Gamecoin to post a record or take a shot.": "Bread adalah dompet yang memasukkan Gamecoin-mu untuk mengunggah rekor atau menantangnya.",
+  "Bread is your wallet: it inserts your Gamecoin to post a record or take a shot, and keeps track of your games.": "Bread adalah dompetmu: ia memasukkan Gamecoin-mu untuk mengunggah rekor atau menantangnya, dan mencatat permainanmu.",
   "Connect your wallet first.": "Hubungkan dompetmu dulu.",
   "Not enough Gamecoins in your wallet. Get Gamecoins first.": "Gamecoin di dompetmu tidak cukup. Ambil Gamecoin dulu.",
   "Your wallet was out of step with the network. Try again.": "Dompetmu tidak sinkron dengan jaringan. Coba lagi.",

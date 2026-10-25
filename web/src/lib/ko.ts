@@ -123,7 +123,7 @@ export const KO: Record<string, string> = {
   "It did not go through yet. Nothing is spent until it does, so try again.": "아직 처리되지 않았습니다. 처리 전에는 아무것도 쓰이지 않으니 다시 시도하세요.",
   "You said no in your wallet. Nothing was sent.": "지갑에서 거부했습니다. 아무것도 전송되지 않았습니다.",
   "Your wallet is on another network.": "지갑이 다른 네트워크에 있습니다.",
-  "Bread is the wallet that inserts your Gamecoin to post a record or take a shot.": "Bread는 Gamecoin을 넣는 지갑입니다. 기록을 올리거나 도전할 때 필요합니다.",
+  "Bread is your wallet: it inserts your Gamecoin to post a record or take a shot, and keeps track of your games.": "Bread는 내 지갑입니다. Gamecoin을 넣어 기록을 올리거나 도전하고, 내 게임도 기록해 줍니다.",
   "Connect your wallet first.": "먼저 지갑을 연결하세요.",
   "Not enough Gamecoins in your wallet. Get Gamecoins first.": "지갑의 Gamecoin이 부족합니다. 먼저 Gamecoin을 받으세요.",
   "Your wallet was out of step with the network. Try again.": "지갑이 네트워크와 어긋났습니다. 다시 시도하세요.",
