@@ -424,7 +424,8 @@ table.report td:nth-child(2) { text-align: right; color: var(--muted); }
   .slogan span { display: inline; }
   .cols.tour { grid-template-columns: auto minmax(150px, 1fr); gap: 8px; }
   .tour .map-frame { padding: 4px; }
-  .tour .world-map { height: min(calc(var(--dvh) - 135px), calc((var(--vw) - 270px) / 2)); width: auto; }
+  /* 300: on a 4.7-inch phone the panel needs the width, or Spanish pushes the start button off the screen */
+  .tour .world-map { height: min(calc(var(--dvh) - 135px), calc((var(--vw) - 300px) / 2)); width: auto; }
   /* VS: the picture left, as tall as the screen allows, the boxes right */
   .arena { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 12px; align-items: start; }
   .arena .hero { height: min(calc(var(--dvh) - 86px), calc((var(--vw) - 300px) / 1.5)); width: auto; }
