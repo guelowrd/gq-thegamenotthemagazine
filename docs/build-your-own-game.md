@@ -130,6 +130,25 @@ the trust list in [design.md](design.md).
 - `?local=1` and `?local=2` give the web app two wallets of its own, no extension needed; on testnet
   (`VITE_MIDEN_NETWORK=testnet`) the faucet funds them.
 
+## 7. Use Gamecoin
+
+Your game can stake GeoQuizz's Gamecoin (GC) instead of a token of its own, so players hold one coin
+for every game. Pick Up Boomers does.
+
+- Faucet (mainnet): `0x34a3510213533f512ec4abe36baf84` (`mm1aq62x5gzzdfn75fwcj47x6a0ssyu9cxz`), 6 decimals.
+  Use it as the asset of your record and shot notes (`GC_FAUCET` in `web/src/config.ts`).
+- Players buy it with USDCx (`0xe69e6ca6e39df1b10c1e5399399feb`, 6 decimals) from sale notes: public
+  PSWAP notes that anyone holding GC may post. The note sets the price (USDCx asked / GC offered); the
+  admin's notes ask 0.001 USDCx per GC.
+- Find them under note tag `1663710438` (`pswapTag` in `web/src/lib/shop.ts`; it changes if the PSWAP
+  script does) and read them from the node (`tagScanner`). Each fill leaves the rest in a new note with a
+  new id: skip consumed ones.
+- Buy: consume the sale note with the note argument `[usdcx_paid, 0, 0, 0]` in base units (`buyGamecoin`
+  in `bread.ts`; the SDK's `transactions.pswapConsume` does the same for an account it holds). At 0.001,
+  100,000 pays 0.1 USDCx for 100 GC. No minimum; GeoQuizz's 100 per buy is its screen only.
+- Copy `shop.ts`: `decodeSale`, `acceptSale` (the right two faucets, a price you accept) and `pickSale`
+  (cheapest first, never the buyer's own: a creator consuming its sale note takes the rest back).
+
 ## Checklist
 
 1. `my_game.masm` with `beats_target`.
@@ -137,7 +156,7 @@ the trust list in [design.md](design.md).
 3. Host mirror of the scoring, with shared vectors.
 4. MockChain tests: claim, settle, refusal, deadlines.
 5. Client: the four transactions, the answer's note argument and advice, deadlines on screen.
-6. Pick your own note tag and token.
+6. Pick your own note tag, and your own token or Gamecoin (section 7).
 7. Check every note you read before trusting it: its sender is the account its storage names, it
    carries exactly one asset (yours), a record names your shot script (`acceptNote` in
    `web/src/lib/flow.ts`), and its terms are ones your game writes: stake, target, expiry
