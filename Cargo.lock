@@ -2139,6 +2139,7 @@ dependencies = [
  "miden-protocol",
  "miden-standards",
  "miden-testing",
+ "miden-tx",
  "rand 0.10.3",
  "serde",
  "serde_json",

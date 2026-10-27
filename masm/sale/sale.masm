@@ -1,0 +1,41 @@
+#! SALE note: the Gamecoin sale. The standard PSWAP note with one more rule: anyone but the seller
+#! must name an amount. PSWAP reads a take with no amount (note argument [0, 0, 0, 0]) as "buy
+#! everything left"; that is what a wallet's claim button sends, and what Bread runs to decide which
+#! notes to list, so a buyer who could afford the whole leftover got it listed and bought it all
+#! with one tap (wallet#1952). Same storage as PSWAP; the leftover keeps this script, since PSWAP
+#! builds it from the active note's own script.
+#!
+#! Paths:
+#! - buy:       anyone, with [pay, 0, 0, 0] (PswapNote::create_args): PSWAP's partial fill.
+#! - take-back: the seller, with or without an amount: PSWAP's reclaim.
+#!
+#! Inputs:  [NOTE_ARGS]
+#! Outputs: []
+
+use {NoteArgs} from miden::protocol::types
+use miden::protocol::account_id
+use miden::protocol::active_account
+use miden::protocol::active_note
+use miden::standards::notes::pswap
+
+const ERR_SALE_NO_AMOUNT = "sale: a buyer must name an amount"
+
+# PSWAP's storage, loaded where PSWAP loads it: 7 items, the seller's id at 5 (suffix) and 6 (prefix)
+const STORAGE_PTR = 0
+const NUM_STORAGE_ITEMS = 7
+const SELLER_SUFFIX = STORAGE_PTR + 5
+const SELLER_PREFIX = STORAGE_PTR + 6
+
+@note_script
+pub proc main(args: NoteArgs)
+    dup eq.0 dup.2 eq.0 and
+    # => [no_amount, account_fill, note_fill, 0, 0]
+    if.true
+        push.NUM_STORAGE_ITEMS push.STORAGE_PTR exec.active_note::get_bounded_storage drop
+        mem_load.SELLER_PREFIX mem_load.SELLER_SUFFIX
+        exec.active_account::get_id
+        # => [account_suffix, account_prefix, seller_suffix, seller_prefix, NOTE_ARGS]
+        exec.account_id::eq assert.err=ERR_SALE_NO_AMOUNT
+    end
+    exec.pswap::main
+end

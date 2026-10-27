@@ -24,7 +24,7 @@ import {
   Word,
 } from "@miden-sdk/miden-sdk";
 import type { useMidenClient } from "@miden-sdk/react";
-import { MAINNET, MIDEN_RPC_URL, RECORD_SCRIPT_URL, SHOT_SCRIPT_URL } from "@/config";
+import { MAINNET, MIDEN_RPC_URL, RECORD_SCRIPT_URL, SALE_SCRIPT_URL, SHOT_SCRIPT_URL } from "@/config";
 import { decodeStorage, NOTE_TAG, type AccountFelts, type ChallengeStorage } from "./notes";
 import { acceptNote, noteKind } from "./flow";
 import type { Word4 } from "./quiz";
@@ -35,16 +35,18 @@ export type Client = ReturnType<typeof useMidenClient>;
 export type Scripts = {
   record: NoteScript;
   shot: NoteScript;
+  sale: NoteScript;
   recordRoot: string;
   shotRoot: string;
+  saleRoot: string;
 };
 
 let scriptsPromise: Promise<Scripts> | undefined;
 /** The note scripts, assembled by `cargo run --bin build_scripts`. */
 export function loadScripts(): Promise<Scripts> {
   scriptsPromise ??= (async () => {
-    const [p, c] = await Promise.all(
-      [RECORD_SCRIPT_URL, SHOT_SCRIPT_URL].map(async (url) => {
+    const [p, c, s] = await Promise.all(
+      [RECORD_SCRIPT_URL, SHOT_SCRIPT_URL, SALE_SCRIPT_URL].map(async (url) => {
         const buf = await fetch(url).then((r) => {
           if (!r.ok) throw new Error(`${url}: HTTP ${r.status}`);
           return r.arrayBuffer();
@@ -52,7 +54,7 @@ export function loadScripts(): Promise<Scripts> {
         return NoteScript.deserialize(new Uint8Array(buf));
       }),
     );
-    return { record: p, shot: c, recordRoot: p.root().toHex(), shotRoot: c.root().toHex() };
+    return { record: p, shot: c, sale: s, recordRoot: p.root().toHex(), shotRoot: c.root().toHex(), saleRoot: s.root().toHex() };
   })();
   return scriptsPromise;
 }

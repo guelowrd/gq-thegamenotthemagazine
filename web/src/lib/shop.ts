@@ -1,11 +1,13 @@
-// The Gamecoin shop. Anyone holding Gamecoin may post a sale note (PSWAP, a standard note that fills
-// bit by bit): it offers Gamecoin and asks the chain's fee asset; each buy pays the note's creator and
-// leaves the rest on sale. The game takes any sale note at or under GC_PRICE, cheapest first.
+// The Gamecoin shop. Anyone holding Gamecoin may post a sale note (GQ's: the standard PSWAP, which fills
+// bit by bit, plus "anyone but the seller names an amount", masm/sale/sale.masm): it offers Gamecoin and
+// asks the chain's fee asset; each buy pays the note's creator and leaves the rest on sale. The game
+// takes any sale note at or under GC_PRICE, cheapest first. Standard PSWAP notes are not taken: a buyer's
+// Bread lists their leftover, and a tap on it buys all of it (wallet#1952).
 // ponytail: the 100 GC cap is the screen's; the note itself has a floor per fill, never a ceiling.
 
 import { AccountId, Felt, Note, NoteScript } from "@miden-sdk/miden-sdk";
 import { GC_DECIMALS, GC_FAUCET, GC_PRICE } from "@/config";
-import { tagScanner, tip } from "./chain";
+import { loadScripts, tagScanner, tip } from "./chain";
 
 export type Sale = {
   id: string;
@@ -42,7 +44,7 @@ export function pickSale(sales: Sale[], gc: bigint, buyer?: string): Sale | unde
 }
 
 /**
- * The tag every public sale note of this pair carries (miden-standards PswapNote::create_tag):
+ * The tag every public sale note of this pair carries, GQ's as the standard's (miden-standards PswapNote::create_tag):
  * note type (2 bits), 14 bits of the PSWAP script root, the top byte of each faucet's prefix.
  */
 export function pswapTag(payFaucet: string): number {
@@ -52,9 +54,9 @@ export function pswapTag(payFaucet: string): number {
   return ((1 << 30) | (useCase << 16) | (top(GC_FAUCET) << 8) | top(payFaucet)) >>> 0;
 }
 
-/** A sale note as the node serves it; null for any other note under the tag. */
-export function decodeSale(id: string, note: Note): Sale | null {
-  if (note.recipient().script().root().toHex() !== NoteScript.pswap().root().toHex()) return null;
+/** A sale note as the node serves it (`saleRoot`: GQ's sale script); null for any other note under the tag. */
+export function decodeSale(id: string, note: Note, saleRoot: string): Sale | null {
+  if (note.recipient().script().root().toHex() !== saleRoot) return null;
   const items = note.recipient().storage().items().map((x) => x.asInt());
   const assets = note.assets().fungibleAssets();
   if (items.length !== 7 || assets.length !== 1) return null;
@@ -70,14 +72,35 @@ export function decodeSale(id: string, note: Note): Sale | null {
   };
 }
 
+/** One of the seller's own open sale notes; `standard`: a standard PSWAP note, posted before GQ's sale script. */
+export type OwnSale = Sale & { standard: boolean };
+
 let scanSales: ReturnType<typeof tagScanner<Sale>> | undefined;
+let scanOwn: ReturnType<typeof tagScanner<OwnSale>> | undefined;
 
 /** The open sale notes the game buys from, read from the node (public notes under the pair's tag). */
 export async function openSales(payFaucet: string): Promise<Sale[]> {
   scanSales ??= tagScanner<Sale>(pswapTag(payFaucet));
+  const { saleRoot } = await loadScripts();
   const sales = await scanSales(await tip(), (input, id) => {
-    const sale = decodeSale(id, input.note());
+    const sale = decodeSale(id, input.note(), saleRoot);
     return sale && acceptSale(sale, payFaucet) ? sale : null;
   });
   return sales.filter((s) => !s.consumed);
+}
+
+/**
+ * `seller`'s open Gamecoin sale notes, GQ's and standard PSWAP ones, for the admin to take back one by one. Bread
+ * lists only the sale note the seller posted; every leftover is posted by its buyer's transaction.
+ */
+export async function ownSales(payFaucet: string, seller: string): Promise<OwnSale[]> {
+  scanOwn ??= tagScanner<OwnSale>(pswapTag(payFaucet));
+  const { saleRoot } = await loadScripts();
+  const pswapRoot = NoteScript.pswap().root().toHex();
+  const sales = await scanOwn(await tip(), (input, id) => {
+    const ours = decodeSale(id, input.note(), saleRoot);
+    const sale = ours ?? decodeSale(id, input.note(), pswapRoot);
+    return sale && { ...sale, standard: !ours };
+  });
+  return sales.filter((s) => !s.consumed && s.creator === seller && s.gcFaucet === GC_FAUCET);
 }

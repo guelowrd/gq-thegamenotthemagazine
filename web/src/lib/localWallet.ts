@@ -50,8 +50,8 @@ export function useLocalWallet(client: Client | null, runExclusive: <T>(fn: () =
             .flatMap((n) => n.inputNoteRecord() ?? [])
             .filter((r) => {
               const root = r.details()?.recipient().script().root().toHex();
-              // game notes are not payments; a sale note (PSWAP) of this wallet is consumable by it, which would cancel the sale
-              return !root || (!noteKind(root, scripts) && root !== pswapRoot);
+              // game notes are not payments; a sale note of this wallet is consumable by it, which would cancel the sale
+              return !root || (!noteKind(root, scripts) && root !== pswapRoot && root !== scripts.saleRoot);
             })
             .flatMap((r) => r.id()?.toString() ?? []);
         });

@@ -19,3 +19,4 @@ ureq = { version = "3", features = ["json"] }
 [dev-dependencies]
 miden-standards = { version = "0.17.0", features = ["testing"] }
 miden-testing = "0.17.0"
+miden-tx = "0.17.0"

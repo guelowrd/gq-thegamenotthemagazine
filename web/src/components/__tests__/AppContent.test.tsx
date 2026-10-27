@@ -4,7 +4,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testi
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ChallengeNote } from "@/lib/chain";
 import type { ChallengeStorage } from "@/lib/notes";
-import type { Sale } from "@/lib/shop";
+import type { OwnSale, Sale } from "@/lib/shop";
 
 vi.mock("@miden-sdk/react", () => import("@/__tests__/mocks/miden-sdk-react"));
 
@@ -25,7 +25,7 @@ const { wallet, me, cities, chain, bread, shop } = vi.hoisted(() => ({
   cities: Array.from({ length: 10 }, (_, idx) => ({ idx, lat: 9000 + idx * 100, lon: 18000 + idx * 100, cos: 100 })),
   chain: { notes: [] as ChallengeNote[], shared: null as ChallengeNote | null },
   bread: { postShot: vi.fn(), postRecord: vi.fn(), settle: vi.fn(), collect: vi.fn(), buyGamecoin: vi.fn(), gcBalance: vi.fn(async () => 12_000_000n) },
-  shop: { openSales: vi.fn(async (): Promise<Sale[]> => []) },
+  shop: { openSales: vi.fn(async (): Promise<Sale[]> => []), ownSales: vi.fn(async (): Promise<OwnSale[]> => []) },
 }));
 vi.mock("@miden-sdk/miden-wallet-adapter-react", () => ({ useMidenFiWallet: () => wallet }));
 
@@ -67,7 +67,7 @@ vi.mock("@/lib/chain", () => ({
   hexOf: vi.fn(() => "0xreal"),
 }));
 
-vi.mock("@/lib/shop", async (orig) => ({ ...(await orig<typeof import("@/lib/shop")>()), openSales: shop.openSales }));
+vi.mock("@/lib/shop", async (orig) => ({ ...(await orig<typeof import("@/lib/shop")>()), openSales: shop.openSales, ownSales: shop.ownSales }));
 
 vi.mock("@/lib/bread", () => ({
   ...bread,
@@ -88,7 +88,7 @@ import { useMidenClient } from "@miden-sdk/react";
 import { waitFor as waitForMock } from "@/lib/bread";
 import { fetchChallengeNote, hexOf, knownNote, listChallengeNotes, syncNotes } from "@/lib/chain";
 import { encodeGame } from "@/lib/quiz";
-import { BLOCK_SECONDS, GC_FAUCET, MIN_SHOT_WINDOW_BLOCKS, RECORD_LIFETIME_BLOCKS } from "@/config";
+import { ADMIN, BLOCK_SECONDS, GC_FAUCET, MIN_SHOT_WINDOW_BLOCKS, RECORD_LIFETIME_BLOCKS } from "@/config";
 import { AppContent } from "../AppContent";
 
 beforeEach(() => {
@@ -680,6 +680,35 @@ describe("open challenges in Champion vs Rival", () => {
     fireEvent.click(screen.getByRole("button", { name: /^champion vs rival$/i }));
     expect(await screen.findByText(/^You have 12 Gamecoins\./)).toBeInTheDocument();
     expect(bread.gcBalance).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("the admin's sale desk", () => {
+  it("is a tab of its own for the admin's wallet alone", async () => {
+    await start();
+    expect(screen.queryByRole("button", { name: /^admin$/i })).toBeNull();
+    cleanup();
+    vi.mocked(hexOf).mockImplementation(() => ADMIN); // parseAccountId is the identity here
+    await start(/^admin$/i);
+    expect(await screen.findByText("Put Gamecoin on sale")).toBeInTheDocument();
+  });
+
+  it("lists each open sale note of the admin, old standard ones too, and takes back only the one picked", async () => {
+    vi.mocked(useMidenClient).mockReturnValue({ feeFaucetId: async () => ({ toString: () => "0xpay" }) } as never);
+    vi.mocked(hexOf).mockImplementation(() => ADMIN); // parseAccountId is the identity here
+    const own = (id: string, offered: bigint, standard: boolean): OwnSale => ({ id, creator: ADMIN, gcFaucet: GC_FAUCET, payFaucet: "0xpay", offered, asked: offered / 1000n, minFill: 0n, standard });
+    shop.ownSales.mockResolvedValue([own("0xnew", 488_000_000n, false), own("0xold", 49_887_000_000n, true)]);
+    bread.collect.mockResolvedValue({ txId: "0xt", noteIds: ["0xold"], gc: 49_887_000_000n });
+    vi.mocked(knownNote).mockResolvedValue({ consumed: true });
+    await start(/^admin$/i);
+    expect(await screen.findByText(/488 Gamecoins on sale/)).toBeInTheDocument();
+    expect(screen.getByText(/49,887 Gamecoins on sale, standard note/)).toBeInTheDocument();
+    const backs = screen.getAllByRole("button", { name: /^take back$/i });
+    expect(backs).toHaveLength(2);
+    fireEvent.click(backs[1]);
+    await screen.findByText("49,887 Gamecoins back in your wallet.");
+    expect(bread.collect).toHaveBeenCalledTimes(1);
+    expect(bread.collect).toHaveBeenCalledWith(expect.anything(), wallet, [{ id: "0xold", amount: 49_887_000_000n }]);
   });
 });
 

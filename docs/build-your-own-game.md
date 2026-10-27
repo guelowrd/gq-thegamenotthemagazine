@@ -138,14 +138,18 @@ for every game. Pick Up Boomers does.
 - Faucet (mainnet): `0x34a3510213533f512ec4abe36baf84` (`mm1aq62x5gzzdfn75fwcj47x6a0ssyu9cxz`), 6 decimals.
   Use it as the asset of your record and shot notes (`GC_FAUCET` in `web/src/config.ts`).
 - Players buy it with USDCx (`0xe69e6ca6e39df1b10c1e5399399feb`, 6 decimals) from sale notes: public
-  PSWAP notes that anyone holding GC may post. The note sets the price (USDCx asked / GC offered); the
-  admin's notes ask 0.001 USDCx per GC.
-- Find them under note tag `1663710438` (`pswapTag` in `web/src/lib/shop.ts`; it changes if the PSWAP
-  script does) and read them from the node (`tagScanner`). Each fill leaves the rest in a new note with a
-  new id: skip consumed ones.
+  notes with GeoQuizz's sale script (`masm/sale/sale.masm`, built to `web/public/scripts/sale.bin`, root
+  `0xfe5c6de19f05ae3c77227128bcf15180fc252b94429a3b030967126077e1db2a`). It is the standard PSWAP note
+  with one more rule: anyone but the seller must name an amount. Anyone holding GC may post one
+  (`openSale` in `bread.ts`). The note sets the price (USDCx asked / GC offered); the admin's notes ask
+  0.001 USDCx per GC.
+- Find them under note tag `1663710438` (the pair's PSWAP tag, `pswapTag` in `web/src/lib/shop.ts`) and
+  read them from the node (`tagScanner`); keep only notes with the sale script (`decodeSale`). Each fill
+  leaves the rest in a new note with a new id: skip consumed ones. Do not buy from standard PSWAP notes:
+  the buyer's Bread lists the leftover when it could afford all of it, and a tap there buys it all.
 - Buy: consume the sale note with the note argument `[usdcx_paid, 0, 0, 0]` in base units (`buyGamecoin`
-  in `bread.ts`; the SDK's `transactions.pswapConsume` does the same for an account it holds). At 0.001,
-  100,000 pays 0.1 USDCx for 100 GC. No minimum; GeoQuizz's 100 per buy is its screen only.
+  in `bread.ts`). At 0.001, 100,000 pays 0.1 USDCx for 100 GC. No minimum; GeoQuizz's 100 per buy is its
+  screen only. A take with no amount fails, unless the seller takes the sale back.
 - Copy `shop.ts`: `decodeSale`, `acceptSale` (the right two faucets, a price you accept) and `pickSale`
   (cheapest first, never the buyer's own: a creator consuming its sale note takes the rest back).
 

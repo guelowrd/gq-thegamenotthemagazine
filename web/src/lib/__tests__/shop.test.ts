@@ -1,8 +1,10 @@
 // The Gamecoin shop: sale notes (PSWAP) anyone may post; the game buys from the cheapest one at or under the price.
+import { readFileSync } from "node:fs";
+import { AccountId, FungibleAsset, Note, NoteAssets, NoteMetadata, NoteRecipient, NoteScript, NoteStorage, NoteTag, NoteType } from "@miden-sdk/miden-sdk";
 import { describe, expect, it } from "vitest";
 import { GC_FAUCET, GC_PRICE } from "@/config";
-import { parseAccountId } from "../chain";
-import { acceptSale, payFor, pickSale, pswapTag, type Sale } from "../shop";
+import { feltArray, parseAccountId, wordFromFelts } from "../chain";
+import { acceptSale, decodeSale, payFor, pickSale, pswapTag, type Sale } from "../shop";
 
 // mainnet USDCx (the fee asset; the testnet one is 0x4cbdcaffe75f0a317482224dae6436)
 const PAY = "0xe69e6ca6e39df1b10c1e5399399feb";
@@ -15,12 +17,31 @@ const sale = (over: Partial<Sale> = {}): Sale => ({ id: "0xs", creator: "0xc", g
 describe("a sale note the game buys from", () => {
   it("knows the mainnet admin by the account its Bread address names (the wallet that got the first 100,000 GC)", () => {
     expect(parseAccountId("mm1azntuhzd3lwqxs2mmeny202ljy3fxnpm_qr7qqq9wr6w").toString()).toBe("0xa6be5c4d8fdc03415bde66453d5f91");
+    // testnet: Gaylord's testnet wallet
+    expect(parseAccountId("mtst1arqfpgkk9rhxlq2evdr632uqwvnqsj7k_qr7qqq9wr6w").toString()).toBe("0xc090a2d628ee6f81596347a8ab8073");
   });
 
   it("is found under the pair's PSWAP tag (mainnet: the multisig faucet and USDCx)", () => {
     expect(pswapTag(PAY)).toBe(TAG);
   });
 
+
+  it("is GQ's sale note (masm/sale/sale.masm), never a standard PSWAP note: a buyer's Bread lists a standard leftover and a tap buys all of it (wallet#1952)", () => {
+    const saleScript = NoteScript.deserialize(new Uint8Array(readFileSync("public/scripts/sale.bin")));
+    const seller = AccountId.fromHex("0xa6be5c4d8fdc03415bde66453d5f91");
+    const pay = AccountId.fromHex(PAY);
+    // PSWAP storage: pay faucet (suffix, prefix), asked, min fill step, payback note type, seller (suffix, prefix)
+    const storage = [pay.suffix().asInt(), pay.prefix().asInt(), 10n * GC_PRICE, 0n, 1n, seller.suffix().asInt(), seller.prefix().asInt()];
+    const note = (script: NoteScript) =>
+      new Note(
+        new NoteAssets([new FungibleAsset(AccountId.fromHex(GC_FAUCET), 10n * GC)]),
+        new NoteMetadata(seller, NoteType.Public, new NoteTag(TAG)),
+        new NoteRecipient(wordFromFelts([1n, 2n, 3n, 4n]), script, new NoteStorage(feltArray(storage))),
+      );
+    const saleRoot = saleScript.root().toHex();
+    expect(decodeSale("0xs", note(saleScript), saleRoot)).toMatchObject({ creator: seller.toString(), gcFaucet: GC_FAUCET, payFaucet: PAY, offered: 10n * GC, asked: 10n * GC_PRICE, minFill: 0n });
+    expect(decodeSale("0xp", note(NoteScript.pswap()), saleRoot)).toBeNull();
+  });
 
   it("offers Gamecoin, asks the pay asset, at or under the official price", () => {
     expect(acceptSale(sale(), PAY)).toBe(true);

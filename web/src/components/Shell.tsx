@@ -12,6 +12,7 @@ export function Shell({
   walletLabel,
   netSlow,
   hubAlert,
+  admin,
   onWallet,
   openInBread,
   soundOn,
@@ -31,6 +32,8 @@ export function Shell({
   netSlow?: boolean;
   /** the connected wallet has Gamecoins to take in the Player Hub */
   hubAlert?: boolean;
+  /** the connected wallet is the admin: the Admin tab */
+  admin?: boolean;
   onWallet: () => void;
   /** Bread is not on this device: the wallet button opens this page in Bread's phone app instead */
   openInBread?: string;
@@ -54,11 +57,16 @@ export function Shell({
           <img src="/brand/geoquizz-wordmark.svg" alt="GeoQuizz" width={840} height={205} />
         </a>
         <nav aria-label={t("Sections")}>
-          {(Object.keys(TAB_LABEL) as Tab[]).map((k) => (
+          {(Object.keys(TAB_LABEL) as (keyof typeof TAB_LABEL)[]).map((k) => (
             <button key={k} className={k === tab ? "active" : k === "hub" && hubAlert ? "blink" : ""} onClick={() => onTab(k)} aria-current={k === tab ? "page" : undefined}>
               {k === "1p" ? title1p : t(TAB_LABEL[k])}
             </button>
           ))}
+          {admin && (
+            <button className={tab === "admin" ? "active" : ""} onClick={() => onTab("admin")} aria-current={tab === "admin" ? "page" : undefined}>
+              Admin
+            </button>
+          )}
         </nav>
         {netSlow && (
           <span className="net" title={t("The game couldn't refresh. It retries by itself.")}>

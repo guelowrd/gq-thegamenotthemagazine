@@ -7,7 +7,9 @@
 import {
   AccountId,
   AdviceMap,
+  Note,
   NoteArray,
+  NoteRecipient,
   NoteType,
   Poseidon2,
   TransactionRequestBuilder,
@@ -195,8 +197,11 @@ export async function settle(client: Client, wallet: Wallet, shots: ChallengeNot
   return { txId: await submit(client, wallet, build, ids, files), noteIds: ids, gc };
 }
 
-/** Champion after expiry: reclaim records and collect lost shots' stakes, all in one transaction. */
-export async function collect(client: Client, wallet: Wallet, notes: ChallengeNote[]): Promise<Submitted> {
+/**
+ * Champion after expiry: reclaim records and collect lost shots' stakes, all in one transaction. Also the
+ * admin's take-back of a sale note: the seller takes it with no amount.
+ */
+export async function collect(client: Client, wallet: Wallet, notes: Pick<ChallengeNote, "id" | "amount">[]): Promise<Submitted> {
   const ids = notes.map((n) => n.id);
   const { files } = await fetchNotesWithProof(ids);
   const build = async (b: TransactionRequestBuilder) => {
@@ -208,19 +213,25 @@ export async function collect(client: Client, wallet: Wallet, notes: ChallengeNo
 }
 
 /**
- * Admin: put `gc` Gamecoin (base units) on sale in one public PSWAP note, asking `pricePerGc` base
+ * Admin: put `gc` Gamecoin (base units) on sale in one public sale note, asking `pricePerGc` base
  * units of `faucet` per whole Gamecoin. Buyers fill it bit by bit (buyGamecoin); each fill pays the
  * admin a P2ID note of `faucet`; the rest stays on sale until it is gone or the admin cancels.
+ * The note is the SDK's PSWAP note with GQ's sale script in its place (masm/sale/sale.masm).
  */
 export async function openSale(client: Client, wallet: Wallet, gc: bigint, pricePerGc: bigint, faucet: string): Promise<Submitted> {
   const creator = parseAccountId(wallet.address!);
   const asked = (gc * pricePerGc) / 10n ** BigInt(GC_DECIMALS);
   // the SDK draws the serial here: one request, so every attempt makes the same note
   const request = await client.newPswapCreateTransactionRequest(creator, AccountId.fromHex(GC_FAUCET), gc, AccountId.fromHex(faucet), asked, NoteType.Public, NoteType.Public);
-  const noteId = request.expectedOutputOwnNotes()[0].id().toString();
+  const { sale } = await loadScripts();
+  const saleNote = () => {
+    const pswap = request.expectedOutputOwnNotes()[0];
+    return new Note(pswap.assets(), pswap.metadata(), new NoteRecipient(pswap.recipient().serialNum(), sale, pswap.recipient().storage()));
+  };
+  const noteId = saleNote().id().toString();
   const txId = await submit(client, wallet, (b) => {
     const notes = new NoteArray();
-    notes.push(request.expectedOutputOwnNotes()[0]);
+    notes.push(saleNote());
     return b.withOwnOutputNotes(notes).build();
   });
   return { txId, noteIds: [noteId], gc: -gc };

@@ -97,10 +97,11 @@ No Bread at hand? `http://localhost:5173/?local=1` runs a test wallet inside the
 for a second one): same contracts, same requests, signed by a private single-signature account
 the app creates and fee-funds itself.
 
-Gamecoins are bought in the app: "Buy Gamecoin" fills a sale note (a standard PSWAP note, 0.001
-USDCx per Gamecoin, 100 at a time) and the coins land in the wallet with the fill. Anyone holding
-Gamecoin may post a sale note; the game buys from the cheapest one at or under the price. The admin
-account posts them from `?admin=1`. The faucet (`0x34a3510213533f512ec4abe36baf84` on mainnet;
+Gamecoins are bought in the app: "Buy Gamecoin" fills a sale note (GQ's: the standard PSWAP note plus
+"anyone but the seller names an amount", `masm/sale/sale.masm`; 0.001 USDCx per Gamecoin, 100 at a
+time) and the coins land in the wallet with the fill. Anyone holding Gamecoin may post a sale note;
+the game buys from the cheapest one at or under the price. The admin account posts them, and takes
+each one back, from its Admin tab. The faucet (`0x34a3510213533f512ec4abe36baf84` on mainnet;
 one `gamecoin.json` per network at the repo root) mints from the CLI:
 `GQ_NETWORK=mainnet cargo run --release --bin gamecoin mint <account> <GC>`.
 

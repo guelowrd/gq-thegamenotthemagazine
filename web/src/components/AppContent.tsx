@@ -7,7 +7,7 @@ import { flushSync } from "react-dom";
 import { useMidenClient, useMiden } from "@miden-sdk/react";
 import { useMidenFiWallet } from "@miden-sdk/miden-wallet-adapter-react";
 import { LOCAL_WALLET, useLocalWallet } from "@/lib/localWallet";
-import { openSales, pickSale, type Sale } from "@/lib/shop";
+import { openSales, ownSales, pickSale, type OwnSale, type Sale } from "@/lib/shop";
 import { useSound, type Track } from "@/lib/useSound";
 import { RECORD_LIFETIME_BLOCKS, STAKE, TEST_ACCOUNTS, ADMIN, GC_DECIMALS, GC_PRICE, MAX_BUY_GC } from "@/config";
 import { accountFelts, bech32Of, fetchChallengeNote, hexOf, knownNote, listChallengeNotes, loadScripts, parseAccountId, syncNotes, wordFromHex, type ChallengeNote } from "@/lib/chain";
@@ -62,10 +62,7 @@ const trackOf = (m: Mode): Track =>
           : "home";
 
 /** Something that needs a connected wallet; it runs once the wallet is there. */
-/** `?admin=1`: the sale desk, for the admin account alone. */
-const ADMIN_PANEL = new URLSearchParams(window.location.search).has("admin");
-
-type Intent = { kind: "post"; m: Extract<Mode, { kind: "post-record" }> } | { kind: "shot"; record: ChallengeNote } | { kind: "buy"; gc: bigint } | { kind: "sell"; gc: bigint };
+type Intent = { kind: "post"; m: Extract<Mode, { kind: "post-record" }> } | { kind: "shot"; record: ChallengeNote } | { kind: "buy"; gc: bigint } | { kind: "sell"; gc: bigint } | { kind: "takeBack"; sale: OwnSale };
 
 export function AppContent({ onStarted }: { onStarted?: () => void }) {
   // the language: the device remembers it; the splash and the ribbon change it
@@ -194,6 +191,7 @@ function GqApp({ onStarted }: { onStarted?: () => void }) {
     return balance;
   }, []);
   const [sellGc, setSellGc] = useState("1000");
+  const [mySales, setMySales] = useState<OwnSale[]>([]);
 
   const me = wallet.connected && wallet.address ? accountFelts(parseAccountId(wallet.address)) : null;
   const meKey = me && keyOf(me);
@@ -302,6 +300,13 @@ function GqApp({ onStarted }: { onStarted?: () => void }) {
 
   const connect = (): void => void wallet.connect().catch((e) => oops(e, connect));
   const connected = !!me;
+  const isAdmin = !!me && hexOf(me) === parseAccountId(ADMIN).toString();
+  // the admin's own sale notes, read again each time the Admin tab shows (after a sale posted or taken back too)
+  useEffect(() => {
+    if (!isAdmin || !me || tab !== "admin" || mode.kind !== "lobby") return;
+    void (async () => setMySales(await ownSales((await client.feeFaucetId()).toString(), hexOf(me))))().catch((e) => console.warn("[gq admin] own sales", e));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAdmin, tab, mode.kind]);
 
   /** Runs `intent` now, or connects first (Bread opens its popup, the test wallet creates itself) and runs it then. */
   function withWallet(intent: Intent) {
@@ -324,6 +329,7 @@ function GqApp({ onStarted }: { onStarted?: () => void }) {
     if (intent.kind === "post") return postMyRecord(intent.m);
     if (intent.kind === "shot") return takeShot(intent.record);
     if (intent.kind === "sell") return sell(intent.gc);
+    if (intent.kind === "takeBack") return takeBack(intent.sale);
     return buy(intent.gc);
   }
 
@@ -527,6 +533,10 @@ function GqApp({ onStarted }: { onStarted?: () => void }) {
   const sell = (gc: bigint) =>
     run("Putting Gamecoin on sale", true, async () => openSale(client, wallet, gc, GC_PRICE, (await client.feeFaucetId()).toString()), { kind: "lobby" }, () => ({ kind: "done", text: `${fmtGamecoin(gc, t)} on sale.` }));
 
+  /** Admin: takes one sale note back (the seller's take with no amount); its Gamecoin come home. */
+  const takeBack = (sale: OwnSale) =>
+    run("Taking the sale back", false, () => collect(client, wallet, [{ id: sale.id, amount: sale.offered }]), { kind: "lobby" }, () => ({ kind: "done", text: `${fmtGamecoin(sale.offered, t)} back in your wallet.` }));
+
   /** A pasted link or id opens the record exactly like the link would. */
   const openCode = () => {
     const parsed = parseCode(code);
@@ -560,7 +570,7 @@ function GqApp({ onStarted }: { onStarted?: () => void }) {
     </section>
   );
   // the admin's sale desk: plain English, one reader
-  const adminBox = ADMIN_PANEL && me && hexOf(me) === parseAccountId(ADMIN).toString() && (
+  const adminBox = (
     <section className="panel shop">
       <div className="panel-title">Put Gamecoin on sale</div>
       <p className="muted">{t("0.001 USDCx each, 100 max at a time.").split(",")[0]}, from this wallet.</p>
@@ -568,6 +578,14 @@ function GqApp({ onStarted }: { onStarted?: () => void }) {
       <button className="btn" onClick={() => withWallet({ kind: "sell", gc: BigInt(Math.max(1, Math.floor(Number(sellGc) || 1))) * 10n ** BigInt(GC_DECIMALS) })}>
         Put on sale
       </button>
+      {mySales.map((s) => (
+        <p key={s.id} className="muted">
+          {fmtGamecoin(s.offered, t)} on sale{s.standard ? ", standard note" : ""} ({s.id.slice(0, 10)}…){" "}
+          <button className="btn" onClick={() => withWallet({ kind: "takeBack", sale: s })}>
+            Take back
+          </button>
+        </p>
+      ))}
     </section>
   );
   const codeBox = (
@@ -701,6 +719,7 @@ function GqApp({ onStarted }: { onStarted?: () => void }) {
       walletLabel={walletLabel}
       netSlow={netSlow}
       hubAlert={owed(notes, height, me).length > 0}
+      admin={isAdmin}
       onWallet={() => (wallet.connected ? void wallet.disconnect() : connect())}
       openInBread={openInBread}
       soundOn={sound.on}
@@ -766,7 +785,6 @@ function GqApp({ onStarted }: { onStarted?: () => void }) {
             <div className="stack">
               {recordCard() ?? codeBox}
               {shopBox}
-              {adminBox}
             </div>
             <div className="beside">{openList}</div>
           </div>
@@ -818,6 +836,15 @@ function GqApp({ onStarted }: { onStarted?: () => void }) {
               )
             }
           />
+        </>
+      )}
+
+      {mode.kind === "lobby" && tab === "admin" && isAdmin && (
+        <>
+          <div className="page-head">
+            <h1>Admin</h1>
+          </div>
+          {adminBox}
         </>
       )}
 

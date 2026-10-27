@@ -11,8 +11,8 @@ export const GC_DECIMALS = 6;
 // decimals): 0.001 per Gamecoin, at most 100 per buy. The price is a ceiling: a cheaper sale note sells first.
 export const GC_PRICE = 1_000n; // base units of the fee asset per whole Gamecoin
 export const MAX_BUY_GC = 100;
-// The account that puts Gamecoin on sale from the game's admin panel (?admin=1); any account's sale note sells.
-export const ADMIN = MAINNET ? "mm1azntuhzd3lwqxs2mmeny202ljy3fxnpm_qr7qqq9wr6w" : "0xc8050a7222eae00145f99cbec61298";
+// The account that puts Gamecoin on sale from the game's Admin tab (shown to its wallet alone); any account's sale note sells.
+export const ADMIN = MAINNET ? "mm1azntuhzd3lwqxs2mmeny202ljy3fxnpm_qr7qqq9wr6w" : "0xc090a2d628ee6f81596347a8ab8073"; // testnet: Gaylord's mtst1arqfpgkk9rhxlq2evdr632uqwvnqsj7k
 
 // The stake of the GeoQuizz UI: the champion puts it in the record note, each rival puts the
 // same amount in their shot note. The contracts only know `min_stake`.
@@ -34,6 +34,7 @@ export const TEST_ACCOUNTS = ["0x071d3da3ad56d88175b628f76073cb", "0x35b6665ae25
 // Where the assembled note scripts live (written by `cargo run --bin build_scripts`).
 export const RECORD_SCRIPT_URL = "/scripts/record.bin";
 export const SHOT_SCRIPT_URL = "/scripts/shot.bin";
+export const SALE_SCRIPT_URL = "/scripts/sale.bin";
 // masm/challenge/challenge_core.masm CLAIM_FUZZ: how late a claim proved before a deadline may land.
 export const CLAIM_FUZZ = 64;
 
