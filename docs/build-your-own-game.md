@@ -150,6 +150,11 @@ for every game. Pick Up Boomers does.
 - Buy: consume the sale note with the note argument `[usdcx_paid, 0, 0, 0]` in base units (`buyGamecoin`
   in `bread.ts`). At 0.001, 100,000 pays 0.1 USDCx for 100 GC. No minimum; GeoQuizz's 100 per buy is its
   screen only. A take with no amount fails, unless the seller takes the sale back.
+- The SDK's PSWAP helpers (`newPswapConsumeTransactionRequest` and `pswapConsume` on the web,
+  `PswapNote` in Rust) refuse sale notes because they check the script root. Build the buy yourself: the
+  sale note as an explicit input with that argument and nothing else (`withExplicitInputNote` in
+  `buyGamecoin`). An app or wallet that already reads standard PSWAP notes only has to accept the sale
+  root as well: storage, assets and tag are the same.
 - Copy `shop.ts`: `decodeSale`, `acceptSale` (the right two faucets, a price you accept) and `pickSale`
   (cheapest first, never the buyer's own: a creator consuming its sale note takes the rest back).
 
