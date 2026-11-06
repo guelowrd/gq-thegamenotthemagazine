@@ -153,7 +153,7 @@ export async function postRecord(client: Client, wallet: Wallet, storage: Challe
 /** Rival: post a shot note at `record`, staking `record.storage.minStake`. */
 export async function postShot(client: Client, wallet: Wallet, record: ChallengeNote, me: AccountFelts): Promise<Submitted & { deadline: number }> {
   const { shot } = await loadScripts();
-  const deadline = (await client.getSyncHeight()) + SHOT_WINDOW_BLOCKS;
+  const deadline = (await tip()) + SHOT_WINDOW_BLOCKS; // the node's tip: the page's last sync can be 10 blocks behind it
   const storage = shotStorage(record.storage, me, record.idWord, deadline);
   const felts = encodeStorage(storage);
   const serial = randomSeed();
