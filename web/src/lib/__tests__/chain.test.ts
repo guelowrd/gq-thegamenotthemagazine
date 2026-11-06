@@ -27,11 +27,14 @@ describe("tagScanner", () => {
     const decode = vi.fn((_input: unknown, id: string) => (id === "b" ? { id } : { id, kept: true }));
     const seen: unknown[] = [];
     const stop = scanProgress.subscribe(() => seen.push(scanProgress.get()));
-    expect(await scan(10, decode)).toEqual([
+    const early = vi.fn();
+    expect(await scan(10, decode, early)).toEqual([
       { id: "a", kept: true, createdAt: 3, consumed: true, consumedAt: 7, nullifier: NULLIFIER.a },
       { id: "b", createdAt: 3, consumed: false, nullifier: NULLIFIER.b },
     ]);
     expect(decode).toHaveBeenCalledTimes(2);
+    // both notes handed over as decoded, none known as used yet
+    expect(early).toHaveBeenCalledWith([expect.objectContaining({ id: "a", consumed: false }), expect.objectContaining({ id: "b", consumed: false })]);
     // the read reports its progress over the used-note checks, then clears it
     expect(seen).toEqual([{ done: 0, total: 2 }, { done: 2, total: 2 }, null]);
     stop();

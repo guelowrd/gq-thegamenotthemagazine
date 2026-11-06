@@ -147,6 +147,17 @@ describe("1P stages", () => {
     expect(screen.queryByRole("button", { name: "Europe" })).toBeNull();
   });
 
+  it("shows the tiles as soon as the notes are decoded, before the node says which are used", async () => {
+    const mine = (id: string, target: number) => ({ ...prize, id, createdAt: 5, storage: { ...storage, champion: me, target } });
+    vi.mocked(listChallengeNotes).mockImplementationOnce((_h, early) => {
+      early?.([mine("0xa", 5200), mine("0xb", 100), mine("0xc", 100)]);
+      return new Promise(() => {}); // the used-note checks never finish
+    });
+    await start();
+    expect(await screen.findByRole("button", { name: "Europe" })).toBeEnabled();
+    expect(screen.queryByText(/loading bonus maps/i)).toBeNull();
+  });
+
   it("need both: one 6500 record opens America alone, four small ones open nothing", async () => {
     const mine = (id: string, target: number) => ({ ...prize, id, createdAt: 5, storage: { ...storage, champion: me, target } });
     chain.notes = [mine("0xa", 6500)];

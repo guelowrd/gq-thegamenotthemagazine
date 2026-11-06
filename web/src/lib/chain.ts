@@ -149,7 +149,8 @@ export function tagScanner<T extends { id: string }>(tag: number) {
   const seen = new Map<string, Scanned<T>>();
   // the node answers the whole chain in one request
   let scannedTo = -1;
-  return async (tip: number, decode: (input: InputNote, id: string) => T | null): Promise<Scanned<T>[]> => {
+  /** `onDecoded`: every note as decoded, before the node says which are used (unlocks only need my own records). */
+  return async (tip: number, decode: (input: InputNote, id: string) => T | null, onDecoded?: (notes: Scanned<T>[]) => void): Promise<Scanned<T>[]> => {
     const rpc = new RpcClient(endpoint());
     try {
       const ids: NoteId[] = [];
@@ -159,14 +160,18 @@ export function tagScanner<T extends { id: string }>(tag: number) {
         if (info.blockTo() <= scannedTo) break;
         scannedTo = info.blockTo();
       }
-      for (let i = 0; i < ids.length; i += 50) {
-        for (const f of await rpc.getNotesById(ids.slice(i, i + 50))) {
+      // the pages all at once (one after the other: 2 s for 500 notes, together: 0.3 s)
+      const pages: NoteId[][] = [];
+      for (let i = 0; i < ids.length; i += 50) pages.push(ids.slice(i, i + 50));
+      for (const page of await Promise.all(pages.map((p) => rpc.getNotesById(p)))) {
+        for (const f of page) {
           const input = f.asInputNote();
           const decoded = input && decode(input, f.noteId.toString());
           if (!input || !decoded) continue;
           seen.set(decoded.id, { ...decoded, createdAt: input.location()?.blockNum(), consumed: false, nullifier: input.note().nullifier().toHex() });
         }
       }
+      onDecoded?.([...seen.values()]);
       // which are used now, and since when
       const open = [...seen.values()].filter((n) => !n.consumed);
       report({ done: 0, total: open.length });
@@ -190,14 +195,21 @@ export function tagScanner<T extends { id: string }>(tag: number) {
 const scanGame = tagScanner<Pick<ChallengeNote, "id" | "idWord" | "kind" | "storage" | "faucet" | "amount">>(NOTE_TAG);
 let scanning: Promise<ChallengeNote[]> | null = null;
 
-/** Every record and shot note, newest first, read from the node (the game's notes are public, under its tag). */
-export function listChallengeNotes(tip: number): Promise<ChallengeNote[]> {
+/**
+ * Every record and shot note, newest first, read from the node (the game's notes are public, under its
+ * tag). `onDecoded` gets them early, before the node says which are used.
+ */
+export function listChallengeNotes(tip: number, onDecoded?: (notes: ChallengeNote[]) => void): Promise<ChallengeNote[]> {
   return (scanning ??= (async () => {
     const scripts = await loadScripts();
-    const notes = await scanGame(tip, (input, id) => {
-      const decoded = decodeNote(input, scripts);
-      return decoded && { id, idWord: wordFromHex(id), ...decoded };
-    });
+    const notes = await scanGame(
+      tip,
+      (input, id) => {
+        const decoded = decodeNote(input, scripts);
+        return decoded && { id, idWord: wordFromHex(id), ...decoded };
+      },
+      onDecoded,
+    );
     return notes.sort((a, b) => (b.createdAt ?? Infinity) - (a.createdAt ?? Infinity));
   })().finally(() => (scanning = null)));
 }

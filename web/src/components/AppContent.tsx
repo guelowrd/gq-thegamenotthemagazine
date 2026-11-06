@@ -164,6 +164,8 @@ function GqApp({ onStarted }: { onStarted?: () => void }) {
   const [notes, setNotes] = useState<ChallengeNote[]>([]);
   // the first read of every game's notes, history and boards wait for it
   const [notesRead, setNotesRead] = useState(false);
+  // the notes as decoded, before the node says which are used: enough for the 1P map tiles
+  const [decoded, setDecoded] = useState<ChallengeNote[] | null>(null);
   const [height, setHeight] = useState(0);
   const [mode, setMode] = useState<Mode>({ kind: "lobby" });
   const [trouble, setTrouble] = useState<{ t: Trouble; retry?: () => void } | null>(null);
@@ -228,11 +230,11 @@ function GqApp({ onStarted }: { onStarted?: () => void }) {
   }, [publicNotes, meKey]);
   const nameOf = (a: AccountFelts) => names.get(keyOf(a)) ?? lettersBackward(bech32Of(a)).slice(0, 3);
   /** The records I posted, on any map: how many and the best unlock the 1P stages. A shot at anyone's record needs none. */
-  const myRecords = notes.filter((n) => n.kind === "record" && sameAccount(n.storage.champion, me));
+  const myRecords = (notesRead ? notes : (decoded ?? [])).filter((n) => n.kind === "record" && sameAccount(n.storage.champion, me));
   const myBest = Math.max(0, ...myRecords.map((n) => n.storage.target));
   const unlocked = (s: GameStage) => s.threshold <= myBest && s.records <= myRecords.length;
-  /** The tiles appear once they can tell locked from open: the notes read and the wallet back. */
-  const stagesKnown = notesRead && (!!me || !wallet.connecting);
+  /** The tiles appear once they can tell locked from open: the notes decoded and the wallet back. */
+  const stagesKnown = (notesRead || !!decoded) && (!!me || !wallet.connecting);
 
   /** A failure in plain words, with a way to try again when there is one. */
   const oops = (e: unknown, retry?: () => void) => setTrouble({ t: explain(e), retry });
@@ -278,7 +280,7 @@ function GqApp({ onStarted }: { onStarted?: () => void }) {
         const h = await withTimeout(runExclusive(() => syncNotes(client)), 30_000, "Syncing");
         setHeight(h);
         if (withNotes) {
-          setNotes(await listChallengeNotes(h));
+          setNotes(await listChallengeNotes(h, setDecoded));
           notesReadRef.current = true;
           setNotesRead(true);
         }
