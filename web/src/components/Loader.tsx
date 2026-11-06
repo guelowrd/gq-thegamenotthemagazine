@@ -23,7 +23,7 @@ export function Loader() {
       {p && (
         <span className="count">
           {p.done} / {p.total}
-          {left > 0 && ` · ~${left} s`}
+          {left > 0 && ` · ${left} s`}
         </span>
       )}
       <span className="bar" aria-hidden="true">
