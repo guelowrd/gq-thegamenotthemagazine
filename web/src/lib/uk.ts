@@ -225,4 +225,5 @@ export const UK: Record<string, string> = {
   Map: "Карта",
   "All maps": "Усі карти",
   Champion: "Чемпіон",
+  "Reading the games": "Читаємо ігри",
 };

@@ -225,4 +225,5 @@ export const TR: Record<string, string> = {
   Map: "Harita",
   "All maps": "Tüm haritalar",
   Champion: "Şampiyon",
+  "Reading the games": "Oyunlar okunuyor",
 };

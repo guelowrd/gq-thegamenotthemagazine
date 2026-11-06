@@ -4,6 +4,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { blockTime } from "@/lib/chain";
 import { whenLabel, type HistoryItem } from "@/lib/hub";
 import { useT } from "@/lib/i18n";
+import { Loader } from "./Loader";
 
 const PAGE = 10;
 const FILTERS = [
@@ -62,9 +63,7 @@ export function History({ items, connect }: { items: HistoryItem[] | null; conne
         connect
       ) : items === null ? (
         <div aria-busy="true">
-          <p className="loader-label" role="status">
-            {t("Loading")}
-          </p>
+          <Loader />
           {[0, 1, 2].map((i) => (
             <div key={i} className="loading-history" aria-hidden="true">
               <i className="skeleton small" />

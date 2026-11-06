@@ -245,6 +245,7 @@ const ES: Record<string, string> = {
   Map: "Mapa",
   "All maps": "Todos los mapas",
   Champion: "Campeón",
+  "Reading the games": "Leyendo las partidas",
 };
 
 /** Every line of `d` with each `[from, to]` pair swapped. */

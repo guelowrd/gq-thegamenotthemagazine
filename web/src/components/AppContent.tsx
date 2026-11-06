@@ -30,6 +30,7 @@ import { type Tab } from "@/lib/tabs";
 import { StageTiles } from "./StageTiles";
 import { Welcome } from "./Welcome";
 import { WorldMap } from "./WorldMap";
+import { Loader } from "./Loader";
 
 type Mode =
   | { kind: "lobby" }
@@ -608,7 +609,7 @@ function GqApp({ onStarted }: { onStarted?: () => void }) {
         {refreshButton}
       </div>
       {!notesRead ? (
-        <p className="muted">{t("Loading…")}</p>
+        <Loader />
       ) : openRecords.length === 0 ? (
         <p className="muted">{t("No open challenges yet.")}</p>
       ) : (

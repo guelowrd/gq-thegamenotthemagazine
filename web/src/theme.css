@@ -46,7 +46,7 @@ html[lang="ko"] { --body: "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR"
 html.pixel12 h1, html.pixel12 .big-score { font-size: 36px; }
 html.pixel12 h2, html.pixel12 h3, html.pixel12 .btn, html.pixel12 .banner, html.pixel12 .card .score, html.pixel12 .history-score, html.pixel12 .history-item .money-label, html.pixel12 .history-filters button { font-size: 24px; }
 html.pixel12 .hud .city { font-size: 36px; }
-html.pixel12 .eyebrow, html.pixel12 .panel-title, html.pixel12 .masthead nav button, html.pixel12 .masthead .sound, html.pixel12 .masthead .wallet, html.pixel12 .masthead .testnet, html.pixel12 .masthead .net, html.pixel12 .history-item .eyebrow, html.pixel12 .history-day-title, html.pixel12 .rotate-hint, html.pixel12 .hud .rival .bubble, html.pixel12 .panel .deadline, html.pixel12 .hud .deadline, html.pixel12 .loader-label, html.pixel12 .panel-title .btn, html.pixel12 .board-tabs .btn, html.pixel12 .record-tabs .btn { font-size: 12px; }
+html.pixel12 .eyebrow, html.pixel12 .panel-title, html.pixel12 .masthead nav button, html.pixel12 .masthead .sound, html.pixel12 .masthead .wallet, html.pixel12 .masthead .testnet, html.pixel12 .masthead .net, html.pixel12 .history-item .eyebrow, html.pixel12 .history-day-title, html.pixel12 .rotate-hint, html.pixel12 .hud .rival .bubble, html.pixel12 .panel .deadline, html.pixel12 .hud .deadline, html.pixel12 .loader, html.pixel12 .panel-title .btn, html.pixel12 .board-tabs .btn, html.pixel12 .record-tabs .btn { font-size: 12px; }
 html.pixel12 .history-item p { font-size: 16px; }
 html.pixel12 .small, html.pixel12 .history-item .history-detail, html.pixel12 .history-item .money-note, html.pixel12 .text-link { font-size: 14px; }
 
@@ -331,7 +331,12 @@ table.report td:nth-child(2) { text-align: right; color: var(--muted); }
   .history-item .money-note { font-size: 12px; }
   .history-more .btn { width: 100%; }
 }
-.loader-label { font: 12px/1.6 var(--display); text-transform: uppercase; color: var(--cyan); }
+.loader { display: grid; gap: 6px; margin: 0 0 12px; font: 12px/1.6 var(--display); text-transform: uppercase; color: var(--cyan); }
+.loader .dots::after { content: ""; display: inline-block; width: 1.5em; text-align: left; animation: dots 1.2s steps(1) infinite; }
+.loader .count { color: var(--yellow); }
+.loader .bar { display: flex; gap: 3px; }
+.loader .bar i { flex: 1; height: 10px; background: var(--void); border: 1px solid var(--rule); }
+.loader .bar i.on { background: var(--yellow); border-color: var(--yellow); }
 .skeleton { display: block; height: 12px; background: var(--rule); }
 .skeleton.small { width: 35%; }
 .skeleton.score { height: 22px; width: 55%; margin: 18px 0; }

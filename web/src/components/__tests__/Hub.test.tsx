@@ -6,7 +6,7 @@ import { History } from "../History";
 import { Leaderboards } from "../Leaderboards";
 
 // blocks under 95 were made yesterday
-vi.mock("@/lib/chain", () => ({ blockTime: vi.fn(async (b: number) => Date.now() - (b < 95 ? 86_400_000 : 0)) }));
+vi.mock("@/lib/chain", () => ({ blockTime: vi.fn(async (b: number) => Date.now() - (b < 95 ? 86_400_000 : 0)), scanProgress: { subscribe: () => () => {}, get: () => null } }));
 
 const item = (i: number, kind: "record" | "shot" = "record"): HistoryItem => ({ id: `0x${i}`, kind, at: 100 - i, result: "Defended", context: "", score: i, detail: "5 tries lost", money: "1 Gamecoin back", note: "", tone: "mint", moneyTone: "" });
 

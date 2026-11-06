@@ -225,4 +225,5 @@ export const DE: Record<string, string> = {
   Map: "Karte",
   "All maps": "Alle Karten",
   Champion: "Champion",
+  "Reading the games": "Spiele werden gelesen",
 };

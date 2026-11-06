@@ -225,4 +225,5 @@ export const KO: Record<string, string> = {
   Map: "지도",
   "All maps": "모든 지도",
   Champion: "챔피언",
+  "Reading the games": "게임 읽는 중",
 };

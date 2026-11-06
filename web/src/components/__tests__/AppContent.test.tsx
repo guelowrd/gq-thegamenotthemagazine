@@ -54,6 +54,7 @@ const myShot: ChallengeNote = {
 
 vi.mock("@/lib/chain", () => ({
   accountFelts: () => me,
+  scanProgress: { subscribe: () => () => {}, get: () => null },
   parseAccountId: (s: string) => s,
   fetchChallengeNote: vi.fn(async () => chain.shared),
   listChallengeNotes: vi.fn(async () => chain.notes),

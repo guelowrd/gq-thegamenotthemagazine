@@ -245,4 +245,5 @@ export const ZH: Record<string, string> = {
   Map: "地图",
   "All maps": "所有地图",
   Champion: "冠军",
+  "Reading the games": "正在读取游戏",
 };

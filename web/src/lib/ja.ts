@@ -225,4 +225,5 @@ export const JA: Record<string, string> = {
   Map: "マップ",
   "All maps": "すべてのマップ",
   Champion: "チャンピオン",
+  "Reading the games": "ゲームを読み込み中",
 };

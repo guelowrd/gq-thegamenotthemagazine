@@ -7,6 +7,7 @@ import { sameAccount } from "@/lib/flow";
 import { type boards, type Ranked } from "@/lib/hub";
 import type { AccountFelts } from "@/lib/notes";
 import { useT } from "@/lib/i18n";
+import { Loader } from "./Loader";
 import { STAGES } from "@/lib/stages";
 
 type Boards = ReturnType<typeof boards>;
@@ -56,9 +57,7 @@ export function Leaderboards({ data, me, name, action }: { data: Boards | null; 
         </h3>
         {!b ? (
           <div aria-busy="true">
-            <p className="loader-label" role="status">
-              {t("Loading")}
-            </p>
+            <Loader />
             {[0, 1, 2, 3, 4].map((i) => (
               <div key={i} className="loading-board" aria-hidden="true">
                 <i className="skeleton" />

@@ -225,4 +225,5 @@ export const RU: Record<string, string> = {
   Map: "Карта",
   "All maps": "Все карты",
   Champion: "Чемпион",
+  "Reading the games": "Читаем игры",
 };

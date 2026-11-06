@@ -244,4 +244,5 @@ export const PT_BR: Record<string, string> = {
   Map: "Mapa",
   "All maps": "Todos os mapas",
   Champion: "Campeão",
+  "Reading the games": "Lendo as partidas",
 };

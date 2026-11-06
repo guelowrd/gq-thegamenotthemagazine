@@ -225,4 +225,5 @@ export const ID: Record<string, string> = {
   Map: "Peta",
   "All maps": "Semua peta",
   Champion: "Juara",
+  "Reading the games": "Membaca permainan",
 };
