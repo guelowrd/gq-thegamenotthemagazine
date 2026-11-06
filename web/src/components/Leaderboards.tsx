@@ -7,6 +7,7 @@ import { sameAccount } from "@/lib/flow";
 import { type boards, type Ranked } from "@/lib/hub";
 import type { AccountFelts } from "@/lib/notes";
 import { useT } from "@/lib/i18n";
+import { STAGES } from "@/lib/stages";
 
 type Boards = ReturnType<typeof boards>;
 type Name = keyof Boards;
@@ -30,6 +31,8 @@ export function Leaderboards({ data, me, name, action }: { data: Boards | null; 
   const t = useT();
   const [pick, setPick] = useState<"coins" | "records" | "wins">("coins");
   const [side, setSide] = useState<"defended" | "smashed">("defended");
+  // the records board, one map at a time
+  const [map, setMap] = useState("all");
   const TITLE: Record<Name, string> = { coins: t("Most Gamecoins won"), records: t("Best records"), defended: t("Defended|board"), smashed: t("Smashed"), losers: t("Most lost shots") };
   const UNIT: Record<Name, string> = { coins: t("Gamecoins won"), records: t("Record"), defended: t("Rivals beaten"), smashed: t("Records smashed"), losers: t("Shots lost") };
   const EMPTY: Record<Name, string> = { coins: t("No wins yet."), records: t("No records yet."), defended: t("No rivals beaten yet."), smashed: t("No records yet."), losers: t("No losers yet.") };
@@ -44,10 +47,11 @@ export function Leaderboards({ data, me, name, action }: { data: Boards | null; 
     </tr>
   );
   const board = (k: Name) => {
-    const b = data?.[k];
+    const b = k === "records" && map !== "all" ? data && (data.records.byMap?.[map] ?? { top: [], mine: null }) : data?.[k];
     return (
       <section className={`panel arcade ${COLOR[k]}`} data-board={k}>
         <h3>{TITLE[k]}</h3>
+        {k === "records" && <Tabs items={[["all", t("All maps")], ...STAGES.map((s) => [s.name, t(s.name)] as [string, string])]} value={map} onPick={setMap} className="map-tabs" />}
         {!b ? (
           <div aria-busy="true">
             <p className="loader-label" role="status">

@@ -28,7 +28,7 @@ export function Play({
   places: Place[];
   onDone: (r: PlayResult) => void;
   /** Playing a shot: the rival sprite and the shot clock (blocks left) show in the HUD. */
-  rival?: { blocksLeft: number };
+  rival?: { blocksLeft: number; /** the champion's arcade name */ name: string };
   stage: Stage;
 }) {
   const t = useT();
@@ -130,7 +130,11 @@ export function Play({
           {rival && (
             <div className="rival">
               <img src="/brand/rival.svg" alt="" width={130} height={160} />
-              <div className="bubble">{t("Beat my record!")}</div>
+              <div className="bubble">
+                {rival.name}
+                <br />
+                {t("Beat my record!")}
+              </div>
             </div>
           )}
           <div className="eyebrow">{t("City {n} / {total}", { n: String(round + 1).padStart(2, "0"), total: cities.length })}</div>

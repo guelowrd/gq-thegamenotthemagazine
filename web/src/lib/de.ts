@@ -223,4 +223,6 @@ export const DE: Record<string, string> = {
   "{r} records, 1 above {n}": "{r} Rekorde, 1 über {n}",
   Stages: "Stufen",
   Map: "Karte",
+  "All maps": "Alle Karten",
+  Champion: "Champion",
 };

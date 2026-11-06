@@ -223,4 +223,6 @@ export const RU: Record<string, string> = {
   "{r} records, 1 above {n}": "{r} рекорда, 1 выше {n}",
   Stages: "Этапы",
   Map: "Карта",
+  "All maps": "Все карты",
+  Champion: "Чемпион",
 };

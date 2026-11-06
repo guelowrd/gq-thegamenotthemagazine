@@ -528,6 +528,19 @@ describe("welcome and 1P World Tour", () => {
     }
   });
 
+  it("the records board filters by map, ranks starting again at 01", async () => {
+    const asia = encodeGame({ seed: [0n, 0n, 0n, 0n], dataset: [9n, 9n, 9n, 9n], cities });
+    chain.notes = [{ ...prize, createdAt: 5 }, { ...prize, id: "0xasia", createdAt: 6, storage: { ...prize.storage, target: 1500, game: asia } }];
+    await start(/leaderboards/i);
+    const board = (await screen.findByText("Best records")).closest("section")!;
+    expect(within(board).getByText("2,000")).toBeInTheDocument();
+    fireEvent.click(within(board).getByRole("button", { name: "Asia" }));
+    expect(within(board).queryByText("2,000")).toBeNull();
+    expect(within(board).getByText("1,500").closest("tr")).toHaveTextContent("01");
+    fireEvent.click(within(board).getByRole("button", { name: "All maps" }));
+    expect(within(board).getByText("2,000").closest("tr")).toHaveTextContent("01");
+  });
+
   it("keeps the development wallets' test rounds off the boards", async () => {
     chain.notes = [{ ...prize, createdAt: 5 }, { ...prize, id: "0xt", createdAt: 6, storage: { ...prize.storage, champion: me, target: 9690 } }];
     vi.mocked(hexOf).mockImplementation((a) => (a === me ? "0x071d3da3ad56d88175b628f76073cb" : "0xreal"));
@@ -640,6 +653,9 @@ describe("open challenges in Champion vs Rival", () => {
     await start(/^champion vs rival$/i);
     fireEvent.click(await screen.findByRole("button", { name: "View challenge, 3,100 pts, World" }));
     expect(document.activeElement).toBe(screen.getByText("3,100 pts to beat").closest("section"));
+    // the card names the champion in place of the stake (the prize line already says a Gamecoin)
+    expect(screen.getByText("Champion")).toBeInTheDocument();
+    expect(screen.queryByText("One shot")).toBeNull();
     expect(fetchChallengeNote).toHaveBeenCalledWith("0xo");
     expect(await screen.findByText(/this one is over/i)).toBeInTheDocument();
   });

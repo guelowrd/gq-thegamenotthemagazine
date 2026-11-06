@@ -223,4 +223,6 @@ export const JA: Record<string, string> = {
   "{r} records, 1 above {n}": "記録 {r} つ、1 つは {n} 点以上",
   Stages: "ステージ",
   Map: "マップ",
+  "All maps": "すべてのマップ",
+  Champion: "チャンピオン",
 };

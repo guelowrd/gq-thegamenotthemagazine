@@ -223,4 +223,6 @@ export const ID: Record<string, string> = {
   "{r} records, 1 above {n}": "{r} rekor, 1 di atas {n}",
   Stages: "Tahap",
   Map: "Peta",
+  "All maps": "Semua peta",
+  Champion: "Juara",
 };

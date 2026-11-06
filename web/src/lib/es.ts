@@ -243,6 +243,8 @@ const ES: Record<string, string> = {
   "{r} records, 1 above {n}": "{r} récords, 1 de más de {n}",
   Stages: "Etapas",
   Map: "Mapa",
+  "All maps": "Todos los mapas",
+  Champion: "Campeón",
 };
 
 /** Every line of `d` with each `[from, to]` pair swapped. */

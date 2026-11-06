@@ -223,4 +223,6 @@ export const KO: Record<string, string> = {
   "{r} records, 1 above {n}": "기록 {r}개, 1개는 {n}점 이상",
   Stages: "스테이지",
   Map: "지도",
+  "All maps": "모든 지도",
+  Champion: "챔피언",
 };

@@ -363,6 +363,8 @@ table.report td:nth-child(2) { text-align: right; color: var(--muted); }
 .loading-board { display: flex; justify-content: space-between; gap: 36px; padding: 12px 8px; }
 .loading-board .skeleton { width: 24%; }
 .board-tabs, .record-tabs { display: none; }
+.map-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.map-tabs .btn { flex: 1; min-width: 0; margin: 0; padding: 6px 2px; font-size: 11px; min-height: 30px; }
 @media (max-width: 960px) {
   .boards-grid, .wins-pair { display: block; }
   .board-tabs, .record-tabs { display: flex; gap: 8px; margin-bottom: 20px; }

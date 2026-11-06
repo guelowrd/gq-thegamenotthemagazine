@@ -619,6 +619,7 @@ function GqApp({ onStarted }: { onStarted?: () => void }) {
               <div>
                 <div className="value">{t("{n} pts", { n: n.storage.target.toLocaleString() })}</div>
                 {map && <div className="small tag">{t(map)}</div>}
+                <div className="small muted">{t("Champion")}: {nameOf(n.storage.champion)}</div>
                 <div className="small muted">
                   <EndsIn until={blockToMs(n.storage.expiryBlock, height)} />
                 </div>
@@ -663,8 +664,8 @@ function GqApp({ onStarted }: { onStarted?: () => void }) {
           <span className="value">{fmtGamecoin(record.amount, t)}</span>
         </div>
         <div className="row">
-          <span>{t("One shot")}</span>
-          <span className="value">{fmtGamecoin(record.storage.minStake, t)}</span>
+          <span>{t("Champion")}</span>
+          <span className="value">{nameOf(record.storage.champion)}</span>
         </div>
         {state === "mine" && <p className="muted">{t("This is yours.")}</p>}
         {state === "open" && (
@@ -872,7 +873,7 @@ function GqApp({ onStarted }: { onStarted?: () => void }) {
           stage={gameStage(mode.shots[0].storage.game) ?? WORLD}
           cities={decodeGame(mode.shots[0].storage.game).cities}
           places={placesOf(gameStage(mode.shots[0].storage.game))}
-          rival={{ blocksLeft: shotDeadline(mode.shots[0].storage) - height }}
+          rival={{ blocksLeft: shotDeadline(mode.shots[0].storage) - height, name: nameOf(mode.shots[0].storage.champion) }}
           onDone={settleAfterPlay(mode.shots, mode.record)}
         />
       )}

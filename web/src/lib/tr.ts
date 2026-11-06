@@ -223,4 +223,6 @@ export const TR: Record<string, string> = {
   "{r} records, 1 above {n}": "{r} rekor, 1'i {n} üzerinde",
   Stages: "Aşamalar",
   Map: "Harita",
+  "All maps": "Tüm haritalar",
+  Champion: "Şampiyon",
 };

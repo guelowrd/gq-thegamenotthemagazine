@@ -243,4 +243,6 @@ export const ZH: Record<string, string> = {
   "{r} records, 1 above {n}": "{r} 项纪录，1 项 {n} 分以上",
   Stages: "关卡",
   Map: "地图",
+  "All maps": "所有地图",
+  Champion: "冠军",
 };

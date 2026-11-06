@@ -245,6 +245,8 @@ export const FR_FR: Record<string, string> = {
   "{r} records, 1 above {n}": "{r} records, 1 de plus de {n}",
   Stages: "Étapes",
   Map: "Carte",
+  "All maps": "Toutes les cartes",
+  Champion: "Champion",
 };
 
 export const FR_CA = swap(FR_FR, [["le wallet", "le portefeuille"], ["Wallet", "Portefeuille"], ["wallet", "portefeuille"], ["votre téléphone", "votre cellulaire"], [" ?", "?"], [" !", "!"], [" ;", ";"]]);
