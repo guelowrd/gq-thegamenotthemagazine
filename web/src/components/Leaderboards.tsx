@@ -50,8 +50,10 @@ export function Leaderboards({ data, me, name, action }: { data: Boards | null; 
     const b = k === "records" && map !== "all" ? data && (data.records.byMap?.[map] ?? { top: [], mine: null }) : data?.[k];
     return (
       <section className={`panel arcade ${COLOR[k]}`} data-board={k}>
-        <h3>{TITLE[k]}</h3>
-        {k === "records" && <Tabs items={[["all", t("All maps")], ...STAGES.map((s) => [s.name, t(s.name)] as [string, string])]} value={map} onPick={setMap} className="map-tabs" />}
+        <h3>
+          {TITLE[k]}
+          {k === "records" && <Tabs items={[["all", t("All maps")], ...STAGES.map((s) => [s.name, t(s.name)] as [string, string])]} value={map} onPick={setMap} className="map-tabs" />}
+        </h3>
         {!b ? (
           <div aria-busy="true">
             <p className="loader-label" role="status">

@@ -157,7 +157,7 @@ export function history(notes: ChallengeNote[], me: AccountFelts, height: number
 }
 
 export type Ranked = { key: string; who: AccountFelts; value: number; at: number; rank: number; /** a record's map, a t() key (stageTag) */ tag?: string };
-/** The top rows (10, 100 records), and my best row when I am not among them. */
+/** The top ten rows, and my best row when I am not among them. */
 type Board = { top: Ranked[]; mine: Ranked | null; /** the records board again, per map */ byMap?: Record<string, Board> };
 type Event = { who: AccountFelts; value: number; at: number };
 
@@ -184,7 +184,7 @@ export const stageTag = (game: bigint[]): string | undefined => gameStage(game)?
 
 /**
  * The four boards. Gamecoins won: lost shots a champion took, plus prizes (a winner's own Gamecoin
- * coming back is not a win). Best records: every record posted, by its score, a hundred of them. Defended: every rival who lost at
+ * coming back is not a win). Best records: every record posted, by its score. Defended: every rival who lost at
  * one of the champion's records, open or not. Smashed: records a rival took. Losers: shots a rival
  * lost, the other side of Defended.
  */
@@ -211,8 +211,8 @@ export function boards(notes: ChallengeNote[], height: number, me: AccountFelts 
   }
   const records = notes.filter((n) => n.kind === "record").map((n) => ({ key: n.id, who: n.storage.champion, value: n.storage.target, at: n.createdAt ?? Infinity, tag: stageTag(n.storage.game) }));
   const maps = [...new Set(records.map((r) => r.tag).filter((tag): tag is string => !!tag))];
-  const byMap = Object.fromEntries(maps.map((tag) => [tag, rank(records.filter((r) => r.tag === tag), me, 100)]));
-  return { coins: rank(tally(coins), me), records: { ...rank(records, me, 100), byMap }, defended: rank(tally(defended), me), smashed: rank(tally(smashed), me), losers: rank(tally(losers), me) };
+  const byMap = Object.fromEntries(maps.map((tag) => [tag, rank(records.filter((r) => r.tag === tag), me)]));
+  return { coins: rank(tally(coins), me), records: { ...rank(records, me), byMap }, defended: rank(tally(defended), me), smashed: rank(tally(smashed), me), losers: rank(tally(losers), me) };
 }
 
 /** A time, arcade style and local: TODAY 18:42, YESTERDAY 21:10, TOMORROW 09:05, 08 OCT 20:14 (in Chinese 10月08日 20:14). */

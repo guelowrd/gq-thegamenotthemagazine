@@ -175,17 +175,15 @@ describe("boards", () => {
     expect(boards(notes, 400, ME).losers.top.map((r) => [name(r.who), r.value])).toEqual([["MUD", 2], ["KQX", 1]]);
   });
 
-  it("best records: up to 100 by score, names may repeat, a tie goes to the first posted, my best row below only past them", () => {
+  it("best records: the top ten by score, names may repeat, a tie goes to the first posted, my best row below only past them", () => {
     const notes = [record(ME, 50), ...Array.from({ length: 11 }, (_, i) => record(i % 2 ? KQX : MUD, 1000 - i * 10)), record(ME, 40)];
     notes.push(record(MUD, 1000, { createdAt: 999 }));
     const { records } = boards(notes, 0, ME);
-    expect(records.top).toHaveLength(14);
+    expect(records.top).toHaveLength(10);
     expect(records.top.slice(0, 3).map((r) => [name(r.who), r.value])).toEqual([["MUD", 1000], ["MUD", 1000], ["KQX", 990]]);
     expect(records.top[1].at).toBe(999);
-    expect(records.top[12].rank).toBe(13);
-    expect(records.mine).toBeNull();
-    const many = Array.from({ length: 101 }, (_, i) => record(KQX, 5000 - i));
-    expect(boards([...many, record(ME, 1)], 0, ME).records).toMatchObject({ top: expect.objectContaining({ length: 100 }), mine: { rank: 102, value: 1 } });
+    expect(records.top[9].rank).toBe(10);
+    expect(records.mine).toMatchObject({ rank: 13, value: 50 });
   });
 });
 
