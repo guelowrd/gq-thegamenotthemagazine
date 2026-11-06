@@ -68,9 +68,9 @@ cd web && yarn install && yarn dev          # http://localhost:5173
    record, one per shot.
 3. Play the 1P World Tour, then "Post it" to post your record (1 GC). Another account opens the shared link
    and clicks "Insert Gamecoin". A win settles (Gamecoin back, plus the prize if you claimed first); a
-   loss signs nothing, the champion collects the Gamecoin 64 blocks after the shot deadline (~5 min).
+   loss signs nothing, the champion collects the Gamecoin 64 blocks after the shot deadline (~4 min).
 4. The Player Hub only ever shows your own notes: "My record" cards ("Take it back" 64 blocks after expiry),
-   "My shot" cards ("Play" again on a loss while the deadline holds), "For you" cards (lost shots
+   "My shot" cards (no second play: one shot is one play), "For you" cards (lost shots
    at your records, "Take it" 64 blocks after their deadline).
 5. Share: after posting, the champion gets "Share on X" and a link of the form
    `<app>/?record=<note id>`. Opening it loads the record
@@ -115,6 +115,6 @@ not synced up to the block the request binds yet; the app retries at the fresh t
 1 Gamecoin and your wallet holds 0 Gamecoins" error means the wallet has no Gamecoin yet: press "Get Gamecoins". A transaction that fails with
 `assertion failed with error code: <number>` failed inside the note scripts;
 `cargo run --release --bin probe` prints the code of every message (for example
-`14434107113890732517` = "challenge: the deadline has passed", normal after ~5 min;
+`14434107113890732517` = "challenge: the deadline has passed", normal after ~4 min;
 `gq: the advice map does not hold the answers the note argument commits to` when the answers
 and their commitment disagree).

@@ -2,9 +2,9 @@
 // A shot of mine past its deadline is lost: it shows in History, not here.
 
 import type { ChallengeNote } from "@/lib/chain";
-import { blocksToClock, blockToMs, fmtGamecoin, sameAccount, sameWord } from "@/lib/flow";
+import { blocksToClock, blockToMs, fmtGamecoin, sameAccount } from "@/lib/flow";
 import { owed, stageTag, triesLost, whenLabel } from "@/lib/hub";
-import { cityNames, gameStage, recordCities, type Place, type Word4 } from "@/lib/quiz";
+import { cityNames, gameStage, recordCities, type Place } from "@/lib/quiz";
 import { CLAIM_FUZZ } from "@/config";
 import { noteDeadline as deadline, type AccountFelts } from "@/lib/notes";
 import { ShareButtons } from "./ShareButtons";
@@ -16,15 +16,13 @@ type LobbyProps = {
   height: number;
   /** the city list a note's game data plays on, English names for the post */
   places: (game: bigint[]) => Place[];
-  onSettle: (shot: ChallengeNote, record: ChallengeNote | undefined) => void;
   onCollect: (notes: ChallengeNote[]) => void;
 };
 
-export function Lobby({ me, notes, height, places, onSettle, onCollect }: LobbyProps) {
+export function Lobby({ me, notes, height, places, onCollect }: LobbyProps) {
   const t = useT();
   const records = notes.filter((n) => n.kind === "record" && !n.consumed);
   const shots = notes.filter((n) => n.kind === "shot" && !n.consumed);
-  const recordById = (idWord: Word4) => notes.find((n) => n.kind === "record" && sameWord(n.idWord, idWord));
   const expired = (n: ChallengeNote) => height >= deadline(n);
   // everything the champion can take now goes in one transaction: one wallet approval
   const ready = owed(notes, height, me);
@@ -75,7 +73,6 @@ export function Lobby({ me, notes, height, places, onSettle, onCollect }: LobbyP
       })}
 
       {myShots.map((c) => {
-          const record = recordById(c.storage.recordId);
           const tag = stageTag(c.storage.game);
           return (
             <section key={c.id} className="panel card pink">
@@ -85,9 +82,6 @@ export function Lobby({ me, notes, height, places, onSettle, onCollect }: LobbyP
                 {tag && <span className="tag"> {t(tag)}</span>}
               </div>
               <p className="muted">{t("{gc} on the table", { gc: fmtGamecoin(c.amount, t) })}</p>
-              <button className="btn primary" onClick={() => onSettle(c, record && !record.consumed ? record : undefined)}>
-                {t("Play")}
-              </button>
             </section>
           );
         })}

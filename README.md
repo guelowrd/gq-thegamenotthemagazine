@@ -63,7 +63,7 @@ shot at it must have and compares the storage hash.
 | 3     | min_stake      | the stake (one Gamecoin)                         | copied                      |
 | 4     | expiry_block   | record's end (~64 h)                            | copied                      |
 | 5-6   | rival          | 0, 0                                            | rival [suffix, prefix]      |
-| 7     | shot_deadline  | 0                                               | shot's end (~5 min)         |
+| 7     | shot_deadline  | 0                                               | shot's end (~4 min)         |
 | 8-11  | RECORD_ID      | 0                                               | the record note's id        |
 | 12-15 | SHOT_ROOT      | shot.masm script root                           | copied                      |
 | 16-63 | game data      | seed(4), dataset(4), 10 × [city, lat, lon, cos] | copied                      |

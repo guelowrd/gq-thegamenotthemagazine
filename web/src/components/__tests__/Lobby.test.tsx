@@ -37,7 +37,7 @@ const myShot: ChallengeNote = {
   consumed: false,
 };
 
-const props = () => ({ places: () => places, onSettle: vi.fn(), onCollect: vi.fn() });
+const props = () => ({ places: () => places, onCollect: vi.fn() });
 
 describe("Lobby", () => {
   it("never lists other people's records: those are in Champion vs Rival", () => {
@@ -65,11 +65,11 @@ describe("Lobby", () => {
     expect(h.onCollect).toHaveBeenCalledWith([prize]);
   });
 
-  it("offers Play & settle on my open shot with its record; once its deadline passed the card is gone (it is history)", () => {
+  it("shows my open shot with no Play button (one shot, no second try); once its deadline passed the card is gone (it is history)", () => {
     const h = props();
     const { rerender } = render(<Lobby me={me} notes={[prize, myShot]} height={100} {...h} />);
-    fireEvent.click(screen.getByRole("button", { name: /^play$/i }));
-    expect(h.onSettle).toHaveBeenCalledWith(myShot, prize);
+    expect(screen.getByText(/my shot/i)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^play$/i })).toBeNull();
     rerender(<Lobby me={me} notes={[prize, myShot]} height={200} {...h} />);
     expect(screen.queryByText(/my shot/i)).toBeNull();
   });

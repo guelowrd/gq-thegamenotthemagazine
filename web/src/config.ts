@@ -23,8 +23,8 @@ export const BLOCK_SECONDS = MAINNET ? 3.25 : 3;
 export const RECORD_LIFETIME_BLOCKS = Math.round((64 * 3600) / BLOCK_SECONDS); // 76 800 on testnet
 // A shot must be settled within ~1 play of the game, so a rival cannot sit on a stake and rehearse
 // the same ten cities: the shot lands (~25 s), the quiz runs (10 cities x 15 s + 1.5 s between), then
-// the claim goes through Bread (~60 s). 5 min holds one play with slack and never two.
-export const SHOT_WINDOW_BLOCKS = Math.round((5 * 60) / BLOCK_SECONDS); // 100 on testnet
+// the claim goes through Bread (~60 s). 4 min holds one play with slack and never two.
+export const SHOT_WINDOW_BLOCKS = Math.round((4 * 60) / BLOCK_SECONDS); // 80 on testnet
 // Refuse a shot at a record that will expire before the shot window ends.
 export const MIN_SHOT_WINDOW_BLOCKS = SHOT_WINDOW_BLOCKS + 20;
 

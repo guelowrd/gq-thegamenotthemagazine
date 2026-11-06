@@ -14,7 +14,7 @@ import { accountFelts, bech32Of, fetchChallengeNote, hexOf, knownNote, listChall
 import { boards, history as pastGames, keyOf, lettersBackward, nicknames, owed, playersInOrder, stageTag } from "@/lib/hub";
 import { postShot, postRecord, settle, collect, setSubmitAttemptListener, setSubmitStageListener, waitFor, type Submitted, openSale, buyGamecoin, gcBalance } from "@/lib/bread";
 import { shotDeadline, shotStorage, ZERO_WORD, type AccountFelts, type ChallengeStorage } from "@/lib/notes";
-import { blockToMs, breadLink, claimVerdict, explain, fmtGamecoin, NOT_FINISHED, sameAccount, SHOT_LOST, shotRefusal, withoutRecord, withTimeout, type Trouble, myOpenShotsOn as openShotsOn, outcomeText, parseCode, reportRows, settlePlan, sharedRecordState, type ReportRow } from "@/lib/flow";
+import { blockToMs, breadLink, claimVerdict, explain, fmtGamecoin, NOT_FINISHED, sameAccount, SHOT_LOST, shotRefusal, withoutRecord, withTimeout, type Trouble, outcomeText, parseCode, reportRows, settlePlan, sharedRecordState, type ReportRow } from "@/lib/flow";
 import { cityNames, datasetWord, decodeGame, encodeGame, gameStage, quizCities, randomSeed, type Place, type Word4 } from "@/lib/quiz";
 import { registerDataset, STAGES, stageById, WORLD, type Stage as GameStage, type StageId } from "@/lib/stages";
 import { LANGS, LangContext, PIXEL12, storedLang, storeLang, useLang, useT, type Lang } from "@/lib/i18n";
@@ -429,8 +429,6 @@ function GqApp({ onStarted }: { onStarted?: () => void }) {
     );
   }
 
-  const myOpenShotsOn = (record: ChallengeNote) => openShotsOn(notes, me, record, height);
-
   /** Posts the shot note and, once it is on chain, starts the quiz right away. */
   async function takeShot(record: ChallengeNote) {
     const rival = accountFelts(parseAccountId(wallet.address!));
@@ -438,12 +436,6 @@ function GqApp({ onStarted }: { onStarted?: () => void }) {
     if (refusal) return say(refusal);
     const recordStage = gameStage(record.storage.game);
     if (!recordStage) return say(t("This record uses another city list. It can't be played here."));
-    const open = openShotsOn(notes, rival, record, height);
-    if (open.length > 0) {
-      // one Gamecoin per sitting: play the shot already on the table instead of paying again
-      setMode({ kind: "play-rival", shots: open, record });
-      return;
-    }
     if (!(await enoughGc(record.storage.minStake))) return;
     await run(
       t("Inserting your Gamecoin"),
@@ -479,9 +471,8 @@ function GqApp({ onStarted }: { onStarted?: () => void }) {
     const rows = reportRows(decodeGame(shots[0].storage.game).cities, r.answers, placesOf(gameStage(shots[0].storage.game)));
     const claimUntil = blockToMs(shotDeadline(shots[0].storage), height);
     if (!plan.won) {
-      // nothing to sign on a loss: the Gamecoin waits for the champion at the deadline; until then the shot can be played again
-      const retry = plan.again ? () => setMode({ kind: "play-rival", shots, record }) : undefined;
-      setMode({ kind: "done", title: t("The record stands."), text: plan.text, rows, retry, claimUntil });
+      // nothing to sign on a loss: the Gamecoin waits for the champion at the deadline
+      setMode({ kind: "done", title: t("The record stands."), text: plan.text, rows });
       return;
     }
     const claim = (): void =>
@@ -647,7 +638,7 @@ function GqApp({ onStarted }: { onStarted?: () => void }) {
 
   const recordCard = () => {
     if (!record) return null;
-    const state = sharedRecordState(record, me, me ? myOpenShotsOn(record) : [], height);
+    const state = sharedRecordState(record, me, height);
     const recordStage = gameStage(record.storage.game);
     if (state === "claimed" || state === "expired") {
       return (
@@ -676,9 +667,9 @@ function GqApp({ onStarted }: { onStarted?: () => void }) {
           <span className="value">{fmtGamecoin(record.storage.minStake, t)}</span>
         </div>
         {state === "mine" && <p className="muted">{t("This is yours.")}</p>}
-        {(state === "open" || state === "already-challenged") && (
+        {state === "open" && (
           <button className="btn primary wide" onClick={() => withWallet({ kind: "shot", record })}>
-            {state === "open" ? t("Insert Gamecoin") : t("Play")}
+            {t("Insert Gamecoin")}
           </button>
         )}
         <p className="muted terms" style={{ margin: "14px 0 0" }}>
@@ -804,10 +795,6 @@ function GqApp({ onStarted }: { onStarted?: () => void }) {
                 notes={notes}
                 height={height}
                 places={(game) => listOf(gameStage(game))}
-                onSettle={(shot, record) => {
-                  const open = record && me ? myOpenShotsOn(record) : [];
-                  setMode({ kind: "play-rival", shots: open.length > 0 ? open : [shot], record });
-                }}
                 onCollect={(picked) => void run(picked.length > 1 ? t("Taking them") : t("Taking it"), false, () => collect(client, wallet, picked), { kind: "lobby" })}
               />
               {shopBox}

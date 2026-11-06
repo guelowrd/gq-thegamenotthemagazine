@@ -249,12 +249,14 @@ describe("shared record link, connected as a stranger", () => {
     expect(bread.gcBalance).toHaveBeenCalledTimes(2);
   });
 
-  it("does not post a second shot while one is open: it goes straight to the quiz", async () => {
+  it("an open shot of mine earns no free second play: Insert Gamecoin posts a new shot", async () => {
     chain.notes = [prize, myShot];
+    bread.postShot.mockResolvedValue({ txId: "tx", noteIds: ["0xnew"], gc: -1_000_000n, deadline: 220 });
     render(<AppContent />);
-    fireEvent.click(await screen.findByRole("button", { name: /^play$/i }));
+    expect(screen.queryByRole("button", { name: /^play$/i })).toBeNull();
+    fireEvent.click(await screen.findByRole("button", { name: /insert gamecoin/i }));
     await screen.findByText(/find c0!/i);
-    expect(bread.postShot).not.toHaveBeenCalled();
+    expect(bread.postShot).toHaveBeenCalledTimes(1);
   });
 
   it("comes back to the record, error shown, when the wallet never finishes (Bread fails after approval)", async () => {
@@ -482,20 +484,18 @@ describe("welcome and 1P World Tour", () => {
       fireEvent.click(screen.getByRole("button", { name: /^ok$/i }));
       await screen.findByRole("button", { name: /click to start/i });
 
-      // a shot at a record nobody can beat (score 0 is never above the target)
-      chain.notes = [prize, myShot];
+      // a shot at a record nobody can beat (score 0 is never above the target), taken from the Open challenges list
+      chain.notes = [prize];
+      bread.postShot.mockResolvedValue({ txId: "tx", noteIds: ["0xnew"], gc: -1_000_000n, deadline: 220 });
       fireEvent.click(screen.getByRole("button", { name: /click to start/i }));
-      fireEvent.click(screen.getByRole("button", { name: /player hub/i }));
+      fireEvent.click(screen.getByRole("button", { name: /^champion vs rival$/i }));
       fireEvent.click(screen.getByRole("button", { name: /^refresh$/i }));
-      fireEvent.click(await screen.findByRole("button", { name: /^play$/i }));
+      fireEvent.click(await screen.findByRole("button", { name: /view challenge/i }));
+      fireEvent.click(await screen.findByRole("button", { name: /insert gamecoin/i }));
       await playRound();
       await screen.findByText(/the record stands/i);
-      // the shot is still open: the same quiz can be played again without paying
-      expect(screen.getByText(/shot ends: /i)).toBeInTheDocument();
-      fireEvent.click(screen.getByRole("button", { name: /try again/i }));
-      expect(bread.postShot).not.toHaveBeenCalled();
-      await playRound();
-      await screen.findByText(/the record stands/i);
+      // one shot is one play: nothing to try again
+      expect(screen.queryByRole("button", { name: /try again/i })).toBeNull();
       fireEvent.click(screen.getByRole("button", { name: /^ok$/i }));
       await screen.findByRole("button", { name: /click to start/i });
     } finally {
@@ -753,16 +753,12 @@ describe("home, connected", () => {
     expect(bread.buyGamecoin).not.toHaveBeenCalled();
   });
 
-  it("settles all my open shots at the record with one play", async () => {
+  it("lists my open shots in the Hub with no Play: one shot is one play", async () => {
     const second = { ...myShot, id: "0xc2", idWord: [2n, 2n, 2n, 2n] as [bigint, bigint, bigint, bigint] };
     chain.notes = [prize, myShot, second];
     await start(/player hub/i);
-    await screen.findAllByText(/my shot/i);
-    // one "Play" per open shot
-    const buttons = screen.getAllByRole("button", { name: /^play$/i });
-    expect(buttons).toHaveLength(2);
-    fireEvent.click(buttons[0]);
-    await screen.findByText(/find c0!/i);
+    expect(await screen.findAllByText(/my shot/i)).toHaveLength(2);
+    expect(screen.queryByRole("button", { name: /^play$/i })).toBeNull();
   });
 
   it("opens a record from a pasted code", async () => {

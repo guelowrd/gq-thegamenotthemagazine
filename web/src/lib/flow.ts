@@ -1,7 +1,7 @@
 // The app's decisions, as pure functions so they can be tested without React, WASM or Bread.
 
 import type { ChallengeNote } from "./chain";
-import { noteDeadline, shotDeadline, ZERO_WORD, type AccountFelts, type ChallengeStorage, type Word4 } from "./notes";
+import { ZERO_WORD, type AccountFelts, type ChallengeStorage, type Word4 } from "./notes";
 import type { Place } from "./quiz";
 import { BLOCK_SECONDS, CLAIM_FUZZ, GC_DECIMALS, GC_FAUCET, MIN_SHOT_WINDOW_BLOCKS, RECORD_LIFETIME_BLOCKS, STAKE } from "@/config";
 import { QUIZ_MAX, roundScore, type Answer, type City } from "./rules";
@@ -11,28 +11,13 @@ import type { Stage } from "./stages";
 export const sameAccount = (a: AccountFelts | null | undefined, b: AccountFelts | null | undefined) =>
   !!a && !!b && a.suffix === b.suffix && a.prefix === b.prefix;
 
-const isOpen = (n: ChallengeNote, height: number) => !n.consumed && height < noteDeadline(n);
-
-/** My unconsumed, unexpired shot notes at `record`: one play settles all of them. */
-export function myOpenShotsOn(notes: ChallengeNote[], me: AccountFelts | null, record: ChallengeNote, height: number): ChallengeNote[] {
-  if (!me) return [];
-  return notes.filter(
-    (n) =>
-      n.kind === "shot" &&
-      sameAccount(me, n.storage.rival) &&
-      sameWord(n.storage.recordId, record.idWord) &&
-      isOpen(n, height),
-  );
-}
-
-export type SharedRecordState = "open" | "claimed" | "expired" | "mine" | "already-challenged";
+export type SharedRecordState = "open" | "claimed" | "expired" | "mine";
 
 /** What a `?record=<id>` landing page should offer. */
-export function sharedRecordState(record: ChallengeNote, me: AccountFelts | null, myOpen: ChallengeNote[], height: number): SharedRecordState {
+export function sharedRecordState(record: ChallengeNote, me: AccountFelts | null, height: number): SharedRecordState {
   if (record.consumed) return "claimed";
   if (height >= record.storage.expiryBlock) return "expired";
   if (sameAccount(me, record.storage.champion)) return "mine";
-  if (myOpen.length > 0) return "already-challenged";
   return "open";
 }
 
@@ -73,7 +58,7 @@ export function acceptNote(n: { kind: "record" | "shot"; storage: ChallengeStora
 }
 
 /** `again`: a lost shot still open, so the same quiz can be played once more for free. */
-export type SettlePlan = { won: boolean; claimPrize: boolean; again: boolean; text: string };
+export type SettlePlan = { won: boolean; claimPrize: boolean; text: string };
 
 /**
  * After a play: a win settles the open shots (and claims the prize if it is still there);
@@ -84,15 +69,12 @@ export function settlePlan(shots: ChallengeNote[], record: ChallengeNote | undef
   const target = shots[0].storage.target;
   const won = score > target;
   const claimPrize = won && !!record && !record.consumed && record.storage.expiryBlock > height;
-  const again = !won && height < shotDeadline(shots[0].storage);
   const text = claimPrize
     ? t("{score} points. You win!", { score })
     : won
       ? t("{score} points. You beat it, but the prize is gone. Your Gamecoin comes back.", { score })
-      : again
-        ? t("{score} points. Not enough.", { score })
-        : t("{score} points. Not enough. Your Gamecoin goes to the champion.", { score });
-  return { won, claimPrize, again, text };
+      : t("{score} points. Not enough. Your Gamecoin goes to the champion.", { score });
+  return { won, claimPrize, text };
 }
 
 /**

@@ -14,7 +14,6 @@ import {
   withTimeout,
   shotRefusal,
   isChainBehind,
-  myOpenShotsOn,
   fmtGamecoin,
   outcomeText,
   recordLinks,
@@ -54,35 +53,13 @@ const challenge = (rival: typeof me, deadline: number, consumed = false, id = "0
   consumed,
 });
 
-describe("open shots at a record", () => {
-  it("finds every open note of mine on that prize and nothing else", () => {
-    const notes = [
-      challenge(me, 500, false, "0xa"),
-      challenge(me, 500, false, "0xb"),
-      challenge(me, 500, true, "0xconsumed"),
-      challenge(me, 90, false, "0xexpired"),
-      challenge(other, 500, false, "0xtheirs"),
-      { ...challenge(me, 500, false, "0xotherprize"), storage: { ...challenge(me, 500).storage, recordId: [7n, 7n, 7n, 7n] as [bigint, bigint, bigint, bigint] } },
-    ];
-    expect(myOpenShotsOn(notes, me, prize, 100).map((n) => n.id)).toEqual(["0xa", "0xb"]);
-    expect(myOpenShotsOn(notes, null, prize, 100)).toEqual([]);
-  });
-
-  it("a challenge is closed from its own deadline or the prize expiry, whichever first", () => {
-    expect(myOpenShotsOn([challenge(me, 2000)], me, prize, 999)).toHaveLength(1);
-    expect(myOpenShotsOn([challenge(me, 2000)], me, prize, 1000)).toHaveLength(0);
-    expect(myOpenShotsOn([challenge(me, 120)], me, prize, 120)).toHaveLength(0);
-  });
-});
-
 describe("shared record page", () => {
-  it("offers to challenge only an open prize I do not own and have not challenged", () => {
-    expect(sharedRecordState(prize, me, [], 100)).toBe("open");
-    expect(sharedRecordState({ ...prize, consumed: true }, me, [], 100)).toBe("claimed");
-    expect(sharedRecordState(prize, me, [], 1000)).toBe("expired");
-    expect(sharedRecordState(prize, champion, [], 100)).toBe("mine");
-    expect(sharedRecordState(prize, me, [challenge(me, 500)], 100)).toBe("already-challenged");
-    expect(sharedRecordState(prize, null, [], 100)).toBe("open");
+  it("offers to challenge only an open prize I do not own", () => {
+    expect(sharedRecordState(prize, me, 100)).toBe("open");
+    expect(sharedRecordState({ ...prize, consumed: true }, me, 100)).toBe("claimed");
+    expect(sharedRecordState(prize, me, 1000)).toBe("expired");
+    expect(sharedRecordState(prize, champion, 100)).toBe("mine");
+    expect(sharedRecordState(prize, null, 100)).toBe("open");
   });
 });
 
@@ -160,11 +137,8 @@ describe("settling after a play", () => {
   it("only recovers the stake when the prize is gone, and forfeits on a loss or a tie", () => {
     expect(settlePlan([challenge(me, 500)], { ...prize, consumed: true }, 2001, 100)).toMatchObject({ won: true, claimPrize: false });
     expect(settlePlan([challenge(me, 500)], undefined, 2001, 100).text).toMatch(/Gamecoin comes back/);
-    expect(settlePlan([challenge(me, 500)], prize, 2000, 100)).toMatchObject({ won: false, claimPrize: false, again: true });
-    expect(settlePlan([challenge(me, 500)], prize, 1999, 100).text).toMatch(/Not enough\.$/);
-    // the shot ended during the play: nothing to try again at
-    expect(settlePlan([challenge(me, 50)], prize, 1999, 100)).toMatchObject({ won: false, again: false });
-    expect(settlePlan([challenge(me, 50)], prize, 1999, 100).text).toMatch(/goes to the champion/);
+    expect(settlePlan([challenge(me, 500)], prize, 2000, 100)).toMatchObject({ won: false, claimPrize: false });
+    expect(settlePlan([challenge(me, 500)], prize, 1999, 100).text).toMatch(/goes to the champion/);
     expect(() => settlePlan([], prize, 5000, 100)).toThrow();
   });
 });
