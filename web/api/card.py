@@ -134,10 +134,10 @@ def versus(c, d, score, name, who, pick):
     ax, bx = 200, W - 200 - b.width
     c.alpha_composite(a, (ax, 165))
     c.alpha_composite(b, (bx, 165))
-    centred(d, W / 2, 124, [("CAN YOU BEAT", FONT(32), WHITE)])
+    centred(d, W / 2, 124, [("CAN YOU BEAT ", FONT(32), WHITE), (name or "THE CHAMPION", FONT(32), CYAN)])
     big(d, W / 2 - d.textlength("VS", FONT(170)) / 2, 200, "VS", 170)
-    centred(d, ax + a.width / 2, 404, [(name or "???", FONT(44), WHITE)])
-    centred(d, ax + a.width / 2, 456, [((f"{score} PTS" if score is not None else "MY RECORD"), FONT(36), YELLOW)])
+    centred(d, ax + a.width / 2, 404, [(name or "CHAMPION", FONT(44), WHITE)])
+    centred(d, ax + a.width / 2, 456, [((f"{score} PTS" if score is not None else "BEAT ME"), FONT(36), YELLOW)])
     centred(d, bx + b.width / 2, 404, [("YOU", FONT(44), WHITE)])
     centred(d, bx + b.width / 2, 456, [("???? PTS", FONT(36), PINK)])
     coin(d, 500)
