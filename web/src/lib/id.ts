@@ -149,6 +149,7 @@ export const ID: Record<string, string> = {
   "For you / in play": "Untukmu / sedang dimainkan",
   "Take it": "Ambil",
   "Someone is playing…": "Seseorang sedang main…",
+  "{name} lost": "{name} kalah",
   "Taking it": "Mengambil",
   "Taking them": "Mengambil",
   "Connect to see your games.": "Hubungkan untuk melihat permainanmu.",

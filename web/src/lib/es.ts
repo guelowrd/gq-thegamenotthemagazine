@@ -165,6 +165,7 @@ const ES: Record<string, string> = {
   "For you / in play": "Para ti / en juego",
   "Take it": "Recoger",
   "Someone is playing…": "Alguien está jugando…",
+  "{name} lost": "{name} perdió",
   "Taking it": "Recogiendo",
   "Taking them": "Recogiendo",
   "Connect to see your games.": "Conéctate para ver tus partidas.",

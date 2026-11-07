@@ -149,6 +149,7 @@ export const KO: Record<string, string> = {
   "For you / in play": "당신에게 / 진행 중",
   "Take it": "받기",
   "Someone is playing…": "누군가 도전 중…",
+  "{name} lost": "{name} 패배",
   "Taking it": "받는 중",
   "Taking them": "받는 중",
   "Connect to see your games.": "연결하면 내 게임을 볼 수 있습니다.",

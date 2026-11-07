@@ -149,6 +149,7 @@ export const DE: Record<string, string> = {
   "For you / in play": "Für dich / im Spiel",
   "Take it": "Nehmen",
   "Someone is playing…": "Jemand spielt…",
+  "{name} lost": "{name} hat verloren",
   "Taking it": "Wird genommen",
   "Taking them": "Werden genommen",
   "Connect to see your games.": "Verbinde dich, um deine Spiele zu sehen.",

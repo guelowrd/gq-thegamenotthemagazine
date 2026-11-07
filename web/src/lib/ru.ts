@@ -149,6 +149,7 @@ export const RU: Record<string, string> = {
   "For you / in play": "Тебе / в игре",
   "Take it": "Забрать",
   "Someone is playing…": "Кто-то играет…",
+  "{name} lost": "{name} проиграл",
   "Taking it": "Забираем",
   "Taking them": "Забираем",
   "Connect to see your games.": "Подключись, чтобы видеть свои игры.",

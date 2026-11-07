@@ -14,6 +14,8 @@ type LobbyProps = {
   me: AccountFelts | null;
   /** my arcade name, for the record link's preview */
   name?: string;
+  /** a player's arcade name, for the rival who lost at my record */
+  nameOf: (a: AccountFelts) => string;
   notes: ChallengeNote[];
   height: number;
   /** the city list a note's game data plays on, English names for the post */
@@ -21,7 +23,7 @@ type LobbyProps = {
   onCollect: (notes: ChallengeNote[]) => void;
 };
 
-export function Lobby({ me, name, notes, height, places, onCollect }: LobbyProps) {
+export function Lobby({ me, name, nameOf, notes, height, places, onCollect }: LobbyProps) {
   const t = useT();
   const records = notes.filter((n) => n.kind === "record" && !n.consumed);
   const shots = notes.filter((n) => n.kind === "shot" && !n.consumed);
@@ -93,9 +95,12 @@ export function Lobby({ me, name, notes, height, places, onCollect }: LobbyProps
             <div className="eyebrow">{takeable(c) ? t("For you / ready") : t("For you / in play")}</div>
             <div className="score">{fmtGamecoin(c.amount, t)}</div>
             {takeable(c) ? (
-              <button className="btn primary blink" onClick={() => onCollect([c])}>
-                {t("Take it")}
-              </button>
+              <>
+                <p className="muted">{t("{name} lost", { name: nameOf(c.storage.rival!) })}</p>
+                <button className="btn primary blink" onClick={() => onCollect([c])}>
+                  {t("Take it")}
+                </button>
+              </>
             ) : (
               <p className="muted">{t("Someone is playing…")}</p>
             )}

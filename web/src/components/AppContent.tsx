@@ -805,6 +805,7 @@ function GqApp({ onStarted }: { onStarted?: () => void }) {
               <Lobby
                 me={me}
                 name={me ? nameOf(me) : undefined}
+                nameOf={nameOf}
                 notes={notes}
                 height={height}
                 places={(game) => listOf(gameStage(game))}

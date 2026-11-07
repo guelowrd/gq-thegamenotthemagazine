@@ -37,7 +37,7 @@ const myShot: ChallengeNote = {
   consumed: false,
 };
 
-const props = () => ({ places: () => places, onCollect: vi.fn() });
+const props = () => ({ places: () => places, nameOf: () => "XTG", onCollect: vi.fn() });
 
 describe("Lobby", () => {
   it("never lists other people's records: those are in Champion vs Rival", () => {
@@ -85,6 +85,7 @@ describe("Lobby", () => {
     const { rerender } = render(<Lobby me={champion} notes={[prize, myShot]} height={263} {...h} />);
     expect(screen.queryByRole("button", { name: /take it/i })).toBeNull();
     rerender(<Lobby me={champion} notes={[prize, myShot]} height={264} {...h} />);
+    expect(screen.getByText("XTG lost")).toBeInTheDocument(); // the ready card names the rival who failed (Gaylord 2026-11-07)
     fireEvent.click(screen.getByRole("button", { name: /take it/i }));
     expect(h.onCollect).toHaveBeenCalledWith([myShot]);
     expect(screen.queryByRole("button", { name: /take all/i })).toBeNull();
