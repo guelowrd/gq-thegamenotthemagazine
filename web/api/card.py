@@ -1,5 +1,5 @@
 # The link preview of a record, 1200 x 628, one of three arcade screens picked by the record id (so a record keeps its
-# card): ARCADE (CAN YOU BEAT, the score huge, the champion's arcade name), TABLE (CAN YOU DO BETTER?: 1ST the champion, 2ND YOU
+# card): ARCADE (CAN YOU BEAT, the score huge, the champion's arcade name), TABLE (CAN YOU DO BETTER: 1ST the champion, 2ND YOU
 # ????) and VERSUS (the champion against you, VS between). Over the stage's pixel map (a World Tour record gets the splash's
 # globe half the time), dimmed, fading to black at the bottom where X paints the post's title. The wordmark, the stage in a cyan box, INSERT 1 GAMECOIN TO PLAY, the boy or the
 # girl of the splash (also by the record id), the TV pass and the splash's cyan and pink frame. Query: s (score), m (stage
@@ -117,7 +117,7 @@ def arcade(c, d, score, name, who, pick):
 
 def table(c, d, score, name, who, pick):
     cx = aside(c, who, pick)
-    centred(d, cx, 140, [("CAN YOU DO BETTER?", FONT(46), WHITE)])
+    centred(d, cx, 140, [("CAN YOU DO BETTER", FONT(46), WHITE)])
     f, fs = FONT(72), FONT(40)
     rows = [("1ST", name or "???", str(score) if score is not None else "????", YELLOW), ("2ND", "YOU", "????", PINK)]
     wmax = max(d.textlength(f"{r[0]} {r[1]:<4} {r[2]:>5}", f) for r in rows)
@@ -132,15 +132,15 @@ def table(c, d, score, name, who, pick):
 def versus(c, d, score, name, who, pick):
     a, b = sprite(who, 230), sprite("girl" if who == "rival" else "rival", 230, True)
     ax, bx = 200, W - 200 - b.width
-    c.alpha_composite(a, (ax, 165))
-    c.alpha_composite(b, (bx, 165))
-    centred(d, W / 2, 124, [("CAN YOU BEAT ", FONT(32), WHITE), (name or "THE CHAMPION", FONT(32), CYAN)])
-    big(d, W / 2 - d.textlength("VS", FONT(170)) / 2, 200, "VS", 170)
-    centred(d, ax + a.width / 2, 400, [(name or "CHAMPION", FONT(44), WHITE)])
+    c.alpha_composite(a, (ax, 192))
+    c.alpha_composite(b, (bx, 192))
+    centred(d, W / 2, 150, [("CAN YOU BEAT ", FONT(32), WHITE), (name or "THE CHAMPION", FONT(32), CYAN)])
+    big(d, W / 2 - d.textlength("VS", FONT(170)) / 2, 226, "VS", 170)
+    centred(d, ax + a.width / 2, 426, [(name or "CHAMPION", FONT(44), WHITE)])
     if score is not None:
-        centred(d, ax + a.width / 2, 448, [(f"{score} PTS", FONT(36), YELLOW)])
-    centred(d, bx + b.width / 2, 400, [("YOU", FONT(44), WHITE)])
-    centred(d, bx + b.width / 2, 448, [("???? PTS", FONT(36), PINK)])
+        centred(d, ax + a.width / 2, 474, [(f"{score} PTS", FONT(36), YELLOW)])
+    centred(d, bx + b.width / 2, 426, [("YOU", FONT(44), WHITE)])
+    centred(d, bx + b.width / 2, 474, [("???? PTS", FONT(36), PINK)])
 
 
 LAYOUTS = [arcade, table, versus]
