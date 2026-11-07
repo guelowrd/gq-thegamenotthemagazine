@@ -1,5 +1,5 @@
 # The link preview of a record, 1200 x 628, one of three arcade screens picked by the record id (so a record keeps its
-# card): ARCADE (CAN YOU BEAT, the score huge, the champion's arcade name), TABLE (HIGH SCORES: 1ST the champion, 2ND YOU
+# card): ARCADE (CAN YOU BEAT, the score huge, the champion's arcade name), TABLE (RESULTS: 1ST the champion, 2ND YOU
 # ????) and VERSUS (the champion against you, VS between). Over the stage's pixel map (a World Tour record gets the splash's
 # globe half the time), dimmed, fading to black at the bottom where X paints the post's title. The wordmark, the stage in a cyan box, INSERT 1 GAMECOIN TO PLAY, the boy or the
 # girl of the splash (also by the record id), the TV pass and the splash's cyan and pink frame. Query: s (score), m (stage
@@ -117,7 +117,7 @@ def arcade(c, d, score, name, who, pick):
 
 def table(c, d, score, name, who, pick):
     cx = aside(c, who, pick)
-    centred(d, cx, 140, [("HIGH SCORES", FONT(46), WHITE)])
+    centred(d, cx, 140, [("RESULTS", FONT(46), WHITE)])
     f, fs = FONT(72), FONT(40)
     rows = [("1ST", name or "???", str(score) if score is not None else "????", YELLOW), ("2ND", "YOU", "????", PINK)]
     wmax = max(d.textlength(f"{r[0]} {r[1]:<4} {r[2]:>5}", f) for r in rows)
@@ -141,7 +141,6 @@ def versus(c, d, score, name, who, pick):
         centred(d, ax + a.width / 2, 448, [(f"{score} PTS", FONT(36), YELLOW)])
     centred(d, bx + b.width / 2, 400, [("YOU", FONT(44), WHITE)])
     centred(d, bx + b.width / 2, 448, [("???? PTS", FONT(36), PINK)])
-    coin(d, 504)
 
 
 LAYOUTS = [arcade, table, versus]
