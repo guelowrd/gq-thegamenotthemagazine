@@ -61,6 +61,7 @@ export const ZH: Record<string, string> = {
   "Otherwise, their Gamecoin is yours!!!": "否则，他们的游戏币归你！！！",
   "Post it": "发布",
   "Not now": "暂不",
+  "Post it as my own record": "发布为我的纪录",
   "Posting your record": "发布纪录中",
   "Record posted!": "纪录已发布！",
   "Now find someone to beat you.": "现在去找人来打破它吧。",

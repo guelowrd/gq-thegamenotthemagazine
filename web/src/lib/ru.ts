@@ -53,6 +53,7 @@ export const RU: Record<string, string> = {
   "Otherwise, their Gamecoin is yours!!!": "Если нет, их Gamecoin твой!!!",
   "Post it": "Опубликовать",
   "Not now": "Не сейчас",
+  "Post it as my own record": "Опубликовать как свой рекорд",
   "Posting your record": "Публикуем рекорд",
   "Record posted!": "Рекорд опубликован!",
   "Now find someone to beat you.": "Теперь найди того, кто попробует тебя побить.",

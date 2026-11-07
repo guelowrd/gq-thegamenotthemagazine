@@ -2,11 +2,11 @@
 
 import type { ChallengeNote } from "./chain";
 import { ZERO_WORD, type AccountFelts, type ChallengeStorage, type Word4 } from "./notes";
-import type { Place } from "./quiz";
+import { decodeGame, gameStage, type Place } from "./quiz";
 import { BLOCK_SECONDS, CLAIM_FUZZ, GC_DECIMALS, GC_FAUCET, MIN_SHOT_WINDOW_BLOCKS, RECORD_LIFETIME_BLOCKS, STAKE } from "@/config";
 import { QUIZ_MAX, roundScore, type Answer, type City } from "./rules";
 import { en, translator, type T } from "./i18n";
-import type { Stage } from "./stages";
+import { WORLD, type Stage } from "./stages";
 
 export const sameAccount = (a: AccountFelts | null | undefined, b: AccountFelts | null | undefined) =>
   !!a && !!b && a.suffix === b.suffix && a.prefix === b.prefix;
@@ -34,6 +34,12 @@ export function shotRefusal(record: ChallengeNote, height: number, me?: AccountF
 }
 
 export const sameWord = (a: Word4, b: Word4) => a.every((f, i) => f === b[i]);
+
+/** After a won shot: the same quiz (seed, cities, stage), for the rival to post the score as a record of their own (alelpoan 2026-11-07). */
+export function quizOfShot(shot: ChallengeNote): { seed: Word4; cities: City[]; stage: Stage } {
+  const g = decodeGame(shot.storage.game);
+  return { seed: g.seed, cities: g.cities, stage: gameStage(shot.storage.game) ?? WORLD };
+}
 
 export type NoteKind = { kind: "record"; shotRoot: string } | { kind: "shot" };
 

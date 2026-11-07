@@ -8,6 +8,7 @@ import {
   acceptNote,
   blocksToClock,
   noteKind,
+  quizOfShot,
   claimVerdict,
   explain,
   NOT_FINISHED,
@@ -321,5 +322,18 @@ describe("before sending a claim", () => {
     expect(blocksToClock(-5)).toBe("0:00");
     expect(blocksToClock(26_400)).toBe("23:50:00");
     expect(blocksToClock(Math.round(3603 / BLOCK_SECONDS))).toMatch(/^1:00:0\d$/);
+  });
+});
+
+describe("after a won shot", () => {
+  it("hands back the shot's own quiz to post as the rival's record", async () => {
+    const { encodeGame } = await import("../quiz");
+    const cities = Array.from({ length: 10 }, (_, i) => ({ idx: i, lat: 100 + i, lon: 200 + i, cos: 90 }));
+    const game = encodeGame({ seed: [1n, 2n, 3n, 4n], dataset: [9n, 9n, 9n, 9n], cities });
+    const shot = { kind: "shot", storage: { ...base, game } } as unknown as ChallengeNote;
+    const q = quizOfShot(shot);
+    expect(q.seed).toEqual([1n, 2n, 3n, 4n]);
+    expect(q.cities).toEqual(cities);
+    expect(q.stage).toBe(WORLD); // an unregistered dataset falls back to the World Tour
   });
 });

@@ -53,6 +53,7 @@ export const ID: Record<string, string> = {
   "Otherwise, their Gamecoin is yours!!!": "Kalau tidak, Gamecoin mereka jadi milikmu!!!",
   "Post it": "Unggah",
   "Not now": "Nanti saja",
+  "Post it as my own record": "Unggah sebagai rekor saya",
   "Posting your record": "Mengunggah rekormu",
   "Record posted!": "Rekor terunggah!",
   "Now find someone to beat you.": "Sekarang cari orang yang mau mengalahkanmu.",

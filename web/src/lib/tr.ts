@@ -53,6 +53,7 @@ export const TR: Record<string, string> = {
   "Otherwise, their Gamecoin is yours!!!": "Geçemezlerse Gamecoin'leri senin olur!!!",
   "Post it": "Paylaş",
   "Not now": "Şimdi değil",
+  "Post it as my own record": "Kendi rekorum olarak paylaş",
   "Posting your record": "Rekorun paylaşılıyor",
   "Record posted!": "Rekor paylaşıldı!",
   "Now find someone to beat you.": "Şimdi seni geçecek birini bul.",

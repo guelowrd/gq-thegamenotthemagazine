@@ -14,7 +14,7 @@ import { accountFelts, bech32Of, fetchChallengeNote, hexOf, knownNote, listChall
 import { boards, history as pastGames, keyOf, lettersBackward, nicknames, owed, playersInOrder, stageTag } from "@/lib/hub";
 import { postShot, postRecord, settle, collect, setSubmitAttemptListener, setSubmitStageListener, waitFor, type Submitted, openSale, buyGamecoin, gcBalance } from "@/lib/bread";
 import { shotDeadline, shotStorage, ZERO_WORD, type AccountFelts, type ChallengeStorage } from "@/lib/notes";
-import { blockToMs, breadLink, claimVerdict, explain, fmtGamecoin, NOT_FINISHED, sameAccount, SHOT_LOST, shotRefusal, withoutRecord, withTimeout, type Trouble, outcomeText, parseCode, reportRows, settlePlan, sharedRecordState, type ReportRow } from "@/lib/flow";
+import { blockToMs, breadLink, claimVerdict, explain, fmtGamecoin, NOT_FINISHED, sameAccount, SHOT_LOST, shotRefusal, withoutRecord, withTimeout, type Trouble, outcomeText, parseCode, quizOfShot, reportRows, settlePlan, sharedRecordState, type ReportRow } from "@/lib/flow";
 import { cityNames, datasetWord, decodeGame, encodeGame, gameStage, quizCities, randomSeed, type Place, type Word4 } from "@/lib/quiz";
 import { registerDataset, STAGES, stageById, WORLD, type Stage as GameStage, type StageId } from "@/lib/stages";
 import { LANGS, LangContext, PIXEL12, storedLang, storeLang, useLang, useT, type Lang } from "@/lib/i18n";
@@ -42,6 +42,8 @@ type Mode =
   | { kind: "busy"; text: string; back: Mode; stage: Stage; since: number; track: Track }
   /** `claimed`: the record is won, OK leaves it behind; after a round (`rows` or `share`) OK goes back to the splash screen */
   | { kind: "done"; title?: string; text: string; rows?: ReportRow[]; txId?: string; share?: ComponentProps<typeof ShareButtons>; retry?: () => void; retryLabel?: string; claimed?: boolean;
+      /** a won shot: the same quiz, to post as the rival's own record */
+      post?: Extract<Mode, { kind: "post-record" }>;
       /** when a retried claim stops making sense: the shot's end, as a clock time (ms) */
       claimUntil?: number };
 
@@ -495,7 +497,7 @@ function GqApp({ onStarted }: { onStarted?: () => void }) {
         () => {
           // the prize is ours: the record card must not offer it again
           if (plan.claimPrize && record) setSharedRecord((r) => (r && r.id === record.id ? { ...r, consumed: true } : r));
-          return { kind: "done", title: t("Record smashed!"), text: outcomeText(plan.text, true, t), rows, claimed: true };
+          return { kind: "done", title: t("Record smashed!"), text: outcomeText(plan.text, true, t), rows, claimed: true, post: { kind: "post-record", ...quizOfShot(shots[0]), result: r } };
         },
       );
     claim();
@@ -691,6 +693,12 @@ function GqApp({ onStarted }: { onStarted?: () => void }) {
     setMode({ kind: "lobby" });
   };
 
+  /** The won record is left behind: the card and the link must not offer it again. */
+  const leaveWon = () => {
+    setSharedRecord(null);
+    setCode("");
+    history.replaceState(null, "", withoutRecord(location.href));
+  };
   const goHome = () => {
     runToken.current++;
     setTrouble(null);
@@ -909,15 +917,15 @@ function GqApp({ onStarted }: { onStarted?: () => void }) {
                 {mode.retryLabel ?? t("Try again")}
               </button>
             ))}
+          {mode.post && (
+            <button className="btn primary" onClick={() => { leaveWon(); setMode(mode.post!); }}>
+              {t("Post it as my own record")}
+            </button>
+          )}
           <button
-            className={mode.retry ? "btn" : "btn primary"}
+            className={mode.retry || mode.post ? "btn" : "btn primary"}
             onClick={() => {
-              if (mode.claimed) {
-                // the record is won: nothing left to do with it
-                setSharedRecord(null);
-                setCode("");
-                history.replaceState(null, "", withoutRecord(location.href));
-              }
+              if (mode.claimed) leaveWon(); // the record is won: nothing left to do with it
               // a round is over: back to the splash screen
               if (mode.rows || mode.share) goHome();
               else setMode({ kind: "lobby" });

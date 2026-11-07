@@ -61,6 +61,7 @@ const ES: Record<string, string> = {
   "Otherwise, their Gamecoin is yours!!!": "¡¡¡Si no, su Gamecoin es tuyo!!!",
   "Post it": "Publicar",
   "Not now": "Ahora no",
+  "Post it as my own record": "Publicar como mi propio récord",
   "Posting your record": "Publicando tu récord",
   "Record posted!": "¡Récord publicado!",
   "Now find someone to beat you.": "Ahora busca a alguien que te supere.",

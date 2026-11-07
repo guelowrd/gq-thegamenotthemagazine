@@ -63,6 +63,7 @@ export const FR_FR: Record<string, string> = {
   "Otherwise, their Gamecoin is yours!!!": "Sinon, leur Gamecoin est à vous !!!",
   "Post it": "Publier",
   "Not now": "Pas maintenant",
+  "Post it as my own record": "Publier comme mon propre record",
   "Posting your record": "Publication du record",
   "Record posted!": "Record publié !",
   "Now find someone to beat you.": "Trouvez maintenant quelqu'un pour vous battre.",

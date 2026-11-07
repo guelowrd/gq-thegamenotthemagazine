@@ -53,6 +53,7 @@ export const JA: Record<string, string> = {
   "Otherwise, their Gamecoin is yours!!!": "守り切れば、相手の Gamecoin はあなたのもの！！！",
   "Post it": "投稿",
   "Not now": "あとで",
+  "Post it as my own record": "自分の記録として投稿",
   "Posting your record": "記録を投稿中",
   "Record posted!": "記録を投稿しました！",
   "Now find someone to beat you.": "さあ、挑戦者を見つけましょう。",

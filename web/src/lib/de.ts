@@ -53,6 +53,7 @@ export const DE: Record<string, string> = {
   "Otherwise, their Gamecoin is yours!!!": "Wenn nicht, gehört ihr Gamecoin dir!!!",
   "Post it": "Posten",
   "Not now": "Jetzt nicht",
+  "Post it as my own record": "Als eigenen Rekord posten",
   "Posting your record": "Rekord wird gepostet",
   "Record posted!": "Rekord gepostet!",
   "Now find someone to beat you.": "Jetzt such jemanden, der dich schlägt.",

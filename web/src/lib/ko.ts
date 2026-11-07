@@ -53,6 +53,7 @@ export const KO: Record<string, string> = {
   "Otherwise, their Gamecoin is yours!!!": "지키면 상대의 Gamecoin은 당신 것!!!",
   "Post it": "올리기",
   "Not now": "나중에",
+  "Post it as my own record": "내 기록으로 올리기",
   "Posting your record": "기록 올리는 중",
   "Record posted!": "기록을 올렸습니다!",
   "Now find someone to beat you.": "이제 도전자를 찾아보세요.",
