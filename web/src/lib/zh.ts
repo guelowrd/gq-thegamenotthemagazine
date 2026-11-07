@@ -164,7 +164,7 @@ export const ZH: Record<string, string> = {
   "For you / ready": "给你的 / 可领取",
   "For you / in play": "给你的 / 进行中",
   "Take it": "领取",
-  "Someone is playing…": "有人正在挑战…",
+  "Someone is playing… Will {name} beat you?": "有人正在挑战… {name} 能超过你吗？",
   "{name} lost": "{name} 输了",
   "Taking it": "领取中",
   "Taking them": "领取中",

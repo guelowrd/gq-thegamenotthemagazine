@@ -148,7 +148,7 @@ export const RU: Record<string, string> = {
   "For you / ready": "Тебе / готово",
   "For you / in play": "Тебе / в игре",
   "Take it": "Забрать",
-  "Someone is playing…": "Кто-то играет…",
+  "Someone is playing… Will {name} beat you?": "Кто-то играет… Побьёт ли тебя {name}?",
   "{name} lost": "{name} проиграл",
   "Taking it": "Забираем",
   "Taking them": "Забираем",

@@ -148,7 +148,7 @@ export const UK: Record<string, string> = {
   "For you / ready": "Тобі / готово",
   "For you / in play": "Тобі / у грі",
   "Take it": "Забрати",
-  "Someone is playing…": "Хтось грає…",
+  "Someone is playing… Will {name} beat you?": "Хтось грає… Чи переможе тебе {name}?",
   "{name} lost": "{name} програв",
   "Taking it": "Забираємо",
   "Taking them": "Забираємо",

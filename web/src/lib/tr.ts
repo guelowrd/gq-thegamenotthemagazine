@@ -148,7 +148,7 @@ export const TR: Record<string, string> = {
   "For you / ready": "Senin için / hazır",
   "For you / in play": "Senin için / oyunda",
   "Take it": "Al",
-  "Someone is playing…": "Biri oynuyor…",
+  "Someone is playing… Will {name} beat you?": "Biri oynuyor… {name} seni yenecek mi?",
   "{name} lost": "{name} kaybetti",
   "Taking it": "Alınıyor",
   "Taking them": "Alınıyor",

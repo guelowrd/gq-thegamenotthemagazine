@@ -148,7 +148,7 @@ export const PT_PT: Record<string, string> = {
   "For you / ready": "Para ti / pronto",
   "For you / in play": "Para ti / em jogo",
   "Take it": "Recolher",
-  "Someone is playing…": "Alguém está a jogar…",
+  "Someone is playing… Will {name} beat you?": "Alguém está a jogar… Será que {name} te vence?",
   "{name} lost": "{name} perdeu",
   "Taking it": "A recolher",
   "Taking them": "A recolher",

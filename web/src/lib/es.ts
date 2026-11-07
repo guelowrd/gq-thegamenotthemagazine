@@ -164,7 +164,7 @@ const ES: Record<string, string> = {
   "For you / ready": "Para ti / listo",
   "For you / in play": "Para ti / en juego",
   "Take it": "Recoger",
-  "Someone is playing…": "Alguien está jugando…",
+  "Someone is playing… Will {name} beat you?": "Alguien está jugando… ¿Te ganará {name}?",
   "{name} lost": "{name} perdió",
   "Taking it": "Recogiendo",
   "Taking them": "Recogiendo",

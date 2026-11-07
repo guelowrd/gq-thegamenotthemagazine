@@ -163,7 +163,7 @@ export const PT_BR: Record<string, string> = {
   "For you / ready": "Para você / pronto",
   "For you / in play": "Para você / em jogo",
   "Take it": "Pegar",
-  "Someone is playing…": "Alguém está jogando…",
+  "Someone is playing… Will {name} beat you?": "Alguém está jogando… Será que {name} vai te vencer?",
   "{name} lost": "{name} perdeu",
   "Taking it": "Pegando",
   "Taking them": "Pegando",

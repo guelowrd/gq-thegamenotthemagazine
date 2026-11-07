@@ -148,7 +148,7 @@ export const KO: Record<string, string> = {
   "For you / ready": "당신에게 / 받을 수 있음",
   "For you / in play": "당신에게 / 진행 중",
   "Take it": "받기",
-  "Someone is playing…": "누군가 도전 중…",
+  "Someone is playing… Will {name} beat you?": "누군가 도전 중… {name}이(가) 당신을 이길까요?",
   "{name} lost": "{name} 패배",
   "Taking it": "받는 중",
   "Taking them": "받는 중",

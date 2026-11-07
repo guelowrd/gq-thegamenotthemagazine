@@ -166,7 +166,7 @@ export const FR_FR: Record<string, string> = {
   "For you / ready": "Pour vous / prêt",
   "For you / in play": "Pour vous / en cours",
   "Take it": "Prendre",
-  "Someone is playing…": "Quelqu'un joue…",
+  "Someone is playing… Will {name} beat you?": "Quelqu'un joue… {name} va-t-il vous battre ?",
   "{name} lost": "{name} a perdu",
   "Taking it": "Récupération",
   "Taking them": "Récupération",

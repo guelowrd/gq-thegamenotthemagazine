@@ -148,7 +148,7 @@ export const JA: Record<string, string> = {
   "For you / ready": "あなたへ / 受け取り可",
   "For you / in play": "あなたへ / 進行中",
   "Take it": "受け取る",
-  "Someone is playing…": "誰かが挑戦中…",
+  "Someone is playing… Will {name} beat you?": "誰かが挑戦中… {name} はあなたを超えるか？",
   "{name} lost": "{name} の負け",
   "Taking it": "受け取り中",
   "Taking them": "受け取り中",

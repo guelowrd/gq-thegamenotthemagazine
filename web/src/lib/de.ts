@@ -148,7 +148,7 @@ export const DE: Record<string, string> = {
   "For you / ready": "Für dich / bereit",
   "For you / in play": "Für dich / im Spiel",
   "Take it": "Nehmen",
-  "Someone is playing…": "Jemand spielt…",
+  "Someone is playing… Will {name} beat you?": "Jemand spielt… Schlägt dich {name}?",
   "{name} lost": "{name} hat verloren",
   "Taking it": "Wird genommen",
   "Taking them": "Werden genommen",

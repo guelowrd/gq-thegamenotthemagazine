@@ -102,7 +102,7 @@ export function Lobby({ me, name, nameOf, notes, height, places, onCollect }: Lo
                 </button>
               </>
             ) : (
-              <p className="muted">{t("Someone is playing…")}</p>
+              <p className="muted">{t("Someone is playing… Will {name} beat you?", { name: nameOf(c.storage.rival!) })}</p>
             )}
           </section>
         ))}
