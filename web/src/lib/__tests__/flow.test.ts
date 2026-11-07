@@ -208,9 +208,10 @@ describe("Gamecoin in words", () => {
     expect(fmtGamecoin(1_000_000n)).toBe("1 Gamecoin");
     expect(fmtGamecoin(10_000_000n)).toBe("10 Gamecoins");
   });
-  it("shares a record as a ?record= link, inside the X post too, with the expiry in UTC; the Weibo post carries the same link", () => {
-    const { url, x, weibo } = recordLinks("0xabc", 9690, Date.UTC(2026, 9, 13, 14, 5));
-    expect(url).toMatch(/\?record=0xabc$/);
+  it("shares a record as a /r?record= link with the score, the map and the name for its preview card, inside the X post too, with the expiry in UTC; the Weibo post carries the same link", () => {
+    const { url, x, weibo } = recordLinks("0xabc", 9690, Date.UTC(2026, 9, 13, 14, 5), [], undefined, "JHT");
+    expect(url).toMatch(/\/r\?record=0xabc&s=9690&m=world&n=JHT$/);
+    expect(recordLinks("0xabc", 9690, 0, [], stageById("asia")).url).toMatch(/\/r\?record=0xabc&s=9690&m=asia$/);
     expect(decodeURIComponent(x)).toContain(url);
     expect(new URL(weibo).searchParams.get("url")).toBe(url);
     expect(new URL(weibo).searchParams.get("title")).toBe("我在 GeoQuizz 得了 9690 分。来挑战我的纪录！");
@@ -300,8 +301,9 @@ describe("errors in plain words", () => {
 });
 
 describe("leaving a record behind", () => {
-  it("drops ?record= and keeps the rest", () => {
+  it("drops ?record= and keeps the rest; a /r link goes back to the page", () => {
     expect(withoutRecord("http://localhost:5173/?record=0xabc")).toBe("http://localhost:5173/");
+    expect(withoutRecord("http://localhost:5173/r?record=0xabc&s=9690&m=asia&n=JHT&local=1")).toBe("http://localhost:5173/?local=1");
     expect(withoutRecord("http://localhost:5173/?local=2&record=0xabc")).toBe("http://localhost:5173/?local=2");
   });
 });

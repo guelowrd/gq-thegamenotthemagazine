@@ -12,6 +12,8 @@ import { useT } from "@/lib/i18n";
 
 type LobbyProps = {
   me: AccountFelts | null;
+  /** my arcade name, for the record link's preview */
+  name?: string;
   notes: ChallengeNote[];
   height: number;
   /** the city list a note's game data plays on, English names for the post */
@@ -19,7 +21,7 @@ type LobbyProps = {
   onCollect: (notes: ChallengeNote[]) => void;
 };
 
-export function Lobby({ me, notes, height, places, onCollect }: LobbyProps) {
+export function Lobby({ me, name, notes, height, places, onCollect }: LobbyProps) {
   const t = useT();
   const records = notes.filter((n) => n.kind === "record" && !n.consumed);
   const shots = notes.filter((n) => n.kind === "shot" && !n.consumed);
@@ -65,7 +67,7 @@ export function Lobby({ me, notes, height, places, onCollect }: LobbyProps) {
               <>
                 <p className="muted">{t("Waiting for a rival…")}</p>
                 <LostSoFar n={triesLost(p, notes, height)} />
-                <ShareButtons recordId={p.id} score={p.storage.target} expiresAt={blockToMs(p.storage.expiryBlock, height)} cities={cityNames(recordCities(p.storage.game), places(p.storage.game))} stage={gameStage(p.storage.game)} />
+                <ShareButtons recordId={p.id} score={p.storage.target} expiresAt={blockToMs(p.storage.expiryBlock, height)} cities={cityNames(recordCities(p.storage.game), places(p.storage.game))} stage={gameStage(p.storage.game)} name={name} />
               </>
             )}
           </section>

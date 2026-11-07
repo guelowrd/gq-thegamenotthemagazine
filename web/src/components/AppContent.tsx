@@ -428,7 +428,7 @@ function GqApp({ onStarted }: { onStarted?: () => void }) {
         return postRecord(client, wallet, storage, STAKE);
       },
       m,
-      ({ txId, noteIds }) => ({ kind: "done", title: t("Record posted!"), text: t("Now find someone to beat you."), txId, share: { recordId: noteIds[0], score: m.result.score, expiresAt: blockToMs(height + RECORD_LIFETIME_BLOCKS, height), cities: cityNames(m.cities, listOf(m.stage)), stage: m.stage } }),
+      ({ txId, noteIds }) => ({ kind: "done", title: t("Record posted!"), text: t("Now find someone to beat you."), txId, share: { recordId: noteIds[0], score: m.result.score, expiresAt: blockToMs(height + RECORD_LIFETIME_BLOCKS, height), cities: cityNames(m.cities, listOf(m.stage)), stage: m.stage, name: me ? nameOf(me) : undefined } }),
     );
   }
 
@@ -796,6 +796,7 @@ function GqApp({ onStarted }: { onStarted?: () => void }) {
             <>
               <Lobby
                 me={me}
+                name={me ? nameOf(me) : undefined}
                 notes={notes}
                 height={height}
                 places={(game) => listOf(gameStage(game))}

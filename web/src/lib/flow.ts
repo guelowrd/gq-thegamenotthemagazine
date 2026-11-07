@@ -193,6 +193,8 @@ export function fmtGamecoin(v: bigint, t: T = en): string {
 export function withoutRecord(href: string): string {
   const url = new URL(href);
   url.searchParams.delete("record");
+  for (const k of ["s", "m", "n"]) url.searchParams.delete(k);
+  if (url.pathname === "/r") url.pathname = "/"; // a record link's path, see recordLinks
   return url.toString();
 }
 
@@ -232,14 +234,15 @@ const WEIBO_POST = (score: number, map?: string) => `我在 GeoQuizz ${map ?? ""
 /**
  * The shareable link to a record, and the X post that carries it (the Weibo one too); `expiresAt`
  * is the record's expiry in ms, `cities` the English names of its run, `stage` the stage it was
- * played on (a region names the game: "GQ Europe", in Chinese on Weibo). A hard city gets bragged
- * about, an easy one teased with.
+ * played on (a region names the game: "GQ Europe", in Chinese on Weibo), `name` the champion's arcade
+ * name for the preview card. A hard city gets bragged about, an easy one teased with.
  */
 /** The page inside Bread's phone app: Bread opens it from this link. The page rides in the fragment, which no server sees. */
 export const breadLink = (page: string) => `https://bread.miden.xyz/open#url=${encodeURIComponent(page)}`;
 
-export function recordLinks(recordId: string, score: number, expiresAt: number, cities: string[] = [], stage?: Stage) {
-  const url = `${location.origin}${location.pathname}?record=${recordId}`;
+export function recordLinks(recordId: string, score: number, expiresAt: number, cities: string[] = [], stage?: Stage, name?: string) {
+  // /r: the page with this record's own preview card (api/share.py draws it from the score, the map and the name)
+  const url = `${location.origin}/r?record=${recordId}&s=${score}&m=${stage?.id ?? "world"}${name ? `&n=${name}` : ""}`;
   const pick = [...recordId].reduce((sum, c) => sum + c.charCodeAt(0), 0);
   const hard = cities.filter((c) => HARD_CITIES.includes(c));
   const easy = cities.filter((c) => EASY_CITIES.includes(c));
