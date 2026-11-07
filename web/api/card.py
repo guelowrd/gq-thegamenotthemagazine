@@ -1,9 +1,10 @@
-# The link preview of a record, 1200 x 628: an arcade attract screen. The stage's pixel map with a few pins and a dashed
-# route, dimmed; the wordmark; CAN YOU BEAT over the score, huge, yellow on a pink shadow like the wordmark; the champion's
-# arcade name; INSERT 1 GAMECOIN on a black bar; the rival sprite on one side; then the TV pass and the splash's cyan and
-# pink frame. Pins and the sprite's side come from the record id, so a record keeps its card. Query: s (score), m (stage
+# The link preview of a record, 1200 x 628, one of three arcade screens picked by the record id (so a record keeps its
+# card): ARCADE (CAN YOU BEAT, the score huge, the champion's arcade name), TABLE (HIGH SCORES: 1ST the champion, 2ND YOU
+# ????) and VERSUS (the champion against you, VS between). Over the stage's pixel map (a World Tour record gets the splash's
+# globe half the time), dimmed, fading to black at the bottom where X paints the post's title. The wordmark, the stage in a cyan box, INSERT 1 GAMECOIN TO PLAY, the boy or the
+# girl of the splash (also by the record id), the TV pass and the splash's cyan and pink frame. Query: s (score), m (stage
 # id), n (champion name), r (record id).
-import os, sys
+import hashlib, os, sys
 from http.server import BaseHTTPRequestHandler
 from io import BytesIO
 from urllib.parse import parse_qs, urlparse
@@ -16,52 +17,133 @@ OG = os.path.join(os.getcwd(), "og")
 W, H = 1200, 628
 VOID, CYAN, YELLOW, PINK, WHITE = (12, 8, 39, 255), (64, 228, 255, 255), (255, 232, 59, 255), (255, 44, 156, 255), (255, 247, 244, 255)
 FONT = lambda size: ImageFont.truetype(os.path.join(OG, "geoquizz-pixel.ttf"), size)
-BAR, FIG = 528, 250  # the coin slot's top; the sprite's height
-# a pin on the pixel grid (7 wide): the head, then the point
-PIN = ["..###..", ".#####.", "##.#.##", "##...##", ".#####.", "..###..", "..###..", "...#...", "...#..."]
+SAFE = 540  # below this X's title band may cover the card: nothing to read there
 
 
 def rng(seed):
-    """A tiny deterministic generator over the record id: ints in [0, n)."""
-    h = sum(ord(c) * (i + 1) for i, c in enumerate(seed)) or 7
+    """Deterministic picks over the record id, ints in [0, n), each from its own byte of the id's hash (independent of each other)."""
+    h, i = hashlib.sha256(seed.encode()).digest(), 0
 
     def pick(n):
-        nonlocal h
-        h = (h * 1103515245 + 12345) % 2 ** 31
-        return h % n
+        nonlocal i
+        i += 1
+        return h[i - 1] % n
 
     return pick
 
 
-def background(stage_id, pick):
-    """The stage's map scaled to cover the card, cropped around its cities, with the route, dimmed toward the void."""
-    m = Image.open(os.path.join(OG, f"map-{stage_id}.png")).convert("RGBA")
-    k = max(W / m.width, H / m.height)
-    m = m.resize((round(m.width * k), round(m.height * k)), Image.NEAREST)
-    top = (m.height - H) // 2 if stage_id == "world" else min(m.height - H, 40)  # a region's bottom sixth is empty
-    m = m.crop(((m.width - W) // 2, top, (m.width - W) // 2 + W, top + H))
-    route(m, pick)
-    return Image.blend(m, Image.new("RGBA", m.size, VOID), 0.55)
-
-
-def route(c, pick):
-    """Five pins across the map, joined by a dashed pink route with yellow nodes, like the splash."""
+def background(stage_id, title, art):
+    """The stage's map scaled to cover the card, cropped around its cities (the splash's globe when `art`), dimmed, black at the bottom; the wordmark and the stage."""
+    if art:
+        c = Image.blend(Image.open(os.path.join(OG, "arena.jpg")).convert("RGBA"), Image.new("RGBA", (W, H), VOID), 0.5)
+    else:
+        m = Image.open(os.path.join(OG, f"map-{stage_id}.png")).convert("RGBA")
+        k = max(W / m.width, H / m.height)
+        m = m.resize((round(m.width * k), round(m.height * k)), Image.NEAREST)
+        top = (m.height - H) // 2 if stage_id == "world" else min(m.height - H, 40)  # a region's bottom sixth is empty
+        c = Image.blend(m.crop(((m.width - W) // 2, top, (m.width - W) // 2 + W, top + H)), Image.new("RGBA", (W, H), VOID), 0.55)
+    fade = Image.new("RGBA", c.size, (0, 0, 0, 0))
+    d = ImageDraw.Draw(fade)
+    for y in range(470, H):
+        d.line([(0, y), (W, y)], fill=(0, 0, 0, int(200 * ((y - 470) / (H - 470)) ** 1.2)))
+    c.alpha_composite(fade)
     d = ImageDraw.Draw(c)
-    xs = sorted(60 + pick(1080) for _ in range(5))
-    pts = [(x, 130 + pick(380)) for x in xs]
-    for (x0, y0), (x1, y1) in zip(pts, pts[1:]):
-        n = max(1, int(((x1 - x0) ** 2 + (y1 - y0) ** 2) ** 0.5 / 14))
-        for i in range(0, n, 2):
-            a, b = i / n, min(1, (i + 1) / n)
-            d.line([(x0 + (x1 - x0) * a, y0 + (y1 - y0) * a), (x0 + (x1 - x0) * b, y0 + (y1 - y0) * b)], fill=PINK, width=4)
-        mx, my = (x0 + x1) / 2, (y0 + y1) / 2
-        d.rectangle([mx - 6, my - 6, mx + 6, my + 6], fill=YELLOW)
-    for x, y in pts:
-        for j, row in enumerate(PIN):
-            for i, ch in enumerate(row):
-                if ch == "#":
-                    d.rectangle([x - 14 + i * 4, y - 36 + j * 4, x - 11 + i * 4, y - 33 + j * 4], fill=PINK)
-        d.rectangle([x - 2, y - 24, x + 1, y - 21], fill=YELLOW)
+    logo = Image.open(os.path.join(OG, "wordmark.png")).convert("RGBA")
+    logo = logo.resize((420, round(logo.height * 420 / logo.width)), Image.NEAREST)
+    c.alpha_composite(logo, (36, 22))
+    f = FONT(30)
+    tw = d.textlength(title, f)
+    d.rectangle([W - 48 - tw - 28, 44, W - 48, 100], fill=VOID, outline=CYAN, width=4)
+    d.text((W - 48 - tw - 14, 57), title, font=f, fill=CYAN)
+    return c
+
+
+def sprite(who, height, mirror=False):
+    """The boy ("rival") or the girl, `height` tall."""
+    fig = Image.open(os.path.join(OG, f"{who}.png")).convert("RGBA")
+    fig = fig.resize((round(fig.width * height / fig.height), height), Image.NEAREST)
+    return ImageOps.mirror(fig) if mirror else fig
+
+
+def run(d, x, y, parts, off=4):
+    """Text runs [(text, font, fill)] on one baseline from x, over a dark shadow."""
+    for t, f, fill in parts:
+        d.text((x + off, y + off), t, font=f, fill=VOID)
+        d.text((x, y), t, font=f, fill=fill)
+        x += d.textlength(t, f)
+
+
+def centred(d, cx, y, parts, off=4):
+    run(d, cx - sum(d.textlength(t, f) for t, f, _ in parts) / 2, y, parts, off)
+
+
+def big(d, x, y, text, size, unit="", usize=56):
+    """Display text, yellow on a pink shadow like the wordmark; `unit` smaller on the same baseline."""
+    f2, f3 = FONT(size), FONT(usize)
+    for off, fill in ((14, VOID), (7, PINK), (0, YELLOW)):
+        d.text((x + off, y + off), text, font=f2, fill=fill)
+        if unit:
+            d.text((x + d.textlength(text, f2) + off, y + size - usize - 6 + off), unit, font=f3, fill=fill)
+
+
+def coin(d, y, cx=W / 2):
+    """INSERT 1 GAMECOIN TO PLAY with a blinking cursor, centred on cx."""
+    f = FONT(34)
+    t = "INSERT 1 GAMECOIN TO PLAY"
+    w = d.textlength(t, f)
+    x = cx - (w + 34) / 2
+    run(d, x, y, [(t, f, YELLOW)])
+    d.rectangle([x + w + 12, y + 2, x + w + 34, y + 32], fill=PINK)
+
+
+def aside(c, who, pick):
+    """The sprite on one side of the card; the centre of the column left for the text."""
+    left = pick(2) == 0
+    fig = sprite(who, 250, left)
+    c.alpha_composite(fig, (60 if left else W - 60 - fig.width, 300))
+    return (fig.width + 60 + W - 40) / 2 if left else (40 + W - 60 - fig.width) / 2
+
+
+def arcade(c, d, score, name, who, pick):
+    cx = aside(c, who, pick)
+    centred(d, cx, 150, [("CAN YOU BEAT", FONT(46), WHITE)])
+    text, unit, size = (str(score), " PTS", 150) if score is not None else ("MY RECORD", "?", 104)
+    w = d.textlength(text, FONT(size)) + d.textlength(unit, FONT(56))
+    big(d, cx - w / 2, 206, text, size, unit)
+    if name:
+        centred(d, cx, 372, [("CHAMPION ", FONT(36), CYAN), (name, FONT(36), WHITE)])
+    coin(d, 446, cx)
+
+
+def table(c, d, score, name, who, pick):
+    cx = aside(c, who, pick)
+    centred(d, cx, 140, [("HIGH SCORES", FONT(46), WHITE)])
+    f, fs = FONT(72), FONT(40)
+    rows = [("1ST", name or "???", str(score) if score is not None else "????", YELLOW), ("2ND", "YOU", "????", PINK)]
+    wmax = max(d.textlength(f"{r[0]} {r[1]:<4} {r[2]:>5}", f) for r in rows)
+    for i, (rank, player, pts, colour) in enumerate(rows):
+        y, x = 212 + i * 96, cx - wmax / 2
+        run(d, x, y + 22, [(rank, fs, CYAN)])
+        run(d, x + d.textlength("1ST ", f), y, [(player, f, WHITE)])
+        run(d, x + wmax - d.textlength(pts, f), y, [(pts, f, colour)], off=6)
+    coin(d, 428, cx)
+
+
+def versus(c, d, score, name, who, pick):
+    a, b = sprite(who, 230), sprite("girl" if who == "rival" else "rival", 230, True)
+    ax, bx = 200, W - 200 - b.width
+    c.alpha_composite(a, (ax, 165))
+    c.alpha_composite(b, (bx, 165))
+    centred(d, W / 2, 124, [("CAN YOU BEAT", FONT(32), WHITE)])
+    big(d, W / 2 - d.textlength("VS", FONT(170)) / 2, 200, "VS", 170)
+    centred(d, ax + a.width / 2, 404, [(name or "???", FONT(44), WHITE)])
+    centred(d, ax + a.width / 2, 456, [((f"{score} PTS" if score is not None else "MY RECORD"), FONT(36), YELLOW)])
+    centred(d, bx + b.width / 2, 404, [("YOU", FONT(44), WHITE)])
+    centred(d, bx + b.width / 2, 456, [("???? PTS", FONT(36), PINK)])
+    coin(d, 500)
+
+
+LAYOUTS = [arcade, table, versus]
 
 
 def tv(card):
@@ -87,54 +169,12 @@ def frame(c):
     d.rectangle([10, 10, W - 11, H - 11], outline=PINK, width=6)
 
 
-def draw(stage_id, title, score, name, seed):
-    """The card as RGB. `score` None asks CAN YOU BEAT MY RECORD?, no `name` leaves the champion line out."""
+def draw(stage_id, title, score, name, seed, layout=None):
+    """The card as RGB; `layout` 0..2 forces one, else the record id picks. `score` None is an old link without one."""
     pick = rng(seed)
-    c = background(stage_id, pick)
-    d = ImageDraw.Draw(c)
-    logo = Image.open(os.path.join(OG, "wordmark.png")).convert("RGBA")
-    logo = logo.resize((420, round(logo.height * 420 / logo.width)), Image.NEAREST)
-    c.alpha_composite(logo, (36, 22))
-    # the stage, top right, in a cyan box
-    f = FONT(30)
-    tw = d.textlength(title, f)
-    d.rectangle([W - 48 - tw - 28, 44, W - 48, 44 + 56], fill=VOID, outline=CYAN, width=4)
-    d.text((W - 48 - tw - 14, 44 + 13), title, font=f, fill=CYAN)
-    # the sprite takes one side; the text column is centred on the rest
-    fig = Image.open(os.path.join(OG, "rival.png")).convert("RGBA")
-    fig = fig.resize((round(fig.width * FIG / fig.height), FIG), Image.NEAREST)
-    left = pick(2) == 0
-    if left:
-        fig = ImageOps.mirror(fig)
-    c.alpha_composite(fig, (60 if left else W - 60 - fig.width, BAR - FIG + 24))
-    cx = (fig.width + 60 + W - 40) / 2 if left else (40 + W - 60 - fig.width) / 2
-
-    def centred(y, parts, shadow=VOID, off=4):
-        """Text runs [(text, font, fill)] on one baseline, centred on the column, over a dark shadow."""
-        w = sum(d.textlength(t, f) for t, f, _ in parts)
-        x = cx - w / 2
-        for t, f, fill in parts:
-            d.text((x + off, y + off), t, font=f, fill=shadow)
-            d.text((x, y), t, font=f, fill=fill)
-            x += d.textlength(t, f)
-
-    centred(156, [("CAN YOU BEAT", FONT(46), WHITE)])
-    big, unit, size = (f"{score:,}", " PTS", 150) if score is not None else ("MY RECORD", "?", 104)
-    f2, f3 = FONT(size), FONT(56)
-    w = d.textlength(big, f2) + d.textlength(unit, f3)
-    x, y = cx - w / 2, 212
-    for off, fill in ((14, VOID), (7, PINK), (0, YELLOW)):
-        d.text((x + off, y + off), big, font=f2, fill=fill)
-        d.text((x + d.textlength(big, f2) + off, y + size - 56 - 6 + off), unit, font=f3, fill=fill)
-    if name:
-        centred(392, [("CHAMPION ", FONT(36), CYAN), (name, FONT(36), WHITE)])
-    # the coin slot
-    d.rectangle([0, BAR, W, BAR + 72], fill=(0, 0, 0, 215))
-    f5 = FONT(34)
-    coin = "INSERT 1 GAMECOIN TO PLAY"
-    kx = (W - d.textlength(coin, f5)) / 2
-    d.text((kx, BAR + 18), coin, font=f5, fill=YELLOW)
-    d.rectangle([kx + d.textlength(coin, f5) + 12, BAR + 20, kx + d.textlength(coin, f5) + 34, BAR + 50], fill=PINK)  # the cursor
+    which, who, art = pick(3), ["rival", "girl"][pick(2)], stage_id == "world" and pick(2) == 0
+    c = background(stage_id, title, art)
+    LAYOUTS[which if layout is None else layout](c, ImageDraw.Draw(c), score, name, who, pick)
     c = tv(c)
     frame(c)
     return c.convert("RGB")

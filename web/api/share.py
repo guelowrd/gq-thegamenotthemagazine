@@ -41,7 +41,7 @@ class handler(BaseHTTPRequestHandler):
             self.send_header("Location", f"/?{urlencode({'record': record})}")
             self.end_headers()
             return
-        body = rewrite(html, origin, record, *args).encode("utf-8")
+        body = (rewrite(html, origin, record, *args) if record else html).encode("utf-8")  # no record: the splash stays the preview
         self.send_response(200)
         self.send_header("Content-Type", "text/html; charset=utf-8")
         self.send_header("Cache-Control", "public, max-age=0, s-maxage=86400")
