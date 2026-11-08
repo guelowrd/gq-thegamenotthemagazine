@@ -213,9 +213,11 @@ main { max-width: 1440px; margin: 0 auto; padding: 28px 4% 56px; }
   .stage .need .short { display: inline; }
 }
 .tag { color: var(--muted); font-size: 0.85em; }
-.world-map { width: 100%; height: auto; display: block; background: var(--cobalt); border: 2px solid var(--rule); -webkit-touch-callout: none; user-select: none; }
+.world-map { width: 100%; height: auto; display: block; background: var(--cobalt); border: 2px solid var(--rule); }
+/* in the quiz a finger held on the map aims: nothing on the screen may get selected or pop a callout meanwhile */
+.play { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 .world-map .grid { stroke: #4b63ff; stroke-width: 0.6; }
-/* the loupe over a finger held on the map: what is under it, three times bigger, with a crosshair */
+/* the loupe over a finger held on the map: what is under it, twice as big, with a crosshair */
 .loupe { position: fixed; width: 120px; height: 120px; border: 3px solid var(--yellow); background: var(--cobalt); pointer-events: none; z-index: 10; }
 .loupe svg { width: 100%; height: 100%; display: block; }
 .loupe image { image-rendering: pixelated; }

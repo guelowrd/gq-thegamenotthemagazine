@@ -1,7 +1,7 @@
 // The map: the pixel world (1000 × 500, Natural Earth geometry quantised) or a stage's region as
 // the picture, the projection in lib/map.ts, a 30° graticule on the world and the marks. No map
 // library. A stage shows the centred box its stretched coordinates fill (lib/stages.ts).
-// On a phone a finger held on the map aims: a loupe shows what is under it, three times bigger,
+// On a phone a finger held on the map aims: a loupe shows what is under it, twice as big,
 // with a crosshair, and the shot lands where the finger lifts. A quick tap shoots on the spot.
 
 import { useRef, useState, type MouseEvent, type PointerEvent } from "react";
@@ -15,7 +15,7 @@ const PARALLELS = Array.from({ length: 5 }, (_, i) => latLonToPixel({ lat: 60 - 
 
 const HOLD_MS = 200;
 const LOUPE = 120; // px, square
-const ZOOM = 3;
+const ZOOM = 2;
 
 export function WorldMap({
   onPick,
