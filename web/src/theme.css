@@ -174,11 +174,11 @@ main { max-width: 1440px; margin: 0 auto; padding: 28px 4% 56px; }
 /* a small text link under a panel, for a way to another tab */
 .text-link { display: block; margin: 14px 0 0; padding: 4px 0; background: none; border: 0; color: var(--cyan); font-size: 13px; text-align: left; text-decoration: underline; }
 .text-link:hover { color: var(--yellow); }
-/* a challenge a row, and the row is the button: the score and the map, under them the champion and the clock, an arrow at the right */
-.open-challenges button.row { display: block; position: relative; width: 100%; padding: 5px 24px 5px 4px; background: none; border: 0; border-bottom: 2px solid var(--rule); color: inherit; font: inherit; line-height: 1.25; text-align: left; cursor: pointer; }
+/* a challenge a row, and the row is the button: score, map, champion, clock on one line where the width allows (two on a phone), an arrow at the right */
+.open-challenges button.row { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: flex-start; gap: 2px 10px; position: relative; width: 100%; padding: 5px 24px 5px 4px; background: none; border: 0; border-bottom: 2px solid var(--rule); color: inherit; font: inherit; line-height: 1.25; text-align: left; cursor: pointer; }
 .open-challenges button.row:last-child { border-bottom: 0; }
 .open-challenges button.row:hover, .open-challenges button.row:focus-visible { background: rgba(255, 255, 255, 0.08); outline: none; }
-.open-challenges button.row .tag { margin-left: 8px; }
+.open-challenges button.row .value { min-width: 120px; }
 .open-challenges button.row span + span { margin-left: 10px; }
 .open-challenges button.row::after { content: "\25B6"; position: absolute; right: 6px; top: 50%; transform: translateY(-50%); font-size: 10px; color: var(--cyan); }
 .open-challenges .btn { margin: 0; }
@@ -187,18 +187,18 @@ main { max-width: 1440px; margin: 0 auto; padding: 28px 4% 56px; }
 /* the slogan: one line where it fits, one word per line on narrow screens */
 .slogan span { white-space: nowrap; }
 /* VS: the arena fills the width; the boxes sit over the globe, below the title and the two characters:
-   the code box with the Gamecoins button under it on the left, the open challenges beside them on the right */
+   the open challenges on top, as tall as the room allows, the folded code and shop boxes side by side under them (Gaylord 2026-11-09) */
 .arena { position: relative; width: fit-content; max-width: 100%; margin: 0 auto; }
 .arena .hero { display: block; height: min(calc(var(--vh) - 170px), calc(var(--vw) * 0.61)); width: auto; max-width: none; }
-.arena .overlay { position: absolute; left: 50%; top: 35%; bottom: 5%; transform: translateX(-50%); width: min(900px, 72%); display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-.arena .overlay .stack { display: flex; flex-direction: column; gap: 14px; align-self: start; }
+.arena .overlay { position: absolute; left: 50%; top: 35%; bottom: 5%; transform: translateX(-50%); width: min(900px, 72%); display: grid; grid-template-rows: minmax(0, 1fr) auto; gap: 14px; }
+.arena .overlay .stack { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; align-items: end; }
 .arena .overlay .stack > .btn { margin: 0; width: 100%; }
 .arena .overlay input { width: 100%; margin: 0 0 8px; }
 .arena .overlay .big-score { font-size: 26px; margin-bottom: 10px; }
 .arena .overlay .panel { padding: 16px; }
 .arena .overlay .panel-title { margin: -16px -16px 12px; padding: 8px 16px; }
 .arena .overlay .panel:not([open]) > summary { margin-bottom: -16px; }
-/* the open challenges fill the arena under the title and the characters, whatever the folded boxes beside them hold: past that they scroll */
+/* the open challenges fill the arena under the title and the characters, less the boxes under them: past that they scroll */
 .arena .overlay .beside { position: relative; }
 .arena .open-challenges { position: absolute; inset: 0; overflow-y: auto; }
 
@@ -289,7 +289,7 @@ table.report td:nth-child(2) { text-align: right; color: var(--muted); }
   .panel-title { margin: -16px -16px 12px; padding: 8px 16px; }
   .panel:not([open]) > summary { margin-bottom: -16px; }
   .hud .city { font-size: 24px; }
-  .arena .overlay { grid-template-columns: 1fr; }
+  .arena .overlay .stack { grid-template-columns: 1fr; }
   .arena .open-challenges { position: static; }
 }
 
@@ -459,7 +459,7 @@ table.report td:nth-child(2) { text-align: right; color: var(--muted); }
   /* VS: the picture left, as tall as the screen allows, the boxes right */
   .arena { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 12px; align-items: start; }
   .arena .hero { height: min(calc(var(--dvh) - 86px), calc((var(--vw) - 300px) / 1.5)); width: auto; }
-  .arena .overlay { margin: 0; grid-template-columns: minmax(0, 1fr); }
+  .arena .overlay { margin: 0; }
   .arena .open-challenges { position: static; }
   /* a finished run: the report left, Post it right */
   .cols.wide-aside { grid-template-columns: minmax(0, 1fr) 280px; gap: 12px; }

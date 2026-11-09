@@ -784,11 +784,11 @@ function GqApp({ onStarted }: { onStarted?: () => void }) {
         <div className="arena">
           <img className="hero" src="/brand/hero-arena.webp" alt="" width={1440} height={960} />
           <div className="overlay">
+            <div className="beside">{openList}</div>
             <div className="stack">
               {recordCard() ?? codeBox}
               {shopBox()}
             </div>
-            <div className="beside">{openList}</div>
           </div>
         </div>
       )}
