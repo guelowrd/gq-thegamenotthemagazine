@@ -547,9 +547,10 @@ function GqApp({ onStarted }: { onStarted?: () => void }) {
     </button>
   );
   const gc = BigInt(Math.min(MAX_BUY_GC, Math.max(1, Math.floor(Number(buyGc) || 1)))) * 10n ** BigInt(GC_DECIMALS);
-  const shopBox = (
-    <section className="panel shop">
-      <div className="panel-title">{t("Buy Gamecoins")}</div>
+  // folded on the arena (the list needs the room), open in the hub
+  const shopBox = (open?: boolean) => (
+    <details className="panel shop" open={open}>
+      <summary className="panel-title">{t("Buy Gamecoins")}</summary>
       <p className="muted">
         {held !== null && (
           <>
@@ -563,7 +564,7 @@ function GqApp({ onStarted }: { onStarted?: () => void }) {
       <button className="btn" onClick={() => withWallet({ kind: "buy", gc })}>
         {t("Buy")}
       </button>
-    </section>
+    </details>
   );
   // the admin's sale desk: plain English, one reader
   const adminBox = (
@@ -585,14 +586,14 @@ function GqApp({ onStarted }: { onStarted?: () => void }) {
     </section>
   );
   const codeBox = (
-    <section className="panel">
-      <div className="panel-title">{t("Have a code?")}</div>
+    <details className="panel">
+      <summary className="panel-title">{t("Have a code?")}</summary>
       <p className="muted">{t("Paste a record link or code.")}</p>
       <input value={code} onChange={(e) => setCode(e.target.value)} placeholder={t("paste the link or code")} aria-label={t("Record link or code")} />
       <button className="btn" onClick={openCode}>
         {t("Go")}
       </button>
-    </section>
+    </details>
   );
 
   // funded records a rival can still take a shot at, easiest first
@@ -620,19 +621,17 @@ function GqApp({ onStarted }: { onStarted?: () => void }) {
         openRecords.map((n) => {
           const map = stageTag(n.storage.game);
           return (
-            <div key={n.id} className="row">
-              <div>
-                <div className="value">{t("{n} pts", { n: n.storage.target.toLocaleString() })}</div>
-                {map && <div className="small tag">{t(map)}</div>}
-                <div className="small muted">{t("Champion")}: {nameOf(n.storage.champion)}</div>
-                <div className="small muted">
+            // the row is the button: two tight lines a challenge, about ten on a screen (Gaylord 2026-11-09)
+            <button key={n.id} className="row" onClick={() => viewChallenge(n)} aria-label={`${t("View challenge, {n} pts", { n: n.storage.target.toLocaleString() })}${map ? `, ${t(map)}` : ""}`}>
+              <span className="value">{t("{n} pts", { n: n.storage.target.toLocaleString() })}</span>
+              {map && <span className="small tag">{t(map)}</span>}
+              <div className="small muted">
+                <span>{t("Champion")}: {nameOf(n.storage.champion)}</span>
+                <span>
                   <EndsIn until={blockToMs(n.storage.expiryBlock, height)} />
-                </div>
+                </span>
               </div>
-              <button className="btn" onClick={() => viewChallenge(n)} aria-label={`${t("View challenge, {n} pts", { n: n.storage.target.toLocaleString() })}${map ? `, ${t(map)}` : ""}`}>
-                {t("View challenge")}
-              </button>
-            </div>
+            </button>
           );
         })
       )}
@@ -787,7 +786,7 @@ function GqApp({ onStarted }: { onStarted?: () => void }) {
           <div className="overlay">
             <div className="stack">
               {recordCard() ?? codeBox}
-              {shopBox}
+              {shopBox()}
             </div>
             <div className="beside">{openList}</div>
           </div>
@@ -811,7 +810,7 @@ function GqApp({ onStarted }: { onStarted?: () => void }) {
                 places={(game) => listOf(gameStage(game))}
                 onCollect={(picked) => void run(picked.length > 1 ? t("Taking them") : t("Taking it"), false, () => collect(client, wallet, picked), { kind: "lobby" })}
               />
-              {shopBox}
+              {shopBox(true)}
             </>
           ) : null}
           <History

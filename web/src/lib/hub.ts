@@ -157,7 +157,7 @@ export function history(notes: ChallengeNote[], me: AccountFelts, height: number
 }
 
 export type Ranked = { key: string; who: AccountFelts; value: number; at: number; rank: number; /** a record's map, a t() key (stageTag) */ tag?: string };
-/** The top ten rows, and my best row when I am not among them. */
+/** The top hundred rows (ten show, the rest scroll), and my best row when I am not among them. */
 type Board = { top: Ranked[]; mine: Ranked | null; /** the records board again, per map */ byMap?: Record<string, Board> };
 type Event = { who: AccountFelts; value: number; at: number };
 
@@ -172,7 +172,7 @@ function tally(events: Event[]): Omit<Ranked, "rank">[] {
 }
 
 /** High to low, the first `limit` rows; a tie goes to whoever got there first. */
-function rank(rows: Omit<Ranked, "rank">[], me: AccountFelts | null, limit = 10): Board {
+function rank(rows: Omit<Ranked, "rank">[], me: AccountFelts | null, limit = 100): Board {
   const sorted = [...rows].sort((a, b) => b.value - a.value || a.at - b.at || (a.key < b.key ? -1 : 1)).map((r, i) => ({ ...r, rank: i + 1 }));
   const top = sorted.slice(0, limit);
   const mine = top.some((r) => same(r.who, me)) ? null : (sorted.find((r) => same(r.who, me)) ?? null);
